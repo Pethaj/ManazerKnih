@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Přímý Test Supabase pro Produkty</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-header {
+            background: linear-gradient(135deg, #6f42c1 0%, #007bff 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .test-button {
+            background: #6f42c1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: all 0.2s;
+        }
+        .test-button:hover {
+            background: #5a2d91;
+            transform: translateY(-1px);
+        }
+        .test-button.success {
+            background: #28a745;
+        }
+        .test-button.error {
+            background: #dc3545;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .results.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .results.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .results.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .product-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .product-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .product-price {
+            font-size: 18px;
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 8px;
+        }
+        .product-url {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .product-url:hover {
+            text-decoration: underline;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background-color: #28a745; }
+        .status-warning { background-color: #ffc107; }
+        .status-error { background-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="test-header">
+        <h1>🧪 Přímý Test Supabase Produktů</h1>
+        <p>Testuje přesně to samé, co dělá hybridní systém</p>
+    </div>
+
+    <div class="test-container">
+        <div class="test-section">
+            <h2>🎯 Test Hybridních ID</h2>
+            <p>Testuje ID produktů z webhook testu: <code>1002318245, 1002737245, 1002324245</code></p>
+            
+            <button id="testHybridIds" class="test-button">Test Hybridních ID</button>
+            <div id="hybridResults" class="results info">Klikněte na tlačítko pro test hybridních ID...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔧 Inicializace Tabulky</h2>
+            <p>Vytvoří tabulku a vloží testovací data, pokud neexistují.</p>
+            
+            <button id="initializeTable" class="test-button">Inicializovat Tabulku</button>
+            <div id="initResults" class="results info">Klikněte na tlačítko pro inicializaci...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 Kompletní Diagnostika</h2>
+            <p>Spustí kompletní diagnostiku všech aspektů produktové tabulky.</p>
+            
+            <button id="runDiagnostics" class="test-button">Spustit Diagnostiku</button>
+            <div id="diagnosticsResults" class="results info">Klikněte na tlačítko pro diagnostiku...</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Supabase konfigurace
+        const SUPABASE_URL = 'https://umxkjdllhlkclrplxdxx.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVteGtqZGxsaGxrY2xycGx4ZHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjEyMzM0MTMsImV4cCI6MjAzNjgwOTQxM30.MKSjLqO1YMGwGOdZIttWOwrCaQTSHkf6Fc-9XQbQ8t0';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Test hybridních ID (přesně to samé jako v kódu)
+        document.getElementById('testHybridIds').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('hybridResults');
+            resultDiv.className = 'results info';
+            resultDiv.innerHTML = '🔄 Testuji hybridní ID...';
+            
+            try {
+                const testIds = ['1002318245', '1002737245', '1002324245'];
+                console.log('🔍 Hledám produkty s ID:', testIds);
+                
+                // PŘESNĚ STEJNÝ DOTAZ JAKO V HYBRID SERVICE
+                const { data, error } = await supabase
+                    .from('products')
+                    .select('*')
+                    .in('product_code', testIds);
+                
+                if (error) {
+                    throw error;
+                }
+                
+                let result = `✅ SUPABASE DOTAZ ÚSPĚŠNÝ!\n\n`;
+                result += `Hledaná ID: ${testIds.join(', ')}\n`;
+                result += `Nalezeno produktů: ${data?.length || 0}\n\n`;
+                
+                if (data && data.length > 0) {
+                    result += `DETAILY NALEZENÝCH PRODUKTŮ:\n`;
+                    result += `${'='.repeat(50)}\n`;
+                    
+                    data.forEach((product, index) => {
+                        result += `\n${index + 1}. PRODUKT:\n`;
+                        result += `   Product Code: ${product.product_code}\n`;
+                        result += `   Název: ${product.name || 'CHYBÍ'}\n`;
+                        result += `   Cena: ${product.price || 'CHYBÍ'} ${product.currency || 'N/A'}\n`;
+                        result += `   URL: ${product.product_url ? 'Má URL' : 'CHYBÍ URL'}\n`;
+                        result += `   Obrázek: ${product.image_url ? 'Má obrázek' : 'CHYBÍ OBRÁZEK'}\n`;
+                        result += `   Kategorie: ${product.category || 'CHYBÍ'}\n`;
+                        
+                        // Analýza kompletnosti
+                        const completeness = [
+                            product.name,
+                            product.price,
+                            product.product_url,
+                            product.image_url,
+                            product.category
+                        ].filter(Boolean).length;
+                        
+                        result += `   Kompletnost: ${completeness}/5 `;
+                        if (completeness === 5) result += '🟢 Perfektní';
+                        else if (completeness >= 3) result += '🟡 Dobrá';
+                        else result += '🔴 Nedostačující';
+                        result += `\n`;
+                    });
+                } else {
+                    result += `❌ ŽÁDNÉ PRODUKTY NENALEZENY!\n\n`;
+                    result += `Možné příčiny:\n`;
+                    result += `1. Tabulka products neexistuje\n`;
+                    result += `2. Tabulka je prázdná\n`;
+                    result += `3. ID produktů neexistují v databázi\n\n`;
+                    result += `Řešení: Klikněte na "Inicializovat Tabulku"`;
+                }
+                
+                resultDiv.className = data && data.length > 0 ? 'results success' : 'results error';
+                resultDiv.textContent = result;
+                
+            } catch (error) {
+                console.error('❌ Chyba při testu hybridních ID:', error);
+                
+                let errorMsg = `❌ CHYBA PRI TESTU HYBRIDNÍCH ID!\n\n`;
+                errorMsg += `Error: ${error.message}\n`;
+                errorMsg += `Code: ${error.code}\n\n`;
+                
+                if (error.code === 'PGRST116') {
+                    errorMsg += `DIAGNÓZA: Tabulka "products" neexistuje!\n\n`;
+                    errorMsg += `ŘEŠENÍ:\n`;
+                    errorMsg += `1. Klikněte na "Inicializovat Tabulku"\n`;
+                    errorMsg += `2. Nebo spusťte verify_and_populate_products_table.sql v Supabase SQL editoru\n`;
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMsg += `DIAGNÓZA: Síťová chyba nebo CORS problém!\n\n`;
+                    errorMsg += `ŘEŠENÍ:\n`;
+                    errorMsg += `1. Zkontrolujte internetové připojení\n`;
+                    errorMsg += `2. Ověřte Supabase URL a klíče\n`;
+                    errorMsg += `3. Zkuste obnovit stránku\n`;
+                }
+                
+                resultDiv.className = 'results error';
+                resultDiv.textContent = errorMsg;
+            }
+        });
+
+        // Inicializace tabulky
+        document.getElementById('initializeTable').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('initResults');
+            resultDiv.className = 'results info';
+            resultDiv.innerHTML = '🔄 Inicializuji tabulku...';
+            
+            try {
+                // Pokus o vložení testovacích dat
+                const testProducts = [
+                    {
+                        product_code: '1002318245',
+                        name: 'BEWIT Yin Qiao Jie Du Wan - Bylinná směs proti toxickému horku',
+                        description: 'Tradiční čínská bylinná směs napomáhá při prvních projevech napadení toxickým horkem a větrem.',
+                        category: 'Tradiční čínská medicína',
+                        price: 1299.00,
+                        currency: 'CZK',
+                        product_url: 'https://bewit.love/produkt/bewit-vetrolam?variant=6727',
+                        image_url: 'https://bewit.love/storage/products/yin-qiao-jie-du-wan.jpg'
+                    },
+                    {
+                        product_code: '1002737245',
+                        name: 'BEWIT Chuan Xiong Cha Tiao Wan - Eliminace větru',
+                        description: 'Produkt navržen pro zkrocení chladu a větru pod kůží.',
+                        category: 'Tradiční čínská medicína',
+                        price: 1499.00,
+                        currency: 'CZK',
+                        product_url: 'https://bewit.love/produkt/bewit-eliminace-vetru?variant=7666',
+                        image_url: 'https://bewit.love/storage/products/chuan-xiong-cha-tiao-wan.jpg'
+                    },
+                    {
+                        product_code: '1002324245',
+                        name: 'BEWIT Xiao Qing Long Wan - Ochrana proti chladným větrům',
+                        description: 'Lék působí jako ochranný faktor proti chladným větrům.',
+                        category: 'Tradiční čínská medicína',
+                        price: 1199.00,
+                        currency: 'CZK',
+                        product_url: 'https://bewit.love/produkt/bewit-ochrana-vetru',
+                        image_url: 'https://bewit.love/storage/products/xiao-qing-long-wan.jpg'
+                    }
+                ];
+
+                // Pokus o upsert (update nebo insert)
+                const { data, error } = await supabase
+                    .from('products')
+                    .upsert(testProducts, { onConflict: 'product_code' })
+                    .select();
+
+                if (error) {
+                    throw error;
+                }
+
+                let result = `✅ TABULKA ÚSPĚŠNĚ INICIALIZOVÁNA!\n\n`;
+                result += `Vloženo/aktualizováno produktů: ${data?.length || testProducts.length}\n\n`;
+                result += `VLOŽENÉ PRODUKTY:\n`;
+                
+                testProducts.forEach((product, index) => {
+                    result += `${index + 1}. ${product.name}\n`;
+                    result += `   Code: ${product.product_code}\n`;
+                    result += `   Cena: ${product.price} ${product.currency}\n\n`;
+                });
+
+                resultDiv.className = 'results success';
+                resultDiv.textContent = result;
+
+            } catch (error) {
+                console.error('❌ Chyba při inicializaci tabulky:', error);
+                
+                let errorMsg = `❌ CHYBA PRI INICIALIZACI!\n\n`;
+                errorMsg += `Error: ${error.message}\n`;
+                errorMsg += `Code: ${error.code}\n\n`;
+                
+                if (error.code === 'PGRST116') {
+                    errorMsg += `DIAGNÓZA: Tabulka "products" neexistuje a nelze ji vytvořit přes JavaScript!\n\n`;
+                    errorMsg += `ŘEŠENÍ:\n`;
+                    errorMsg += `1. Přejděte do Supabase Dashboard → SQL Editor\n`;
+                    errorMsg += `2. Spusťte obsah souboru: verify_and_populate_products_table.sql\n`;
+                    errorMsg += `3. Nebo vytvořte tabulku manuálně podle create_products_table.sql\n`;
+                } else if (error.code === '42501') {
+                    errorMsg += `DIAGNÓZA: Nedostatečná oprávnění pro zápis!\n\n`;
+                    errorMsg += `ŘEŠENÍ:\n`;
+                    errorMsg += `1. Zkontrolujte RLS (Row Level Security) nastavení\n`;
+                    errorMsg += `2. Ověřte insert policy pro tabulku products\n`;
+                }
+                
+                resultDiv.className = 'results error';
+                resultDiv.textContent = errorMsg;
+            }
+        });
+
+        // Kompletní diagnostika
+        document.getElementById('runDiagnostics').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('diagnosticsResults');
+            resultDiv.className = 'results info';
+            resultDiv.innerHTML = '🔄 Spouštím kompletní diagnostiku...';
+            
+            let diagnostics = `🔍 KOMPLETNÍ DIAGNOSTIKA SUPABASE PRODUKTŮ\n`;
+            diagnostics += `${'='.repeat(60)}\n\n`;
+            diagnostics += `🕐 Čas: ${new Date().toLocaleString()}\n`;
+            diagnostics += `🌐 URL: ${SUPABASE_URL}\n\n`;
+
+            try {
+                // Test 1: Základní připojení
+                diagnostics += `📡 TEST 1: Základní připojení...\n`;
+                const { data: session } = await supabase.auth.getSession();
+                diagnostics += `✅ Supabase klient funguje\n`;
+                diagnostics += `🔐 Auth session: ${session?.session ? 'Ano' : 'Ne'}\n\n`;
+
+                // Test 2: Existence tabulky
+                diagnostics += `📋 TEST 2: Existence tabulky products...\n`;
+                const { data: tableTest, error: tableError } = await supabase
+                    .from('products')
+                    .select('count')
+                    .limit(1);
+
+                if (tableError) {
+                    if (tableError.code === 'PGRST116') {
+                        diagnostics += `❌ Tabulka "products" NEEXISTUJE!\n\n`;
+                    } else {
+                        diagnostics += `❌ Chyba při přístupu k tabulce: ${tableError.message}\n\n`;
+                    }
+                } else {
+                    diagnostics += `✅ Tabulka "products" existuje\n\n`;
+
+                    // Test 3: Počet záznamů
+                    diagnostics += `📊 TEST 3: Počet záznamů...\n`;
+                    const { count, error: countError } = await supabase
+                        .from('products')
+                        .select('*', { count: 'exact', head: true });
+
+                    if (countError) {
+                        diagnostics += `❌ Chyba při počítání: ${countError.message}\n\n`;
+                    } else {
+                        diagnostics += `📈 Celkem záznamů: ${count}\n\n`;
+
+                        if (count > 0) {
+                            // Test 4: Hybridní ID
+                            diagnostics += `🎯 TEST 4: Hybridní ID produkty...\n`;
+                            const testIds = ['1002318245', '1002737245', '1002324245'];
+                            const { data: hybridProducts, error: hybridError } = await supabase
+                                .from('products')
+                                .select('product_code, name, price, currency, product_url, image_url')
+                                .in('product_code', testIds);
+
+                            if (hybridError) {
+                                diagnostics += `❌ Chyba při hledání hybridních ID: ${hybridError.message}\n\n`;
+                            } else {
+                                diagnostics += `🔍 Nalezeno ${hybridProducts.length}/${testIds.length} hybridních produktů\n`;
+                                
+                                hybridProducts.forEach(product => {
+                                    diagnostics += `   ✅ ${product.product_code}: ${product.name}\n`;
+                                    diagnostics += `      💰 ${product.price} ${product.currency}\n`;
+                                    diagnostics += `      🔗 ${product.product_url ? 'Má URL' : 'Chybí URL'}\n`;
+                                    diagnostics += `      🖼️ ${product.image_url ? 'Má obrázek' : 'Chybí obrázek'}\n`;
+                                });
+                                diagnostics += `\n`;
+                            }
+
+                            // Test 5: Ukázka všech produktů
+                            diagnostics += `📋 TEST 5: Prvních 5 produktů...\n`;
+                            const { data: sampleProducts, error: sampleError } = await supabase
+                                .from('products')
+                                .select('product_code, name, price, currency')
+                                .limit(5);
+
+                            if (sampleError) {
+                                diagnostics += `❌ Chyba při načítání ukázky: ${sampleError.message}\n\n`;
+                            } else {
+                                sampleProducts.forEach((product, index) => {
+                                    diagnostics += `   ${index + 1}. ${product.product_code}: ${product.name} (${product.price} ${product.currency})\n`;
+                                });
+                                diagnostics += `\n`;
+                            }
+                        } else {
+                            diagnostics += `⚠️ Tabulka je prázdná - žádné produkty k testování\n\n`;
+                        }
+                    }
+                }
+
+                // Závěrečné hodnocení
+                diagnostics += `🎯 ZÁVĚREČNÉ HODNOCENÍ:\n`;
+                if (tableError?.code === 'PGRST116') {
+                    diagnostics += `🔴 KRITICKÝ PROBLÉM: Tabulka products neexistuje\n`;
+                    diagnostics += `📋 ŘEŠENÍ: Spusťte verify_and_populate_products_table.sql\n`;
+                } else if (count === 0) {
+                    diagnostics += `🟡 ČÁSTEČNÝ PROBLÉM: Tabulka existuje, ale je prázdná\n`;
+                    diagnostics += `📋 ŘEŠENÍ: Klikněte na "Inicializovat Tabulku"\n`;
+                } else {
+                    diagnostics += `🟢 VŠE V POŘÁDKU: Tabulka existuje a obsahuje data\n`;
+                    diagnostics += `💡 Pokud problémy přetrvávají, zkontrolujte aplikační logiku\n`;
+                }
+
+                resultDiv.className = 'results success';
+                resultDiv.textContent = diagnostics;
+
+            } catch (error) {
+                diagnostics += `\n❌ KRITICKÁ CHYBA DIAGNOSTIKY!\n`;
+                diagnostics += `Error: ${error.message}\n`;
+                diagnostics += `Stack: ${error.stack}\n`;
+
+                resultDiv.className = 'results error';
+                resultDiv.textContent = diagnostics;
+            }
+        });
+
+        // Automaticky spustit test hybridních ID při načtení
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                document.getElementById('testHybridIds').click();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

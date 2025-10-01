@@ -4,10 +4,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Správce Knihovny</title>
+    <title>MedBase - Databáze přírodní medicíny</title>
+    <link rel="icon" type="image/png" href="https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/image-removebg-preview.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              bewit: {
+                blue: '#005b96',
+                lightBlue: '#e6f2f9',
+                dark: '#333333',
+                gray: '#f5f5f5',
+              },
+            },
+          },
+        },
+      }
+    </script>
     <style>
         :root {
             --background-primary: #fdfaf6;
@@ -59,6 +80,23 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #bbb;
         }
+        
+        /* Chat specific scrollbar styling */
+        .chat-scroll-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-scroll-container::-webkit-scrollbar-track {
+            background: #f8fafc;
+            border-radius: 4px;
+        }
+        .chat-scroll-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+            border: 1px solid #f8fafc;
+        }
+        .chat-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
         /* Custom Range Slider Styles */
         input[type=range] {
             -webkit-appearance: none;
@@ -92,6 +130,33 @@
             border: 2px solid var(--background-secondary);
             box-shadow: var(--shadow-sm);
         }
+        
+        /* Table hover effects for better readability */
+        .book-table tbody tr:hover {
+            background-color: var(--accent-primary-hover) !important;
+            color: white !important;
+        }
+        
+        .book-table tbody tr:hover td {
+            color: white !important;
+        }
+        
+        .book-table tbody tr:hover .tag {
+            background-color: rgba(255, 255, 255, 0.2) !important;
+            color: white !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+        }
+        
+        /* Selected row styles - same as hover */
+        .book-table tbody tr.selected td {
+            color: white !important;
+        }
+        
+        .book-table tbody tr.selected .tag {
+            background-color: rgba(255, 255, 255, 0.2) !important;
+            color: white !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+        }
     </style>
 <script type="importmap">
 {
@@ -106,7 +171,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>

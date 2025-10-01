@@ -22,9 +22,9 @@ V detailním panelu knihy je zobrazen:
 - **Možnost manuální editace** stavu v editačním režimu
 
 ### 4. Webhook integrace
-- **URL**: `https://n8n.srv801780.hstgr.cloud/webhook-test/10f5ed9e-e0b1-465d-8bc8-b2ba9a37bc58`
+- **URL**: `https://n8n.srv980546.hstgr.cloud/webhook-test/10f5ed9e-e0b1-465d-8bc8-b2ba9a37bc58`
 - **Metoda**: POST
-- **Data**: JSON s metadaty knihy a binárním souborem v base64
+- **Data**: FormData s binárním souborem a metadaty (stejný formát jako OCR webhook)
 
 ## Implementované změny
 
@@ -83,44 +83,56 @@ Před odesláním do vektorové databáze jsou kontrolována tato pole:
 4. Uložte změny
 
 ## Webhook payload
+FormData s následujícími poli:
+- **file**: Binární soubor (PDF) - stejný jako u OCR webhooku
+- **bookId**: UUID knihy
+- **fileName**: Název souboru (např. "kniha.pdf")
+- **fileType**: Typ souboru (např. "pdf")
+- **metadata**: JSON string s metadaty knihy:
 ```json
 {
-  "bookId": "uuid-knihy",
-  "metadata": {
-    "id": "uuid-knihy",
-    "title": "Název knihy",
-    "author": "Autor",
-    "publicationYear": 2023,
-    "publisher": "Nakladatelství",
-    "summary": "Shrnutí",
-    "keywords": ["klíčové", "slova"],
-    "language": "čeština",
-    "format": "PDF",
-    "fileSize": 1024,
-    "categories": ["kategorie"],
-    "labels": ["štítky"]
-  },
-  "fileData": "base64-encoded-file-content",
-  "fileName": "kniha.pdf"
+  "id": "uuid-knihy",
+  "title": "Název knihy",
+  "author": "Autor",
+  "publicationYear": 2023,
+  "publisher": "Nakladatelství",
+  "summary": "Shrnutí",
+  "keywords": ["klíčové", "slova"],
+  "language": "čeština",
+  "format": "PDF",
+  "fileSize": 1024,
+  "categories": ["kategorie"],
+  "labels": ["štítky"]
 }
 ```
 
 ## Očekávaná odpověď z n8n
+Nový formát odpovědi - pole objektů:
 ```json
-{
-  "success": true,
-  "message": "Kniha byla úspěšně nahrána do vektorové databáze"
-}
+[
+  {
+    "qdrant_ok": true,
+    "qdrant_error": ""
+  },
+  {
+    "supabase_ok": true,
+    "supabase_error": ""
+  }
+]
 ```
 
-nebo
+Interpretace výsledků:
+- **Obě databáze OK** (`qdrant_ok: true` + `supabase_ok: true`) → zelená ikona
+- **Pouze Supabase OK** (`supabase_ok: true` + `qdrant_ok: false`) → červená ikona
+- **Pouze Qdrant OK** (`qdrant_ok: true` + `supabase_ok: false`) → červená ikona  
+- **Žádná databáze OK** (`qdrant_ok: false` + `supabase_ok: false`) → červená ikona
 
-```json
-{
-  "success": false,
-  "message": "Chyba při zpracování: popis chyby"
-}
-```
+Chybové hlášky se zobrazí z polí `qdrant_error` a `supabase_error`.
+
+## Animace během zpracování
+- Během zpracování se ikona databáze otáčí (modrá barva)
+- Proces může trvat několik minut
+- Po dokončení se ikona změní na výsledný stav (zelená/červená)
 
 ## Troubleshooting
 

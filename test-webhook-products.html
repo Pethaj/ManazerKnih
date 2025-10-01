@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Webhook Produktových Doporučení</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-form {
+            margin-bottom: 30px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+        }
+        .success {
+            background: #d1edff;
+            border: 1px solid #74b9ff;
+            color: #0066cc;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #fd79a8;
+            color: #721c24;
+        }
+        .loading {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .product-card {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 10px 0;
+            background: white;
+        }
+        .product-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .product-price {
+            color: #28a745;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .product-description {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .product-url {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .product-url:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛍️ Test Webhook Produktových Doporučení</h1>
+        
+        <div class="test-form">
+            <label for="userMessage">Zpráva od uživatele:</label>
+            <textarea id="userMessage" placeholder="Např: Potřebuji něco na bolesti kloubů">Potřebuji něco na bolesti kloubů</textarea>
+            
+            <label for="sessionId">Session ID:</label>
+            <input type="text" id="sessionId" placeholder="Volitelné - automaticky se vygeneruje">
+            
+            <label for="userContext">Kontext uživatele:</label>
+            <input type="text" id="userContext" placeholder="Volitelné - kontext konverzace">
+            
+            <button onclick="testWebhook()" id="testBtn">🚀 Otestovat Webhook</button>
+        </div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function testWebhook() {
+            const userMessage = document.getElementById('userMessage').value.trim();
+            const sessionId = document.getElementById('sessionId').value.trim() || `test_${Date.now()}`;
+            const userContext = document.getElementById('userContext').value.trim();
+            const resultDiv = document.getElementById('result');
+            const testBtn = document.getElementById('testBtn');
+            
+            if (!userMessage) {
+                showResult('❌ Prosím zadejte zprávu od uživatele', 'error');
+                return;
+            }
+            
+            testBtn.disabled = true;
+            testBtn.textContent = '⏳ Testuju...';
+            showResult('📡 Odesílám požadavek na webhook...', 'loading');
+            
+            try {
+                const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/cd6b668b-1e35-4018-9bf4-28d0926b023b';
+                
+                const requestData = {
+                    chatInput: userMessage,
+                    session_id: sessionId,
+                    user_context: userContext,
+                    timestamp: new Date().toISOString()
+                };
+                
+                console.log('📤 Request data:', requestData);
+                
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                console.log('📡 Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const responseData = await response.json();
+                console.log('📥 Response data:', responseData);
+                
+                // Zobraz výsledek
+                let resultText = `✅ Webhook odpověděl úspěšně!\n\n`;
+                resultText += `📊 Status: ${response.status}\n`;
+                resultText += `⏱️ Čas zpracování: ${responseData.processing_time || 'Neuvedeno'}\n`;
+                resultText += `📈 Počet produktů: ${responseData.recommended_products?.length || 0}\n\n`;
+                
+                if (responseData.message) {
+                    resultText += `💬 Zpráva: ${responseData.message}\n\n`;
+                }
+                
+                // Detekce formátu odpovědi
+                let products = [];
+                if (Array.isArray(responseData) && responseData.length > 0 && responseData[0].output) {
+                    // Markdown formát - zobraz raw output
+                    resultText += `📝 MARKDOWN OUTPUT:\n`;
+                    resultText += `${'='.repeat(50)}\n\n`;
+                    resultText += responseData[0].output;
+                    resultText += `\n\n${'='.repeat(50)}\n\n`;
+                    
+                    // Pokus o parsování produktů z markdown
+                    products = parseMarkdownProductsForTest(responseData[0].output);
+                } else if (responseData.recommended_products && responseData.recommended_products.length > 0) {
+                    products = responseData.recommended_products;
+                }
+                
+                if (products && products.length > 0) {
+                    resultText += `🛍️ DOPORUČENÉ PRODUKTY:\n`;
+                    resultText += `${'='.repeat(50)}\n\n`;
+                    
+                    // Vytvoř HTML pro produkty
+                    let productsHtml = '';
+                    responseData.recommended_products.forEach((product, index) => {
+                        productsHtml += `
+                            <div class="product-card">
+                                <div class="product-name">${index + 1}. ${product.name}</div>
+                                ${product.price ? `<div class="product-price">${product.price} ${product.currency || 'CZK'}</div>` : ''}
+                                ${product.description ? `<div class="product-description">${product.description}</div>` : ''}
+                                ${product.category ? `<div style="font-size: 12px; color: #666;">Kategorie: ${product.category}</div>` : ''}
+                                ${product.product_url ? `<a href="${product.product_url}" target="_blank" class="product-url">🔗 Zobrazit produkt</a>` : ''}
+                                ${product.relevance_score ? `<div style="font-size: 11px; color: #888; margin-top: 8px;">Relevance: ${(product.relevance_score * 100).toFixed(1)}%</div>` : ''}
+                            </div>
+                        `;
+                        
+                        resultText += `${index + 1}. ${product.name}\n`;
+                        if (product.price) resultText += `   💰 ${product.price} ${product.currency || 'CZK'}\n`;
+                        if (product.description) resultText += `   📝 ${product.description}\n`;
+                        if (product.category) resultText += `   🏷️ ${product.category}\n`;
+                        if (product.product_url) resultText += `   🔗 ${product.product_url}\n`;
+                        if (product.relevance_score) resultText += `   📊 Relevance: ${(product.relevance_score * 100).toFixed(1)}%\n`;
+                        resultText += '\n';
+                    });
+                    
+                    // Zobraz produkty jako HTML karty
+                    resultDiv.innerHTML = `
+                        <div class="result success">${resultText}</div>
+                        <h3>📦 Produkty v přehledné formě:</h3>
+                        ${productsHtml}
+                    `;
+                } else {
+                    resultText += `❌ Žádné produkty nebyly doporučeny.`;
+                    showResult(resultText, 'success');
+                }
+                
+                if (responseData.error) {
+                    resultText += `\n❌ Chyba: ${responseData.error}`;
+                }
+                
+                // Přidej raw JSON data pro debug
+                resultText += `\n\n🔍 RAW JSON DATA:\n`;
+                resultText += `${'='.repeat(50)}\n`;
+                resultText += JSON.stringify(responseData, null, 2);
+                
+                if (!responseData.recommended_products || responseData.recommended_products.length === 0) {
+                    showResult(resultText, 'success');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error:', error);
+                showResult(`❌ Chyba při testování webhook:\n\n${error.message}\n\nZkontrolujte konzoli pro více detailů.`, 'error');
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = '🚀 Otestovat Webhook';
+            }
+        }
+        
+        function parseMarkdownProductsForTest(markdownText) {
+            if (!markdownText) return [];
+            
+            const products = [];
+            const productSections = markdownText.split(/\d+\.\s*\*\*/).filter(section => section.trim().length > 0);
+            
+            productSections.forEach((section, index) => {
+                try {
+                    // Extrahuj název produktu
+                    const nameMatch = section.match(/^([^*]+)\*\*/);
+                    const name = nameMatch ? nameMatch[1].trim() : `Produkt ${index + 1}`;
+                    
+                    // Extrahuj popis
+                    const descMatch = section.match(/\*\*Popis\*\*:\s*([^*]+?)(?=\s*-\s*\*\*|$)/);
+                    const description = descMatch ? descMatch[1].trim() : null;
+                    
+                    // Extrahuj cenu
+                    const priceMatch = section.match(/\*\*Cena\*\*:\s*(\d+)\s*(CZK|Kč)/i);
+                    const price = priceMatch ? parseInt(priceMatch[1]) : null;
+                    const currency = priceMatch ? 'CZK' : 'CZK';
+                    
+                    // Extrahuj URL
+                    const urlMatch = section.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                    const product_url = urlMatch ? urlMatch[2] : null;
+                    
+                    // Extrahuj obrázek
+                    const imageMatch = section.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+                    const image_url = imageMatch ? imageMatch[2] : null;
+                    
+                    products.push({
+                        name: name,
+                        description: description,
+                        price: price,
+                        currency: currency,
+                        product_url: product_url,
+                        image_url: image_url,
+                        relevance_score: 0.8
+                    });
+                } catch (error) {
+                    console.warn(`Chyba při parsování produktu ${index + 1}:`, error);
+                }
+            });
+            
+            return products;
+        }
+        
+        function showResult(text, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="result ${type}">${text}</div>`;
+        }
+        
+        // Test při načtení stránky
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🧪 Test stránka načtena - připraveno k testování webhook');
+        });
+    </script>
+</body>
+</html>

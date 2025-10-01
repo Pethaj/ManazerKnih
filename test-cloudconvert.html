@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test CloudConvert API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #007bff;
+            font-weight: bold;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .file-input {
+            margin: 10px 0;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .supported-formats {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .supported-formats ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .api-info {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>☁️ Test CloudConvert API</h1>
+    <p>Testování konverze EPUB, MOBI a dalších formátů do PDF pomocí CloudConvert API (CORS friendly)</p>
+
+    <div class="container">
+        <h2>📋 Informace o API</h2>
+        <div class="api-info">
+            <h3>CloudConvert API</h3>
+            <p><strong>Base URL:</strong> https://api.cloudconvert.com/v2</p>
+            <p><strong>Engine:</strong> Calibre (nejlepší pro EPUB/MOBI)</p>
+            <p><strong>Výhody:</strong> CORS friendly, specializované na e-knihy, rychlé</p>
+        </div>
+
+        <div class="supported-formats">
+            <h3>📚 Podporované formáty pro konverzi do PDF</h3>
+            <ul>
+                <li><strong>EPUB</strong> - EPUB e-kniha (doporučeno)</li>
+                <li><strong>MOBI</strong> - MOBI e-kniha (Kindle)</li>
+                <li><strong>DOCX</strong> - Microsoft Word dokument</li>
+                <li><strong>DOC</strong> - Microsoft Word dokument (starší)</li>
+                <li><strong>TXT</strong> - Textový soubor</li>
+                <li><strong>RTF</strong> - Rich Text Format</li>
+                <li><strong>HTML</strong> - HTML dokument</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔑 Test API přihlášení</h2>
+        <div class="test-section">
+            <button onclick="testAPIAuth()">Test API klíče</button>
+            <div id="authResult" class="log"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📁 Test konverze souboru</h2>
+        <div class="test-section">
+            <input type="file" id="fileInput" class="file-input" accept=".epub,.mobi,.docx,.doc,.txt,.rtf,.html">
+            <br>
+            <button onclick="testConversion()" id="convertBtn">Konvertovat do PDF</button>
+            <button onclick="clearLog()">Vymazat log</button>
+            <div id="conversionResult" class="log"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📝 Testovací soubory</h2>
+        <div class="test-section">
+            <p>Pro testování můžete použít:</p>
+            <ul>
+                <li><button onclick="createTestEpub()">Vytvořit testovací EPUB soubor</button></li>
+                <li><button onclick="createTestTxt()">Vytvořit testovací TXT soubor</button></li>
+                <li><button onclick="createTestHtml()">Vytvořit testovací HTML soubor</button></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔄 Workflow process</h2>
+        <div class="test-section">
+            <p>CloudConvert používá 4-kroký workflow:</p>
+            <ol>
+                <li><strong>Import Task</strong> - Upload souboru</li>
+                <li><strong>Convert Task</strong> - Konverze pomocí Calibre engine</li>
+                <li><strong>Export Task</strong> - Příprava ke stažení</li>
+                <li><strong>Job Start</strong> - Spuštění a čekání na dokončení</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // CloudConvert Service
+        class CloudConvertService {
+            static API_BASE_URL = 'https://api.cloudconvert.com/v2';
+            static API_KEY = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiOTVmZDVmMGZmOTU1NWE4YmRiYjFjN2IxNjI3YWRiZDIzZTIyYmRmZGQ5MWQ1ZDFjMWY2NzBkYzIyZTZlNzUxMmMxMzhlZDZmMzQzZDJkYjgiLCJpYXQiOjE3NTg3OTQ4MDguMTEzMzkyLCJuYmYiOjE3NTg3OTQ4MDguMTEzMzkzLCJleHAiOjQ5MTQ0Njg0MDguMTA5NTU2LCJzdWIiOiI3MzAxMDk0NyIsInNjb3BlcyI6WyJ1c2VyLnJlYWQiLCJ1c2VyLndyaXRlIiwidGFzay5yZWFkIiwidGFzay53cml0ZSIsIndlYmhvb2sucmVhZCIsIndlYmhvb2sud3JpdGUiLCJwcmVzZXQucmVhZCIsInByZXNldC53cml0ZSJdfQ.OY3B-nZJmlyrqdj766A0GRr_qr_FNgIX1RrTEUl12jl4x52fuxMSny13MCLfp_GwAwMPLVO4v-6ZPJ97EC25A5tE4q-DEKVza_bvkzd98EhDNoUdCBhSdmc_KCmmXm2FGWJOBc8NOL8VJvDRcmTZsKyL53Hwxe1VPj_E5_lwpxB31pAQJldaVGpCrP89njTrfvaQv36lxIkPrj8i5pLpqdk7K90NQnmwEaUv9Z-eaoeUjMMz0fu6FTyny4GwcR5GmKH97Qv45IhqyMtVy9PpP4DGcJN5mSszS2EnfNFLBTCz9_iiKl3WmXs_d0qU01njF0VXYZXaF20DAwSHaMvzfW_yoNZo7qYGukz7q3kxiWlExUKxr55c9zrSSwENh8dVxuwjaHf7CXkQaOZ8nwsmYQ2e3ExvW_qmSAMiF9GRTQnG4Fxq-Yc_9g_-y4PTZPlvaGyV4lcrX-BfNg4CKSi1Z9d3Zxf7lnCSFqYrt-8hzC_0e47zD4xYd1iF3jRHe6gQzDW4MG3DeaVH5G2to2R8KG9bHlct_8w59P2TNep0wVhpS7XLCUK4Uf1bo8LWgKUdmEGH61uwwzApYccd77BLsMDKDNjGWOnvrsrgQynpThdeGF3Cw4738bDSbtwyRt-kUmPe3utEFt1pQrD75GTQbukK31qrmaGkDFRFw_RZcSQ';
+
+            static async testAPI() {
+                try {
+                    const response = await fetch(`${this.API_BASE_URL}/users/me`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${this.API_KEY}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const userData = await response.json();
+                        return { success: true, data: userData.data };
+                    } else {
+                        const errorText = await response.text();
+                        return { 
+                            success: false, 
+                            error: `API test failed: ${response.status} - ${errorText}` 
+                        };
+                    }
+                } catch (error) {
+                    return { 
+                        success: false, 
+                        error: error.message 
+                    };
+                }
+            }
+
+            static async convertToPDF(file) {
+                console.log('🚀 CloudConvert: Spouštím konverzi do PDF...');
+                console.log(`📄 Zdrojový soubor: ${file.name} (${file.type}, ${file.size} bytes)`);
+
+                const supportedFormats = ['epub', 'mobi', 'docx', 'doc', 'txt', 'rtf', 'html'];
+                const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+                
+                if (!supportedFormats.includes(fileExtension)) {
+                    return {
+                        success: false,
+                        error: `Nepodporovaný formát souboru: ${fileExtension}`
+                    };
+                }
+
+                try {
+                    // Použijeme nový workflow s kompletním job
+                    console.log('🔧 Vytváření kompletního job workflow...');
+                    const jobResult = await this.createCompleteJob(file, fileExtension);
+                    
+                    return jobResult;
+
+                } catch (error) {
+                    console.error('❌ CloudConvert chyba:', error);
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            }
+
+            static async createCompleteJob(file, fileExtension) {
+                // Vytvoříme job s definovaným workflow
+                const jobData = {
+                    tasks: {
+                        'import-my-file': {
+                            operation: 'import/upload'
+                        },
+                        'convert-my-file': {
+                            operation: 'convert',
+                            input: 'import-my-file',
+                            input_format: fileExtension,
+                            output_format: 'pdf',
+                            engine: 'calibre',
+                            engine_version: 'latest'
+                        },
+                        'export-my-file': {
+                            operation: 'export/url',
+                            input: 'convert-my-file'
+                        }
+                    }
+                };
+
+                console.log('📤 Vytváření job s definovaným workflow...');
+                const jobResponse = await fetch(`${this.API_BASE_URL}/jobs`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(jobData)
+                });
+
+                if (!jobResponse.ok) {
+                    const errorText = await jobResponse.text();
+                    throw new Error(`Job creation failed: ${jobResponse.status} - ${errorText}`);
+                }
+
+                const job = await jobResponse.json();
+                console.log('✅ Job vytvořen:', job.data.id);
+
+                // Najdeme import task a nahrajeme soubor
+                const importTask = job.data.tasks.find(task => task.name === 'import-my-file');
+                if (!importTask) {
+                    throw new Error('Import task not found in job');
+                }
+
+                console.log('📤 Nahrávám soubor...');
+                await this.uploadFileToTask(importTask, file);
+
+                // Čekáme na dokončení
+                console.log('⏳ Čekám na dokončení konverze...');
+                return await this.waitForJobCompletion(job.data.id);
+            }
+
+            static async uploadFileToTask(importTask, file) {
+                if (!importTask.result || !importTask.result.form) {
+                    throw new Error('Import task nemá upload form');
+                }
+
+                const formData = new FormData();
+                
+                // Přidáme všechny form parametry
+                Object.entries(importTask.result.form.parameters).forEach(([key, value]) => {
+                    formData.append(key, value);
+                });
+                
+                // Přidáme soubor
+                formData.append('file', file);
+
+                const uploadResponse = await fetch(importTask.result.form.url, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error(`File upload failed: ${uploadResponse.status}`);
+                }
+
+                console.log('✅ Soubor úspěšně nahrán na import task');
+            }
+
+            static async waitForJobCompletion(jobId, maxWaitTime = 300000) {
+                const startTime = Date.now();
+                const pollInterval = 3000; // 3 sekundy
+
+                while (Date.now() - startTime < maxWaitTime) {
+                    const response = await fetch(`${this.API_BASE_URL}/jobs/${jobId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${this.API_KEY}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Job status check failed: ${response.status}`);
+                    }
+
+                    const jobData = await response.json();
+                    const job = jobData.data;
+
+                    console.log(`⏳ Job status: ${job.status}`);
+
+                    if (job.status === 'finished') {
+                        // Najdeme export task s výsledkem
+                        const exportTask = job.tasks.find(task => task.name === 'export-my-file');
+                        
+                        if (exportTask && exportTask.result && exportTask.result.files && exportTask.result.files.length > 0) {
+                            const fileUrl = exportTask.result.files[0].url;
+                            
+                            console.log('📥 Stahuji konvertovaný soubor...');
+                            const fileResponse = await fetch(fileUrl);
+                            
+                            if (fileResponse.ok) {
+                                const blob = await fileResponse.blob();
+                                return {
+                                    success: true,
+                                    data: blob
+                                };
+                            } else {
+                                throw new Error('Failed to download converted file');
+                            }
+                        } else {
+                            throw new Error('No output files found in export task');
+                        }
+                    } else if (job.status === 'error') {
+                        // Najdeme první failed task pro detailní chybu
+                        const failedTask = job.tasks.find(task => task.status === 'error');
+                        const errorMessage = failedTask ? failedTask.message : 'Job failed';
+                        throw new Error(errorMessage);
+                    }
+
+                    // Čekání před dalším pollováním
+                    await new Promise(resolve => setTimeout(resolve, pollInterval));
+                }
+
+                throw new Error('Job timeout - conversion took too long');
+            }
+
+            // Legacy functions (už se nepoužívají, ale zachovávám pro zpětnou kompatibilitu)
+            static async createImportTask(file) {
+                const response = await fetch(`${this.API_BASE_URL}/import/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        redirect: false
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Import task creation failed: ${response.status} - ${errorText}`);
+                }
+
+                const importTask = await response.json();
+                console.log('📤 Import task vytvořen:', importTask.data.id);
+
+                // Upload souboru
+                const formData = new FormData();
+                Object.entries(importTask.data.result.form.parameters).forEach(([key, value]) => {
+                    formData.append(key, value);
+                });
+                formData.append('file', file);
+
+                const uploadResponse = await fetch(importTask.data.result.form.url, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error(`File upload failed: ${uploadResponse.status}`);
+                }
+
+                console.log('✅ Soubor úspěšně nahrán');
+                return importTask.data;
+            }
+
+            static async createConvertTask(inputTaskId, inputFormat, outputFormat) {
+                const response = await fetch(`${this.API_BASE_URL}/convert`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        input: inputTaskId,
+                        input_format: inputFormat,
+                        output_format: outputFormat,
+                        engine: 'calibre',
+                        engine_version: 'latest'
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Convert task creation failed: ${response.status} - ${errorText}`);
+                }
+
+                const convertTask = await response.json();
+                console.log('🔄 Convert task vytvořen:', convertTask.data.id);
+                return convertTask.data;
+            }
+
+            static async createExportTask(inputTaskId) {
+                const response = await fetch(`${this.API_BASE_URL}/export/url`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        input: inputTaskId
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Export task creation failed: ${response.status} - ${errorText}`);
+                }
+
+                const exportTask = await response.json();
+                console.log('📥 Export task vytvořen:', exportTask.data.id);
+                return exportTask.data;
+            }
+
+            static async startJob(taskIds) {
+                const tasks = {};
+                taskIds.forEach(taskId => {
+                    tasks[taskId] = {};
+                });
+
+                const response = await fetch(`${this.API_BASE_URL}/jobs`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ tasks })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Job start failed: ${response.status} - ${errorText}`);
+                }
+
+                console.log('🚀 Job spuštěn úspěšně');
+            }
+
+            static async waitForCompletion(exportTaskId, maxWaitTime = 300000) {
+                const startTime = Date.now();
+                const pollInterval = 2000;
+
+                while (Date.now() - startTime < maxWaitTime) {
+                    const response = await fetch(`${this.API_BASE_URL}/tasks/${exportTaskId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${this.API_KEY}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Task status check failed: ${response.status}`);
+                    }
+
+                    const taskData = await response.json();
+                    const task = taskData.data;
+
+                    console.log(`⏳ Task status: ${task.status}`);
+
+                    if (task.status === 'finished') {
+                        if (task.result && task.result.files && task.result.files.length > 0) {
+                            const fileUrl = task.result.files[0].url;
+                            const fileResponse = await fetch(fileUrl);
+                            
+                            if (fileResponse.ok) {
+                                const blob = await fileResponse.blob();
+                                return {
+                                    success: true,
+                                    data: blob
+                                };
+                            } else {
+                                throw new Error('Failed to download converted file');
+                            }
+                        } else {
+                            throw new Error('No output files found');
+                        }
+                    } else if (task.status === 'error') {
+                        throw new Error(task.message || 'Conversion failed');
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, pollInterval));
+                }
+
+                throw new Error('Conversion timeout');
+            }
+        }
+
+        // Test funkce
+        function logMessage(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            element.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('conversionResult').innerHTML = '';
+        }
+
+        async function testAPIAuth() {
+            const resultDiv = document.getElementById('authResult');
+            resultDiv.innerHTML = '';
+            
+            try {
+                logMessage('authResult', '🔄 Testování CloudConvert API autentifikace...', 'info');
+                const result = await CloudConvertService.testAPI();
+                
+                if (result.success) {
+                    logMessage('authResult', '✅ API klíč je platný!', 'success');
+                    logMessage('authResult', `👤 Uživatel: ${result.data.username}`, 'info');
+                    logMessage('authResult', `📧 Email: ${result.data.email}`, 'info');
+                    logMessage('authResult', `💳 Credits: ${result.data.credits}`, 'info');
+                } else {
+                    logMessage('authResult', `❌ API chyba: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                logMessage('authResult', `❌ Chyba při testování API: ${error.message}`, 'error');
+            }
+        }
+
+        async function testConversion() {
+            const fileInput = document.getElementById('fileInput');
+            const convertBtn = document.getElementById('convertBtn');
+            
+            if (!fileInput.files[0]) {
+                logMessage('conversionResult', '❌ Prosím vyberte soubor pro konverzi', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            convertBtn.disabled = true;
+            
+            try {
+                logMessage('conversionResult', `🔄 Spouštím konverzi souboru: ${file.name}`, 'info');
+                logMessage('conversionResult', `📊 Velikost souboru: ${(file.size / 1024).toFixed(2)} KB`, 'info');
+                
+                const result = await CloudConvertService.convertToPDF(file);
+                
+                if (result.success) {
+                    logMessage('conversionResult', `✅ Konverze úspěšná! PDF velikost: ${(result.data.size / 1024).toFixed(2)} KB`, 'success');
+                    
+                    // Stáhnout konvertovaný PDF
+                    const url = URL.createObjectURL(result.data);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file.name.replace(/\.[^/.]+$/, '.pdf');
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    logMessage('conversionResult', '💾 PDF soubor stažen automaticky', 'success');
+                } else {
+                    logMessage('conversionResult', `❌ Konverze selhala: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                logMessage('conversionResult', `❌ Neočekávaná chyba: ${error.message}`, 'error');
+            } finally {
+                convertBtn.disabled = false;
+            }
+        }
+
+        // Vytvoření testovacích souborů
+        function createTestEpub() {
+            const epubContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Test EPUB pro CloudConvert</title>
+</head>
+<body>
+    <h1>Test EPUB dokumentu</h1>
+    <p>Toto je testovací EPUB soubor pro konverzi pomocí CloudConvert API.</p>
+    <p>CloudConvert používá Calibre engine, který je nejlepší pro konverzi e-knih.</p>
+    <h2>Seznam funkcí:</h2>
+    <ul>
+        <li>EPUB do PDF konverze</li>
+        <li>MOBI do PDF konverze</li>
+        <li>Zachování formátování</li>
+        <li>Rychlé zpracování</li>
+    </ul>
+    <p>Datum vytvoření: ${new Date().toLocaleString()}</p>
+</body>
+</html>`;
+            
+            const blob = new Blob([epubContent], { type: 'application/epub+zip' });
+            downloadBlob(blob, 'test-cloudconvert.epub');
+        }
+
+        function createTestTxt() {
+            const txtContent = `Test dokument pro CloudConvert konverzi
+
+Toto je testovací textový soubor pro konverzi do PDF pomocí CloudConvert API.
+
+CloudConvert výhody:
+1. CORS friendly - funguje přímo z prohlížeče
+2. Používá Calibre engine pro e-knihy  
+3. Podporuje EPUB, MOBI, DOCX, RTF a další
+4. Rychlé zpracování
+5. Kvalitní výstup
+
+Workflow:
+- Import Task (upload)
+- Convert Task (konverze)
+- Export Task (download)
+- Job management
+
+Datum vytvoření: ${new Date().toLocaleString()}
+            `;
+            
+            const blob = new Blob([txtContent], { type: 'text/plain' });
+            downloadBlob(blob, 'test-cloudconvert.txt');
+        }
+
+        function createTestHtml() {
+            const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <title>Test HTML pro CloudConvert</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { color: #007bff; }
+        .highlight { background-color: #fff3cd; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Test HTML dokumentu pro CloudConvert</h1>
+    
+    <div class="highlight">
+        <p><strong>CloudConvert API je ideální pro konverzi dokumentů</strong></p>
+    </div>
+    
+    <h2>Výhody CloudConvert</h2>
+    <ul>
+        <li>✅ CORS friendly</li>
+        <li>✅ Calibre engine pro e-knihy</li>
+        <li>✅ Rychlé zpracování</li>
+        <li>✅ Vysoká kvalita výstupu</li>
+    </ul>
+    
+    <h2>Podporované formáty</h2>
+    <table border="1" style="border-collapse: collapse;">
+        <tr>
+            <th style="padding: 8px;">Vstup</th>
+            <th style="padding: 8px;">Výstup</th>
+        </tr>
+        <tr>
+            <td style="padding: 8px;">EPUB</td>
+            <td style="padding: 8px;">PDF</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;">MOBI</td>
+            <td style="padding: 8px;">PDF</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;">DOCX</td>
+            <td style="padding: 8px;">PDF</td>
+        </tr>
+    </table>
+    
+    <p><strong>Datum vytvoření:</strong> ${new Date().toLocaleString()}</p>
+</body>
+</html>`;
+            
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            downloadBlob(blob, 'test-cloudconvert.html');
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            logMessage('conversionResult', `📁 Vytvořen testovací soubor: ${filename}`, 'success');
+        }
+
+        // Automatický test při načtení
+        window.addEventListener('load', function() {
+            logMessage('conversionResult', '🚀 CloudConvert test prostředí načteno', 'info');
+            logMessage('conversionResult', '💡 Doporučuji nejdříve otestovat API klíč', 'info');
+        });
+    </script>
+</body>
+</html>

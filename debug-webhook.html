@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Webhook Komunikace</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .debug-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .debug-header {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .test-button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: all 0.2s;
+        }
+        .test-button:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+        .test-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .results.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .results.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .results.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .json-viewer {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow: auto;
+            max-height: 300px;
+        }
+        .webhook-url {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            word-break: break-all;
+            font-family: monospace;
+        }
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #dc3545;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .input-group {
+            margin: 15px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        .input-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-header">
+        <h1>🐛 Debug Webhook Komunikace</h1>
+        <p>Diagnostika problémů s N8N webhook pro produktová doporučení</p>
+    </div>
+
+    <div class="debug-container">
+        <div class="test-section">
+            <h2>🌐 Webhook Informace</h2>
+            <div class="webhook-url">
+                <strong>URL:</strong> https://n8n.srv980546.hstgr.cloud/webhook/cd6b668b-1e35-4018-9bf4-28d0926b023b
+            </div>
+            <p><strong>Metoda:</strong> POST</p>
+            <p><strong>Content-Type:</strong> application/json</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📤 Test Základní Komunikace</h2>
+            <p>Ověří, zda webhook vůbec odpovídá a jaký formát vrací.</p>
+            
+            <div class="input-group">
+                <label for="testMessage">Testovací zpráva:</label>
+                <input type="text" id="testMessage" value="Doporuč mi něco na bolesti kloubů" placeholder="Zadejte testovací dotaz">
+            </div>
+            
+            <button id="testBasicWebhook" class="test-button">Test Základní Komunikace</button>
+            <div id="basicResults" class="results info">Klikněte na tlačítko pro spuštění testu...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 Detailní Analýza Response</h2>
+            <p>Zobrazí kompletní strukturu webhook odpovědi pro analýzu.</p>
+            
+            <button id="testDetailedWebhook" class="test-button">Detailní Analýza</button>
+            <div id="detailedResults" class="results info">Klikněte na tlačítko pro spuštění detailní analýzy...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Test Různých Dotazů</h2>
+            <p>Testuje různé typy dotazů pro pochopení chování webhooku.</p>
+            
+            <button id="testMultipleQueries" class="test-button">Test Více Dotazů</button>
+            <div id="multipleResults" class="results info">Klikněte na tlačítko pro test více dotazů...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🛠️ Custom Request Test</h2>
+            <p>Umožní testovat vlastní request payload.</p>
+            
+            <div class="input-group">
+                <label for="customPayload">Custom JSON Payload:</label>
+                <textarea id="customPayload" placeholder='{"chatInput": "můj dotaz", "session_id": "test", "timestamp": "2024-01-01T00:00:00.000Z"}'></textarea>
+            </div>
+            
+            <button id="testCustomPayload" class="test-button">Test Custom Payload</button>
+            <div id="customResults" class="results info">Upravte payload a klikněte na tlačítko...</div>
+        </div>
+    </div>
+
+    <script>
+        // Utility funkce
+        function showResults(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.className = `results ${type}`;
+            element.innerHTML = content;
+        }
+
+        function showLoader(elementId) {
+            const element = document.getElementById(elementId);
+            element.className = 'results info';
+            element.innerHTML = '<div class="loader"></div> Probíhá komunikace s webhook...';
+        }
+
+        function formatJSON(obj) {
+            return `<pre>${JSON.stringify(obj, null, 2)}</pre>`;
+        }
+
+        function analyzeWebhookResponse(data, originalResponse) {
+            let analysis = `📊 ANALÝZA WEBHOOK ODPOVĚDI\n\n`;
+            
+            analysis += `🔗 Response Status: ${originalResponse.status} ${originalResponse.statusText}\n`;
+            analysis += `📏 Content Length: ${JSON.stringify(data).length} znaků\n`;
+            analysis += `📋 Data Type: ${typeof data}\n`;
+            analysis += `🔢 Is Array: ${Array.isArray(data)}\n\n`;
+            
+            if (Array.isArray(data)) {
+                analysis += `📦 Array Length: ${data.length}\n`;
+                if (data.length > 0) {
+                    analysis += `🔍 First Item Type: ${typeof data[0]}\n`;
+                    analysis += `🗝️ First Item Keys: ${Object.keys(data[0] || {}).join(', ')}\n\n`;
+                }
+            } else if (typeof data === 'object' && data !== null) {
+                analysis += `🗝️ Object Keys: ${Object.keys(data).join(', ')}\n\n`;
+            }
+            
+            // Hledání produktových dat
+            analysis += `🔍 HLEDÁNÍ PRODUKTOVÝCH DAT:\n`;
+            
+            const searchPaths = [
+                'data',
+                '[0].data', 
+                'products',
+                'recommended_products',
+                'output',
+                'result'
+            ];
+            
+            searchPaths.forEach(path => {
+                try {
+                    let value = data;
+                    const parts = path.split('.');
+                    for (const part of parts) {
+                        if (part.startsWith('[') && part.endsWith(']')) {
+                            const index = parseInt(part.slice(1, -1));
+                            value = value[index];
+                        } else {
+                            value = value[part];
+                        }
+                    }
+                    
+                    if (value !== undefined) {
+                        analysis += `✅ Nalezen path "${path}": ${typeof value} ${Array.isArray(value) ? `(${value.length} items)` : ''}\n`;
+                        
+                        if (Array.isArray(value) && value.length > 0) {
+                            analysis += `   📋 První item v "${path}": ${Object.keys(value[0] || {}).join(', ')}\n`;
+                        }
+                    } else {
+                        analysis += `❌ Path "${path}": neexistuje\n`;
+                    }
+                } catch (e) {
+                    analysis += `❌ Path "${path}": chyba přístupu\n`;
+                }
+            });
+            
+            analysis += `\n📄 KOMPLETNÍ RESPONSE DATA:\n`;
+            analysis += JSON.stringify(data, null, 2);
+            
+            return analysis;
+        }
+
+        // Test základní komunikace
+        document.getElementById('testBasicWebhook').addEventListener('click', async () => {
+            const message = document.getElementById('testMessage').value.trim();
+            if (!message) {
+                showResults('basicResults', '⚠️ Prosím zadejte testovací zprávu', 'error');
+                return;
+            }
+
+            showLoader('basicResults');
+
+            try {
+                const payload = {
+                    chatInput: message,
+                    session_id: `debug_${Date.now()}`,
+                    timestamp: new Date().toISOString()
+                };
+
+                console.log('🚀 Odesílám webhook request:', payload);
+
+                const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook/cd6b668b-1e35-4018-9bf4-28d0926b023b', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                console.log('📡 Webhook response:', response);
+
+                const responseText = await response.text();
+                console.log('📄 Response text:', responseText);
+
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (parseError) {
+                    responseData = responseText;
+                }
+
+                if (response.ok) {
+                    const result = `✅ WEBHOOK ÚSPĚŠNĚ ODPOVĚDĚL!\n\n` +
+                                 `Status: ${response.status} ${response.statusText}\n` +
+                                 `Response Type: ${typeof responseData}\n` +
+                                 `Is Array: ${Array.isArray(responseData)}\n\n` +
+                                 `Response Data:\n${JSON.stringify(responseData, null, 2)}`;
+                    
+                    showResults('basicResults', result, 'success');
+                } else {
+                    showResults('basicResults', 
+                        `❌ WEBHOOK CHYBA!\n\nStatus: ${response.status}\nResponse: ${responseText}`, 
+                        'error');
+                }
+
+            } catch (error) {
+                console.error('❌ Webhook error:', error);
+                showResults('basicResults', 
+                    `❌ KOMUNIKAČNÍ CHYBA!\n\n${error.message}\n\nMožné příčiny:\n- CORS blokování\n- Webhook nedostupný\n- Síťová chyba`, 
+                    'error');
+            }
+        });
+
+        // Test detailní analýzy
+        document.getElementById('testDetailedWebhook').addEventListener('click', async () => {
+            showLoader('detailedResults');
+
+            try {
+                const payload = {
+                    chatInput: "Doporuč mi produkty pro zdraví",
+                    session_id: `analysis_${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                    debug: true
+                };
+
+                const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook/cd6b668b-1e35-4018-9bf4-28d0926b023b', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const responseText = await response.text();
+                let responseData;
+                
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    responseData = responseText;
+                }
+
+                const analysis = analyzeWebhookResponse(responseData, response);
+                showResults('detailedResults', analysis, response.ok ? 'success' : 'error');
+
+            } catch (error) {
+                showResults('detailedResults', `❌ Chyba při detailní analýze:\n\n${error.message}`, 'error');
+            }
+        });
+
+        // Test více dotazů
+        document.getElementById('testMultipleQueries').addEventListener('click', async () => {
+            showLoader('multipleResults');
+
+            const testQueries = [
+                "Bolesti kloubů",
+                "Stres a únava", 
+                "Trávení",
+                "Imunita",
+                "Test produkty"
+            ];
+
+            let results = `🧪 TEST VÍCE DOTAZŮ\n\n`;
+
+            for (let i = 0; i < testQueries.length; i++) {
+                const query = testQueries[i];
+                results += `${i + 1}. Testuju: "${query}"\n`;
+
+                try {
+                    const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook/cd6b668b-1e35-4018-9bf4-28d0926b023b', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chatInput: query,
+                            session_id: `multi_test_${i}`,
+                            timestamp: new Date().toISOString()
+                        })
+                    });
+
+                    const responseText = await response.text();
+                    let responseData;
+                    
+                    try {
+                        responseData = JSON.parse(responseText);
+                    } catch (e) {
+                        responseData = responseText;
+                    }
+
+                    results += `   Status: ${response.status}\n`;
+                    results += `   Type: ${typeof responseData}\n`;
+                    results += `   Length: ${JSON.stringify(responseData).length} znaků\n`;
+                    
+                    if (Array.isArray(responseData)) {
+                        results += `   Array items: ${responseData.length}\n`;
+                    }
+                    
+                    results += `   Data preview: ${JSON.stringify(responseData).substring(0, 100)}...\n\n`;
+
+                    // Krátká pauza mezi požadavky
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                } catch (error) {
+                    results += `   ❌ Error: ${error.message}\n\n`;
+                }
+            }
+
+            showResults('multipleResults', results, 'info');
+        });
+
+        // Test custom payload
+        document.getElementById('testCustomPayload').addEventListener('click', async () => {
+            const customPayloadText = document.getElementById('customPayload').value.trim();
+            
+            if (!customPayloadText) {
+                showResults('customResults', '⚠️ Prosím zadejte custom payload', 'error');
+                return;
+            }
+
+            showLoader('customResults');
+
+            try {
+                const payload = JSON.parse(customPayloadText);
+
+                const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook/cd6b668b-1e35-4018-9bf4-28d0926b023b', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const responseText = await response.text();
+                let responseData;
+                
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    responseData = responseText;
+                }
+
+                const result = `🛠️ CUSTOM PAYLOAD TEST\n\n` +
+                             `Sent Payload:\n${JSON.stringify(payload, null, 2)}\n\n` +
+                             `Response Status: ${response.status}\n\n` +
+                             `Response Data:\n${JSON.stringify(responseData, null, 2)}`;
+
+                showResults('customResults', result, response.ok ? 'success' : 'error');
+
+            } catch (error) {
+                if (error instanceof SyntaxError) {
+                    showResults('customResults', `❌ Neplatný JSON payload:\n\n${error.message}`, 'error');
+                } else {
+                    showResults('customResults', `❌ Chyba při custom testu:\n\n${error.message}`, 'error');
+                }
+            }
+        });
+
+        // Předvyplň custom payload
+        document.addEventListener('DOMContentLoaded', () => {
+            const defaultPayload = {
+                chatInput: "Test dotaz pro debug",
+                session_id: "debug_session",
+                timestamp: new Date().toISOString()
+            };
+            
+            document.getElementById('customPayload').value = JSON.stringify(defaultPayload, null, 2);
+        });
+    </script>
+</body>
+</html>

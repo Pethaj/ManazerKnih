@@ -14,6 +14,15 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      server: {
+        hmr: {
+          overlay: true
+        },
+        watch: {
+          usePolling: true,
+          interval: 100
+        }
       }
     };
 });

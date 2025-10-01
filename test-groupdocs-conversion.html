@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test GroupDocs Conversion API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #007bff;
+            font-weight: bold;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .file-input {
+            margin: 10px 0;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .supported-formats {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .supported-formats ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔄 Test GroupDocs Conversion API</h1>
+    <p>Testování konverze EPUB, MOBI a dalších formátů do PDF pomocí GroupDocs.Conversion Cloud API</p>
+
+    <div class="container">
+        <h2>📋 Informace o API</h2>
+        <div class="test-section">
+            <h3>Konfigurační údaje</h3>
+            <p><strong>Client ID:</strong> 022eaad9-af7c-446a-b94e-a3a75f6cc35e</p>
+            <p><strong>API Base URL:</strong> https://api.groupdocs.cloud/v2.0</p>
+            <p><strong>Token URL:</strong> https://api.groupdocs.cloud/connect/token</p>
+        </div>
+
+        <div class="supported-formats">
+            <h3>📚 Podporované formáty pro konverzi do PDF</h3>
+            <ul>
+                <li><strong>EPUB</strong> - EPUB e-kniha</li>
+                <li><strong>MOBI</strong> - MOBI e-kniha (Kindle)</li>
+                <li><strong>DOCX</strong> - Microsoft Word dokument</li>
+                <li><strong>DOC</strong> - Microsoft Word dokument (starší)</li>
+                <li><strong>TXT</strong> - Textový soubor</li>
+                <li><strong>RTF</strong> - Rich Text Format</li>
+                <li><strong>HTML</strong> - HTML dokument</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔑 Test autentifikace</h2>
+        <div class="test-section">
+            <button onclick="testAuthentication()">Získat Access Token</button>
+            <div id="authResult" class="log"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📁 Test konverze souboru</h2>
+        <div class="test-section">
+            <input type="file" id="fileInput" class="file-input" accept=".epub,.mobi,.docx,.doc,.txt,.rtf,.html">
+            <br>
+            <button onclick="testConversion()" id="convertBtn">Konvertovat do PDF</button>
+            <button onclick="clearLog()">Vymazat log</button>
+            <div id="conversionResult" class="log"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📝 Testovací soubory</h2>
+        <div class="test-section">
+            <p>Pro testování můžete použít:</p>
+            <ul>
+                <li><button onclick="createTestEpub()">Vytvořit testovací EPUB soubor</button></li>
+                <li><button onclick="createTestTxt()">Vytvořit testovací TXT soubor</button></li>
+                <li><button onclick="createTestHtml()">Vytvořit testovací HTML soubor</button></li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Import GroupDocs Conversion Service
+        class GroupDocsConversionService {
+            static API_BASE_URL = 'https://api.groupdocs.cloud/v2.0';
+            static CREDENTIALS = {
+                clientId: '022eaad9-af7c-446a-b94e-a3a75f6cc35e',
+                clientSecret: '7cd5e2e58337595bffff974a29c0ecc6'
+            };
+
+            static accessToken = null;
+            static tokenExpiry = 0;
+
+            static async getAccessToken() {
+                if (this.accessToken && Date.now() < this.tokenExpiry) {
+                    console.log('🔑 Používám existující GroupDocs access token');
+                    return this.accessToken;
+                }
+
+                console.log('🔄 Získávám nový GroupDocs access token...');
+
+                try {
+                    const response = await fetch('https://api.groupdocs.cloud/connect/token', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            grant_type: 'client_credentials',
+                            client_id: this.CREDENTIALS.clientId,
+                            client_secret: this.CREDENTIALS.clientSecret
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Nelze získat access token: ${response.status} - ${errorText}`);
+                    }
+
+                    const tokenData = await response.json();
+                    
+                    if (!tokenData.access_token) {
+                        throw new Error('API nevrátilo access token');
+                    }
+
+                    this.accessToken = tokenData.access_token;
+                    this.tokenExpiry = Date.now() + ((tokenData.expires_in || 86400) - 3600) * 1000;
+
+                    console.log('✅ GroupDocs access token úspěšně získán');
+                    return this.accessToken;
+
+                } catch (error) {
+                    console.error('❌ Chyba při získávání GroupDocs access token:', error);
+                    throw new Error(`Nelze se autentizovat do GroupDocs API: ${error.message}`);
+                }
+            }
+
+            static async uploadFile(file, fileName) {
+                const token = await this.getAccessToken();
+                
+                console.log(`📤 Nahrávám soubor "${fileName}" do GroupDocs Storage...`);
+
+                try {
+                    const response = await fetch(`${this.API_BASE_URL}/storage/file/${encodeURIComponent(fileName)}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': file.type || 'application/octet-stream'
+                        },
+                        body: file
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Upload selhal: ${response.status} - ${errorText}`);
+                    }
+
+                    console.log(`✅ Soubor "${fileName}" úspěšně nahrán do GroupDocs Storage`);
+                    return fileName;
+
+                } catch (error) {
+                    console.error('❌ Chyba při uploadu souboru:', error);
+                    throw new Error(`Nelze nahrát soubor: ${error.message}`);
+                }
+            }
+
+            static async convertFile(inputFileName, outputFormat = 'pdf') {
+                const token = await this.getAccessToken();
+                const outputFileName = inputFileName.replace(/\.[^/.]+$/, `.${outputFormat}`);
+
+                console.log(`🔄 Spouštím konverzi "${inputFileName}" → "${outputFileName}"...`);
+
+                try {
+                    const conversionRequest = {
+                        FilePath: inputFileName,
+                        Format: outputFormat,
+                        OutputPath: 'converted'
+                    };
+
+                    const response = await fetch(`${this.API_BASE_URL}/conversion`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(conversionRequest)
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Konverze selhala: ${response.status} - ${errorText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (!result || !result.length || !result[0].path) {
+                        throw new Error('API nevrátilo platnou cestu k konvertovanému souboru');
+                    }
+
+                    const convertedFilePath = result[0].path;
+                    console.log(`✅ Konverze dokončena, výstupní soubor: "${convertedFilePath}"`);
+                    
+                    return convertedFilePath;
+
+                } catch (error) {
+                    console.error('❌ Chyba při konverzi souboru:', error);
+                    throw new Error(`Konverze selhala: ${error.message}`);
+                }
+            }
+
+            static async downloadFile(filePath) {
+                const token = await this.getAccessToken();
+
+                console.log(`📥 Stahuji konvertovaný soubor "${filePath}"...`);
+
+                try {
+                    const response = await fetch(`${this.API_BASE_URL}/storage/file/${encodeURIComponent(filePath)}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Download selhal: ${response.status} - ${errorText}`);
+                    }
+
+                    const fileBlob = await response.blob();
+                    console.log(`✅ Soubor "${filePath}" úspěšně stažen (${fileBlob.size} bytes)`);
+                    
+                    return fileBlob;
+
+                } catch (error) {
+                    console.error('❌ Chyba při stahování souboru:', error);
+                    throw new Error(`Nelze stáhnout soubor: ${error.message}`);
+                }
+            }
+
+            static async deleteFile(filePath) {
+                const token = await this.getAccessToken();
+
+                try {
+                    await fetch(`${this.API_BASE_URL}/storage/file/${encodeURIComponent(filePath)}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    console.log(`🗑️ Soubor "${filePath}" vymazán z GroupDocs Storage`);
+                } catch (error) {
+                    console.warn('⚠️ Nelze vymazat dočasný soubor z GroupDocs Storage:', error);
+                }
+            }
+
+            static async convertToPDF(file) {
+                console.log('🚀 GroupDocs Conversion: Spouštím konverzi do PDF...');
+                console.log(`📄 Zdrojový soubor: ${file.name} (${file.type}, ${file.size} bytes)`);
+
+                const supportedFormats = ['epub', 'mobi', 'docx', 'doc', 'txt', 'rtf', 'html'];
+                const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+                
+                if (!supportedFormats.includes(fileExtension)) {
+                    return {
+                        success: false,
+                        error: `Nepodporovaný formát souboru: ${fileExtension}. Podporované formáty: ${supportedFormats.join(', ')}`
+                    };
+                }
+
+                const tempFileName = `temp_${Date.now()}_${file.name}`;
+                let uploadedFilePath = null;
+                let convertedFilePath = null;
+
+                try {
+                    uploadedFilePath = await this.uploadFile(file, tempFileName);
+                    convertedFilePath = await this.convertFile(uploadedFilePath, 'pdf');
+                    const pdfBlob = await this.downloadFile(convertedFilePath);
+
+                    if (uploadedFilePath) {
+                        await this.deleteFile(uploadedFilePath);
+                    }
+                    if (convertedFilePath) {
+                        await this.deleteFile(convertedFilePath);
+                    }
+
+                    console.log('✅ GroupDocs Conversion: Konverze do PDF úspěšně dokončena');
+
+                    return {
+                        success: true,
+                        data: pdfBlob
+                    };
+
+                } catch (error) {
+                    console.error('❌ GroupDocs Conversion chyba:', error);
+
+                    try {
+                        if (uploadedFilePath) {
+                            await this.deleteFile(uploadedFilePath);
+                        }
+                        if (convertedFilePath) {
+                            await this.deleteFile(convertedFilePath);
+                        }
+                    } catch (cleanupError) {
+                        console.warn('⚠️ Chyba při cleanup:', cleanupError);
+                    }
+
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            }
+        }
+
+        // Test funkce
+        function logMessage(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            element.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('conversionResult').innerHTML = '';
+        }
+
+        async function testAuthentication() {
+            const resultDiv = document.getElementById('authResult');
+            resultDiv.innerHTML = '';
+            
+            try {
+                logMessage('authResult', '🔄 Testování autentifikace...', 'info');
+                const token = await GroupDocsConversionService.getAccessToken();
+                logMessage('authResult', `✅ Úspěšně získán access token: ${token.substring(0, 50)}...`, 'success');
+                logMessage('authResult', `📅 Token expiry: ${new Date(GroupDocsConversionService.tokenExpiry).toLocaleString()}`, 'info');
+            } catch (error) {
+                logMessage('authResult', `❌ Chyba autentifikace: ${error.message}`, 'error');
+            }
+        }
+
+        async function testConversion() {
+            const fileInput = document.getElementById('fileInput');
+            const convertBtn = document.getElementById('convertBtn');
+            
+            if (!fileInput.files[0]) {
+                logMessage('conversionResult', '❌ Prosím vyberte soubor pro konverzi', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            convertBtn.disabled = true;
+            
+            try {
+                logMessage('conversionResult', `🔄 Spouštím konverzi souboru: ${file.name}`, 'info');
+                logMessage('conversionResult', `📊 Velikost souboru: ${(file.size / 1024).toFixed(2)} KB`, 'info');
+                
+                const result = await GroupDocsConversionService.convertToPDF(file);
+                
+                if (result.success) {
+                    logMessage('conversionResult', `✅ Konverze úspěšná! PDF velikost: ${(result.data.size / 1024).toFixed(2)} KB`, 'success');
+                    
+                    // Stáhnout konvertovaný PDF
+                    const url = URL.createObjectURL(result.data);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file.name.replace(/\.[^/.]+$/, '.pdf');
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    logMessage('conversionResult', '💾 PDF soubor stažen automaticky', 'success');
+                } else {
+                    logMessage('conversionResult', `❌ Konverze selhala: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                logMessage('conversionResult', `❌ Neočekávaná chyba: ${error.message}`, 'error');
+            } finally {
+                convertBtn.disabled = false;
+            }
+        }
+
+        // Funkce pro vytvoření testovacích souborů
+        function createTestEpub() {
+            // Vytvoříme minimální EPUB strukturu
+            const epubContent = `
+                Toto je testovací EPUB soubor pro konverzi do PDF.
+                
+                Obsahuje základní text který bude konvertován pomocí GroupDocs Conversion API.
+                
+                Test obsahu:
+                - Seznam položek
+                - Další položka
+                - Poslední položka
+                
+                Konec testovacího obsahu.
+            `;
+            
+            const blob = new Blob([epubContent], { type: 'application/epub+zip' });
+            downloadBlob(blob, 'test-document.epub');
+        }
+
+        function createTestTxt() {
+            const txtContent = `Test dokument pro konverzi do PDF
+
+Toto je testovací textový soubor který bude konvertován pomocí GroupDocs Conversion API.
+
+Obsah:
+1. První odstavec s nějakým textem
+2. Druhý odstavec s dalším obsahem
+3. Třetí odstavec pro úplnost
+
+Datum vytvoření: ${new Date().toLocaleString()}
+            `;
+            
+            const blob = new Blob([txtContent], { type: 'text/plain' });
+            downloadBlob(blob, 'test-document.txt');
+        }
+
+        function createTestHtml() {
+            const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <title>Test HTML dokument</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>Test HTML dokumentu pro konverzi</h1>
+    <p>Toto je testovací HTML soubor pro konverzi do PDF pomocí GroupDocs Conversion API.</p>
+    
+    <h2>Seznam testovacích prvků</h2>
+    <ul>
+        <li>První položka seznamu</li>
+        <li>Druhá položka seznamu</li>
+        <li>Třetí položka seznamu</li>
+    </ul>
+    
+    <h2>Tabulka</h2>
+    <table border="1">
+        <tr>
+            <th>Sloupec 1</th>
+            <th>Sloupec 2</th>
+        </tr>
+        <tr>
+            <td>Data 1</td>
+            <td>Data 2</td>
+        </tr>
+    </table>
+    
+    <p><strong>Datum vytvoření:</strong> ${new Date().toLocaleString()}</p>
+</body>
+</html>`;
+            
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            downloadBlob(blob, 'test-document.html');
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            logMessage('conversionResult', `📁 Vytvořen testovací soubor: ${filename}`, 'success');
+        }
+
+        // Automatic test na načtení stránky
+        window.addEventListener('load', function() {
+            logMessage('conversionResult', '🚀 Stránka načtena. Můžete začít testovat konverzi.', 'info');
+            logMessage('conversionResult', '💡 Tip: Nejdříve otestujte autentifikaci pomocí tlačítka "Získat Access Token"', 'info');
+        });
+    </script>
+</body>
+</html>

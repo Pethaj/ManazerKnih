@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Supabase Mapování</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .debug-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .debug-header {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .test-button {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: all 0.2s;
+        }
+        .test-button:hover {
+            background: #c0392b;
+            transform: translateY(-1px);
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .results.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .results.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .results.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 12px;
+        }
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .comparison-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .status-ok { background-color: #d4edda; }
+        .status-warning { background-color: #fff3cd; }
+        .status-error { background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="debug-header">
+        <h1>🔍 Debug Supabase Mapování</h1>
+        <p>Diagnostika proč se data z Supabase nepropíšou do carouselu</p>
+    </div>
+
+    <div class="debug-container">
+        <div class="test-section">
+            <h2>1. 🎯 Test specifických ID z webhooku</h2>
+            <p>Testuje přesně ta ID, která webhook vrací: 1002318245, 1002737245, 1002324245</p>
+            
+            <button id="testWebhookIds" class="test-button">Test Webhook ID</button>
+            <div id="webhookIdsResults" class="results info">Klikněte na tlačítko pro test...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>2. 🔍 Simulace hybridního procesu</h2>
+            <p>Kompletní simulace toho, co dělá hybridní systém krok za krokem</p>
+            
+            <button id="testHybridProcess" class="test-button">Simulovat Hybridní Proces</button>
+            <div id="hybridProcessResults" class="results info">Klikněte na tlačítko pro simulaci...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>3. 📊 Porovnání očekávaných vs skutečných dat</h2>
+            <p>Zobrazí side-by-side porovnání toho, co webhook očekává vs co Supabase vrací</p>
+            
+            <button id="testDataComparison" class="test-button">Porovnat Data</button>
+            <div id="dataComparisonResults" class="results info">Klikněte na tlačítko pro porovnání...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>4. 🛠️ Test mapování na carousel formát</h2>
+            <p>Testuje konverzi Supabase dat na formát použitelný v carouselu</p>
+            
+            <button id="testCarouselMapping" class="test-button">Test Carousel Mapování</button>
+            <div id="carouselMappingResults" class="results info">Klikněte na tlačítko pro test mapování...</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Supabase konfigurace
+        const SUPABASE_URL = 'https://umxkjdllhlkclrplxdxx.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVteGtqZGxsaGxrY2xycGx4ZHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjEyMzM0MTMsImV4cCI6MjAzNjgwOTQxM30.MKSjLqO1YMGwGOdZIttWOwrCaQTSHkf6Fc-9XQbQ8t0';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // ID z webhook testu
+        const WEBHOOK_IDS = ['1002318245', '1002737245', '1002324245'];
+
+        function showResults(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.className = `results ${type}`;
+            element.textContent = content;
+        }
+
+        function showResultsHTML(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.className = `results ${type}`;
+            element.innerHTML = content;
+        }
+
+        // Test 1: Specifická ID z webhooku
+        document.getElementById('testWebhookIds').addEventListener('click', async () => {
+            showResults('webhookIdsResults', '🔄 Testuji specifická ID z webhooku...');
+            
+            try {
+                let result = `🎯 TEST WEBHOOK ID v SUPABASE\n`;
+                result += `${'='.repeat(50)}\n\n`;
+                result += `Hledám ID: ${WEBHOOK_IDS.join(', ')}\n\n`;
+
+                // Přesně stejný dotaz jako v hybrid service
+                const { data, error } = await supabase
+                    .from('products')
+                    .select('*')
+                    .in('product_code', WEBHOOK_IDS);
+
+                if (error) {
+                    throw error;
+                }
+
+                result += `📊 VÝSLEDKY DOTAZU:\n`;
+                result += `Nalezeno produktů: ${data?.length || 0}/${WEBHOOK_IDS.length}\n\n`;
+
+                if (data && data.length > 0) {
+                    result += `DETAILY NALEZENÝCH PRODUKTŮ:\n`;
+                    result += `${'-'.repeat(60)}\n`;
+
+                    data.forEach((product, index) => {
+                        result += `\n${index + 1}. PRODUKT ID: ${product.product_code}\n`;
+                        result += `   📝 Název: ${product.name || 'CHYBÍ'}\n`;
+                        result += `   💰 Cena: ${product.price || 'CHYBÍ'} ${product.currency || 'N/A'}\n`;
+                        result += `   🔗 URL: ${product.product_url ? 'Má' : 'CHYBÍ'}\n`;
+                        result += `   🖼️ Obrázek: ${product.image_url ? 'Má' : 'CHYBÍ'}\n`;
+                        result += `   🏷️ Kategorie: ${product.category || 'CHYBÍ'}\n`;
+                        
+                        // Kontrola datových typů
+                        result += `   🔬 Data typy:\n`;
+                        result += `      - price: ${typeof product.price} (${product.price})\n`;
+                        result += `      - name: ${typeof product.name} (délka: ${product.name?.length || 0})\n`;
+                        result += `      - product_url: ${typeof product.product_url} (délka: ${product.product_url?.length || 0})\n`;
+                        result += `      - image_url: ${typeof product.image_url} (délka: ${product.image_url?.length || 0})\n`;
+                    });
+
+                    // Kontrola chybějících ID
+                    const foundIds = data.map(p => p.product_code);
+                    const missingIds = WEBHOOK_IDS.filter(id => !foundIds.includes(id));
+                    
+                    if (missingIds.length > 0) {
+                        result += `\n❌ CHYBĚJÍCÍ ID:\n`;
+                        missingIds.forEach(id => {
+                            result += `   - ${id}\n`;
+                        });
+                        result += `\n💡 ŘEŠENÍ: Přidejte chybějící produkty do tabulky\n`;
+                    } else {
+                        result += `\n✅ Všechna webhook ID nalezena v Supabase!\n`;
+                    }
+
+                } else {
+                    result += `❌ ŽÁDNÉ PRODUKTY NENALEZENY!\n\n`;
+                    result += `MOŽNÉ PŘÍČINY:\n`;
+                    result += `1. ID ${WEBHOOK_IDS.join(', ')} neexistují v tabulce\n`;
+                    result += `2. Sloupec product_code má jiný formát\n`;
+                    result += `3. Case-sensitive problém\n\n`;
+                    
+                    // Zkusíme najít podobná ID
+                    const { data: allProducts } = await supabase
+                        .from('products')
+                        .select('product_code')
+                        .limit(10);
+                    
+                    if (allProducts && allProducts.length > 0) {
+                        result += `UKÁZKA EXISTUJÍCÍCH ID:\n`;
+                        allProducts.forEach(p => {
+                            result += `   - ${p.product_code}\n`;
+                        });
+                    }
+                }
+
+                showResults('webhookIdsResults', result, data && data.length > 0 ? 'success' : 'error');
+
+            } catch (error) {
+                showResults('webhookIdsResults', 
+                    `❌ CHYBA PRI TESTU WEBHOOK ID!\n\nError: ${error.message}\nCode: ${error.code}`, 
+                    'error');
+            }
+        });
+
+        // Test 2: Simulace hybridního procesu
+        document.getElementById('testHybridProcess').addEventListener('click', async () => {
+            showResults('hybridProcessResults', '🔄 Simuluji hybridní proces...');
+            
+            try {
+                let result = `🚀 SIMULACE HYBRIDNÍHO PROCESU\n`;
+                result += `${'='.repeat(50)}\n\n`;
+
+                // Krok 1: Simulace webhook odpovědi
+                result += `📡 KROK 1: Webhook odpověď (simulováno)\n`;
+                const mockWebhookProducts = [
+                    { id: '1002318245', recommendation: 'Výborný pro bolesti kloubů' },
+                    { id: '1002737245', recommendation: 'Pomáhá při zánětech' },
+                    { id: '1002324245', recommendation: 'Ochrana před chladem' }
+                ];
+                result += `Webhook vrátil ${mockWebhookProducts.length} doporučení\n`;
+                mockWebhookProducts.forEach((wp, i) => {
+                    result += `   ${i+1}. ID: ${wp.id}, Doporučení: ${wp.recommendation}\n`;
+                });
+
+                // Krok 2: Supabase dotaz
+                result += `\n🗄️ KROK 2: Supabase dotaz\n`;
+                const productIds = mockWebhookProducts.map(wp => wp.id);
+                result += `Hledám ID: ${productIds.join(', ')}\n`;
+
+                const { data: supabaseProducts, error } = await supabase
+                    .from('products')
+                    .select('*')
+                    .in('product_code', productIds);
+
+                if (error) {
+                    throw error;
+                }
+
+                result += `Supabase vrátil: ${supabaseProducts?.length || 0} produktů\n`;
+
+                // Krok 3: Kombinování
+                result += `\n🔗 KROK 3: Kombinování dat\n`;
+                const combinedProducts = [];
+
+                mockWebhookProducts.forEach((webhookProduct, index) => {
+                    const supabaseProduct = supabaseProducts?.find(sp => sp.product_code === webhookProduct.id);
+                    
+                    if (supabaseProduct) {
+                        // Simulace mapování z hybrid service
+                        const cleanedPrice = supabaseProduct.price !== null && supabaseProduct.price !== undefined
+                            ? Number(supabaseProduct.price) : null;
+                        
+                        const combined = {
+                            id: index + 1,
+                            product_code: supabaseProduct.product_code,
+                            product_name: supabaseProduct.name?.trim() || `BEWIT Produkt ${supabaseProduct.product_code}`,
+                            description: webhookProduct.recommendation,
+                            category: supabaseProduct.category?.trim() || 'Nezařazeno',
+                            price: cleanedPrice,
+                            currency: supabaseProduct.currency?.trim() || 'CZK',
+                            product_url: supabaseProduct.product_url?.trim() || null,
+                            image_url: supabaseProduct.image_url?.trim() || null,
+                            similarity_score: 0.9
+                        };
+                        
+                        combinedProducts.push(combined);
+                        
+                        result += `✅ Kombinován: ${combined.product_name}\n`;
+                        result += `   Cena: ${combined.price} ${combined.currency}\n`;
+                        result += `   URL: ${combined.product_url ? 'Ano' : 'CHYBÍ'}\n`;
+                        result += `   Obrázek: ${combined.image_url ? 'Ano' : 'CHYBÍ'}\n`;
+                        
+                    } else {
+                        result += `❌ Produkt ${webhookProduct.id} nenalezen v Supabase\n`;
+                    }
+                });
+
+                result += `\n🎯 FINÁLNÍ VÝSLEDEK:\n`;
+                result += `Webhook produkty: ${mockWebhookProducts.length}\n`;
+                result += `Supabase produkty: ${supabaseProducts?.length || 0}\n`;
+                result += `Kombinované produkty: ${combinedProducts.length}\n`;
+                result += `Produkty s cenou: ${combinedProducts.filter(p => p.price !== null).length}\n`;
+                result += `Produkty s URL: ${combinedProducts.filter(p => p.product_url).length}\n`;
+                result += `Produkty s obrázkem: ${combinedProducts.filter(p => p.image_url).length}\n`;
+
+                if (combinedProducts.length === 0) {
+                    result += `\n❌ PROBLÉM: Žádné produkty nebyly zkombinované!\n`;
+                } else if (combinedProducts.filter(p => p.price === null).length > 0) {
+                    result += `\n⚠️ VAROVÁNÍ: Některé produkty nemají cenu!\n`;
+                } else {
+                    result += `\n✅ Vše v pořádku - všechny produkty mají kompletní data!\n`;
+                }
+
+                showResults('hybridProcessResults', result, 
+                    combinedProducts.length === mockWebhookProducts.length ? 'success' : 'error');
+
+            } catch (error) {
+                showResults('hybridProcessResults', 
+                    `❌ CHYBA PRI SIMULACI!\n\nError: ${error.message}`, 
+                    'error');
+            }
+        });
+
+        // Test 3: Porovnání dat
+        document.getElementById('testDataComparison').addEventListener('click', async () => {
+            showResults('dataComparisonResults', '🔄 Porovnávám data...');
+            
+            try {
+                const { data: supabaseProducts, error } = await supabase
+                    .from('products')
+                    .select('*')
+                    .in('product_code', WEBHOOK_IDS);
+
+                if (error) throw error;
+
+                let html = `
+                    <h3>📊 POROVNÁNÍ WEBHOOK vs SUPABASE DAT</h3>
+                    <table class="comparison-table">
+                        <tr>
+                            <th>ID</th>
+                            <th>Webhook Status</th>
+                            <th>Supabase Status</th>
+                            <th>Název</th>
+                            <th>Cena</th>
+                            <th>URL</th>
+                            <th>Obrázek</th>
+                            <th>Diagnóza</th>
+                        </tr>
+                `;
+
+                WEBHOOK_IDS.forEach(id => {
+                    const supabaseProduct = supabaseProducts?.find(p => p.product_code === id);
+                    const webhookStatus = '✅ Očekáváno';
+                    const supabaseStatus = supabaseProduct ? '✅ Nalezeno' : '❌ Nenalezeno';
+                    
+                    const hasName = supabaseProduct?.name ? '✅' : '❌';
+                    const hasPrice = supabaseProduct?.price ? '✅' : '❌';
+                    const hasUrl = supabaseProduct?.product_url ? '✅' : '❌';
+                    const hasImage = supabaseProduct?.image_url ? '✅' : '❌';
+                    
+                    let diagnosis = '';
+                    let rowClass = '';
+                    
+                    if (!supabaseProduct) {
+                        diagnosis = 'Produkt neexistuje v Supabase';
+                        rowClass = 'status-error';
+                    } else if (!supabaseProduct.name || !supabaseProduct.price || !supabaseProduct.product_url) {
+                        diagnosis = 'Chybí kritická data';
+                        rowClass = 'status-warning';
+                    } else {
+                        diagnosis = 'Vše v pořádku';
+                        rowClass = 'status-ok';
+                    }
+
+                    html += `
+                        <tr class="${rowClass}">
+                            <td>${id}</td>
+                            <td>${webhookStatus}</td>
+                            <td>${supabaseStatus}</td>
+                            <td>${hasName} ${supabaseProduct?.name || 'N/A'}</td>
+                            <td>${hasPrice} ${supabaseProduct?.price || 'N/A'}</td>
+                            <td>${hasUrl} ${supabaseProduct?.product_url ? 'Má' : 'Chybí'}</td>
+                            <td>${hasImage} ${supabaseProduct?.image_url ? 'Má' : 'Chybí'}</td>
+                            <td>${diagnosis}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `</table>`;
+
+                // Shrnutí
+                const foundCount = supabaseProducts?.length || 0;
+                const completeCount = supabaseProducts?.filter(p => 
+                    p.name && p.price && p.product_url && p.image_url
+                ).length || 0;
+
+                html += `
+                    <h4>📋 SHRNUTÍ:</h4>
+                    <ul>
+                        <li>Webhook očekává: ${WEBHOOK_IDS.length} produktů</li>
+                        <li>Supabase našel: ${foundCount} produktů</li>
+                        <li>Kompletní produkty: ${completeCount} produktů</li>
+                        <li>Úspěšnost: ${Math.round((completeCount / WEBHOOK_IDS.length) * 100)}%</li>
+                    </ul>
+                `;
+
+                showResultsHTML('dataComparisonResults', html, 
+                    completeCount === WEBHOOK_IDS.length ? 'success' : 'error');
+
+            } catch (error) {
+                showResults('dataComparisonResults', 
+                    `❌ CHYBA PRI POROVNÁNÍ!\n\nError: ${error.message}`, 
+                    'error');
+            }
+        });
+
+        // Test 4: Carousel mapování
+        document.getElementById('testCarouselMapping').addEventListener('click', async () => {
+            showResults('carouselMappingResults', '🔄 Testuji carousel mapování...');
+            
+            try {
+                const { data: supabaseProducts, error } = await supabase
+                    .from('products')
+                    .select('*')
+                    .in('product_code', WEBHOOK_IDS);
+
+                if (error) throw error;
+
+                let result = `🛠️ TEST CAROUSEL MAPOVÁNÍ\n`;
+                result += `${'='.repeat(50)}\n\n`;
+
+                if (!supabaseProducts || supabaseProducts.length === 0) {
+                    result += `❌ Žádné produkty k mapování!\n`;
+                    showResults('carouselMappingResults', result, 'error');
+                    return;
+                }
+
+                result += `Mapuji ${supabaseProducts.length} produktů na carousel formát...\n\n`;
+
+                const carouselProducts = supabaseProducts.map((product, index) => {
+                    // Přesná simulace mapování z hybrid service
+                    const cleanedProductName = product.name && product.name.trim() !== '' 
+                        ? product.name.trim()
+                        : `BEWIT Produkt ${product.product_code}`;
+                    
+                    const cleanedPrice = product.price !== null && product.price !== undefined
+                        ? Number(product.price)
+                        : null;
+                    
+                    const cleanedCurrency = product.currency && product.currency.trim() !== ''
+                        ? product.currency.trim()
+                        : 'CZK';
+                    
+                    const cleanedProductUrl = product.product_url && product.product_url.trim() !== ''
+                        ? product.product_url.trim()
+                        : null;
+                    
+                    const cleanedImageUrl = product.image_url && product.image_url.trim() !== ''
+                        ? product.image_url.trim()
+                        : null;
+
+                    return {
+                        id: index + 1,
+                        product_code: product.product_code,
+                        product_name: cleanedProductName,
+                        description: `AI doporučení pro ${cleanedProductName}`,
+                        category: product.category || 'Nezařazeno',
+                        price: cleanedPrice,
+                        currency: cleanedCurrency,
+                        product_url: cleanedProductUrl,
+                        image_url: cleanedImageUrl,
+                        similarity_score: 0.9
+                    };
+                });
+
+                // Analýza mapovaných produktů
+                result += `VÝSLEDKY MAPOVÁNÍ:\n`;
+                result += `${'-'.repeat(40)}\n`;
+
+                carouselProducts.forEach((cp, index) => {
+                    result += `\n${index + 1}. ${cp.product_name}\n`;
+                    result += `   📋 Code: ${cp.product_code}\n`;
+                    result += `   💰 Cena: ${cp.price ? `${cp.price} ${cp.currency}` : 'CHYBÍ'}\n`;
+                    result += `   🔗 URL: ${cp.product_url ? 'OK' : 'CHYBÍ'}\n`;
+                    result += `   🖼️ Obrázek: ${cp.image_url ? 'OK' : 'CHYBÍ'}\n`;
+                    
+                    // Validace pro carousel
+                    const issues = [];
+                    if (!cp.price) issues.push('Chybí cena');
+                    if (!cp.product_url) issues.push('Chybí URL');
+                    if (!cp.image_url) issues.push('Chybí obrázek');
+                    
+                    if (issues.length > 0) {
+                        result += `   ⚠️ Problémy: ${issues.join(', ')}\n`;
+                    } else {
+                        result += `   ✅ Vše OK pro carousel\n`;
+                    }
+                });
+
+                // Statistiky
+                const productsWithPrice = carouselProducts.filter(p => p.price !== null).length;
+                const productsWithUrl = carouselProducts.filter(p => p.product_url !== null).length;
+                const productsWithImage = carouselProducts.filter(p => p.image_url !== null).length;
+                const completeProducts = carouselProducts.filter(p => 
+                    p.price !== null && p.product_url !== null && p.image_url !== null
+                ).length;
+
+                result += `\n📊 STATISTIKY MAPOVÁNÍ:\n`;
+                result += `Celkem produktů: ${carouselProducts.length}\n`;
+                result += `S cenou: ${productsWithPrice}/${carouselProducts.length}\n`;
+                result += `S URL: ${productsWithUrl}/${carouselProducts.length}\n`;
+                result += `S obrázkem: ${productsWithImage}/${carouselProducts.length}\n`;
+                result += `Kompletní: ${completeProducts}/${carouselProducts.length}\n`;
+
+                result += `\n🎯 HODNOCENÍ PRO CAROUSEL:\n`;
+                if (completeProducts === carouselProducts.length) {
+                    result += `✅ Perfektní - všechny produkty jsou připravené pro carousel\n`;
+                } else if (completeProducts > 0) {
+                    result += `⚠️ Částečné - ${carouselProducts.length - completeProducts} produktům chybí data\n`;
+                } else {
+                    result += `❌ Kritické - žádný produkt není připravený pro carousel\n`;
+                }
+
+                // JSON výstup pro debugging
+                result += `\n📄 JSON VÝSTUP PRO DEBUGGING:\n`;
+                result += JSON.stringify(carouselProducts, null, 2);
+
+                showResults('carouselMappingResults', result, 
+                    completeProducts === carouselProducts.length ? 'success' : 'error');
+
+            } catch (error) {
+                showResults('carouselMappingResults', 
+                    `❌ CHYBA PRI CAROUSEL MAPOVÁNÍ!\n\nError: ${error.message}`, 
+                    'error');
+            }
+        });
+
+        // Automaticky spustit první test
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                document.getElementById('testWebhookIds').click();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -3,21 +3,8 @@ import { createRoot } from 'react-dom/client';
 // Removed GoogleGenAI import - using direct fetch API calls instead
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
-import ChatWidget from './src/components/SanaChat/ChatWidget';
-import ChatbotManagement from './src/components/ChatbotManagement';
-import { FilteredSanaChat } from './src/components/SanaChat/SanaChat';
-import { ILovePDFService } from './src/services/ilovepdfService';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
-
-// Declare PDFLib from CDN
-declare global {
-    interface Window {
-        PDFLib?: {
-            PDFDocument: any;
-        };
-    }
-}
 
 // --- TYPES AND MOCK DATA ---
 
@@ -38,14 +25,11 @@ interface Book {
     publicationTypes: string[];
     labels: string[];
     categories: string[];
-    releaseVersion: string; // verze vydání originálu
     dateAdded: string; // ISO string, maps to created_at
     hasOCR: boolean; // indikuje zda dokument obsahuje OCR text
     content: string;
     filePath: string; // path in supabase storage
     vectorStatus: 'pending' | 'success' | 'error'; // Status nahrání do vektorové databáze
-    vectorAddedAt?: string; // ISO string, datum úspěšného přidání do vektorové databáze
-    metadataSnapshot?: string; // JSON snapshot metadat v době přidání do VDB
 }
 
 // --- ICONS ---
@@ -63,10 +47,8 @@ const IconWarning = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="
 const IconClose = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
 const IconExport = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
 const IconAdd = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
-const IconChatbot = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z"></path><circle cx="9" cy="10" r="1"></circle><circle cx="15" cy="10" r="1"></circle></svg>;
-const IconDatabase = ({status = 'pending', isLoading = false}: {status?: 'pending' | 'success' | 'error', isLoading?: boolean}) => {
+const IconDatabase = ({status = 'pending'}: {status?: 'pending' | 'success' | 'error'}) => {
     const getColor = () => {
-        if (isLoading) return '#3b82f6'; // modrá pro loading
         switch(status) {
             case 'success': return '#22c55e'; // zelená
             case 'error': return '#ef4444'; // červená  
@@ -75,39 +57,28 @@ const IconDatabase = ({status = 'pending', isLoading = false}: {status?: 'pendin
         }
     };
     
-    const spinAnimation = isLoading ? {
-        animation: 'spin 2s linear infinite',
-        transformOrigin: 'center'
-    } : {};
-    
     return (
-        <>
-            <style>{`
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
-            `}</style>
-            <svg 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke={getColor()} 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                style={spinAnimation}
-            >
-                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-            </svg>
-        </>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={getColor()} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+        </svg>
     );
 };
 
-
+const IconOCR = ({hasOCR = false}: {hasOCR?: boolean}) => {
+    const color = hasOCR ? '#22c55e' : '#6b7280'; // zelená pokud má OCR, jinak šedá
+    
+    return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <line x1="10" y1="9" x2="8" y2="9"></line>
+        </svg>
+    );
+};
 
 
 // --- HELPERS & API ---
@@ -115,98 +86,11 @@ const IconDatabase = ({status = 'pending', isLoading = false}: {status?: 'pendin
 const getFlagEmoji = (language: string) => {
     if (!language) return '🏳️';
     const lang = language.toLowerCase();
-    
-    // Mapa jazyků na vlajky
-    const languageFlags: { [key: string]: string } = {
-        // Hlavní jazyky
-        'čeština': '🇨🇿',
-        'slovenština': '🇸🇰', 
-        'němčina': '🇩🇪',
-        'angličtina': '🇬🇧',
-        'francouzština': '🇫🇷',
-        'španělština': '🇪🇸',
-        'italština': '🇮🇹',
-        'portugalština': '🇵🇹',
-        'ruština': '🇷🇺',
-        'polština': '🇵🇱',
-        'holandština': '🇳🇱',
-        'švédština': '🇸🇪',
-        'norština': '🇳🇴',
-        'dánština': '🇩🇰',
-        'finština': '🇫🇮',
-        
-        // Asijské jazyky
-        'čínština': '🇨🇳',
-        'japonština': '🇯🇵',
-        'korejština': '🇰🇷',
-        'thajština': '🇹🇭',
-        'vietnamština': '🇻🇳',
-        'hindština': '🇮🇳',
-        'arabština': '🇸🇦',
-        'hebrejština': '🇮🇱',
-        'turečtina': '🇹🇷',
-        'perština': '🇮🇷',
-        'indonéština': '🇮🇩',
-        'bengálština': '🇧🇩',
-        'mongolština': '🇲🇳',
-        'nepálština': '🇳🇵',
-        
-        // Evropské jazyky
-        'maďarština': '🇭🇺',
-        'rumunština': '🇷🇴',
-        'bulharština': '🇧🇬',
-        'chorvatština': '🇭🇷',
-        'srbština': '🇷🇸',
-        'slovinština': '🇸🇮',
-        'bosenština': '🇧🇦',
-        'makedonština': '🇲🇰',
-        'albánština': '🇦🇱',
-        'řečtina': '🇬🇷',
-        'lotyština': '🇱🇻',
-        'litevština': '🇱🇹',
-        'estonština': '🇪🇪',
-        'islandština': '🇮🇸',
-        'irština': '🇮🇪',
-        'velština': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-        'maltština': '🇲🇹',
-        'lucemburština': '🇱🇺',
-        'ukrajinština': '🇺🇦',
-        'běloruština': '🇧🇾',
-        'moldavština': '🇲🇩',
-        
-        // Kavkazské a středoasijské
-        'gruzínština': '🇬🇪',
-        'arménština': '🇦🇲',
-        'ázerbájdžánština': '🇦🇿',
-        'kazaština': '🇰🇿',
-        'kyrgyzština': '🇰🇬',
-        'uzbečtina': '🇺🇿',
-        'tádžičtina': '🇹🇯',
-        'tatarština': '🇷🇺', // Tatarstan nemá vlastní vlajku emoji
-        
-        // Regionální jazyky
-        'katalánština': '🇪🇸', // Katalánsko
-        'baskičtina': '🇪🇸', // Baskicko
-        'galicijština': '🇪🇸', // Galicie
-        'bretonština': '🇫🇷', // Bretaň
-        'sardínština': '🇮🇹', // Sardinie
-        'latinčina': '🇻🇦', // Vatikán
-        'jidiš': '🇮🇱'
-    };
-    
-    // Přímé vyhledání
-    if (languageFlags[lang]) {
-        return languageFlags[lang];
-    }
-    
-    // Fallback pro podobné názvy
-    for (const [key, flag] of Object.entries(languageFlags)) {
-        if (lang.includes(key.substring(0, 4)) || key.includes(lang.substring(0, 4))) {
-            return flag;
-        }
-    }
-    
-    return '🏳️'; // Defaultní vlajka
+    if (lang === 'čeština') return '🇨🇿';
+    if (lang.includes('eng') || lang.includes('angličtina')) return '🇬🇧';
+    if (lang.includes('sloven')) return '🇸🇰';
+    if (lang.includes('něm')) return '🇩🇪';
+    return '🏳️';
 };
 
 const formatDate = (isoString: string) => {
@@ -221,10 +105,13 @@ const formatFileSize = (kb: number) => {
 };
 
 // Environment variables loaded from .env file or localStorage
+console.log('🔧 Inicializuji Gemini AI...');
+
 // Try to load API key from multiple sources
 const getGeminiApiKey = (): string | null => {
     // 1. Try environment variable (from .env file via Vite)
     if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'PLACEHOLDER_API_KEY') {
+        console.log('✅ Gemini API klíč načten z environment variables');
         return process.env.GEMINI_API_KEY;
     }
     
@@ -232,14 +119,21 @@ const getGeminiApiKey = (): string | null => {
     if (typeof window !== 'undefined') {
         const storedKey = localStorage.getItem('GEMINI_API_KEY');
         if (storedKey && storedKey !== 'PLACEHOLDER_API_KEY') {
+            console.log('✅ Gemini API klíč načten z localStorage');
             return storedKey;
         }
     }
     
+    console.warn('⚠️ Gemini API klíč nenalezen');
     return null;
 };
 
 const GEMINI_API_KEY = getGeminiApiKey();
+
+// Debug načítání API klíče
+console.log('🔍 DEBUG: process.env.GEMINI_API_KEY =', process.env.GEMINI_API_KEY);
+console.log('🔍 DEBUG: localStorage GEMINI_API_KEY =', typeof window !== 'undefined' ? localStorage.getItem('GEMINI_API_KEY') : 'N/A');
+console.log('🔍 DEBUG: Final GEMINI_API_KEY =', GEMINI_API_KEY ? `${GEMINI_API_KEY.slice(0, 8)}...` : 'null');
 
 const sanitizeFilePath = (filename: string): string => {
     const sanitized = filename
@@ -318,96 +212,6 @@ export interface Database {
         }
         Relationships: []
       }
-      labels: {
-        Row: {
-          id: string
-          name: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      categories: {
-        Row: {
-          id: string
-          name: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      languages: {
-        Row: {
-          id: string
-          name: string
-          code: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          code?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          code?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      publication_types: {
-        Row: {
-          id: string
-          name: string
-          description: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
@@ -471,21 +275,18 @@ const mapSupabaseToBook = (data: Database['public']['Tables']['books']['Row']): 
         publisher: data.publisher || '',
         summary: data.summary || '',
         keywords: parseSupabaseArray(data.keywords),
-        language: data.language || 'čeština',
+        language: data.language || 'Neznámý',
         format: data.format,
         fileSize: data.file_size,
         coverImageUrl: data.cover_image_url,
         publicationTypes: parseSupabaseArray(data.publication_types),
         labels: parseSupabaseArray(data.labels),
         categories: parseSupabaseArray(data.categories),
-        releaseVersion: (data as any).releaseVersion || '', // verze vydání originálu
         dateAdded: data.created_at,
         filePath: data.file_path,
         content: '', // Content will be loaded on demand
         vectorStatus: (data.Vdtb as 'pending' | 'success' | 'error') || 'pending',
         hasOCR: data.OCR || false,
-        vectorAddedAt: (data as any).vector_added_at || undefined,
-        metadataSnapshot: (data as any).metadata_snapshot || undefined,
     };
 };
 
@@ -506,9 +307,6 @@ const api = {
             publication_types: book.publicationTypes, labels: book.labels, categories: book.categories, file_path: book.filePath,
             OCR: book.hasOCR,
             Vdtb: book.vectorStatus,
-            ...(book.releaseVersion && { releaseVersion: book.releaseVersion }),
-            ...(book.vectorAddedAt !== undefined && { vector_added_at: book.vectorAddedAt }),
-            ...(book.metadataSnapshot !== undefined && { metadata_snapshot: book.metadataSnapshot }),
         };
         const { data, error } = await supabaseClient.from('books').update(updateData).eq('id', book.id).select().single();
         if (error) { console.error('Error updating book:', error.message, error); throw error; }
@@ -581,23 +379,7 @@ const api = {
             }
         }
         
-        // Step 3: Delete from Vector Databases (Supabase documents + Qdrant)
-        try {
-            console.log('🗑️ Mazání z vektorových databází pro knihu:', bookId);
-            const vectorDeleteResult = await api.deleteFromVectorDatabases(bookId);
-            
-            if (!vectorDeleteResult.success) {
-                console.warn('Mazání z vektorových databází se nepodařilo úplně:', vectorDeleteResult.message);
-                errors.push(`Varování - vektorové databáze: ${vectorDeleteResult.message}`);
-            } else {
-                console.log('✅ Úspěšně smazáno z vektorových databází');
-            }
-        } catch (e) {
-            console.error('VECTOR DATABASE DELETE ERROR:', e);
-            errors.push(`Chyba při mazání z vektorových databází: ${e}`);
-        }
-        
-        // Step 4: Delete record from Database (ALWAYS attempt this, even if file deletion failed)
+        // Step 3: Delete record from Database (ALWAYS attempt this, even if file deletion failed)
         try {
             const { error: dbError } = await supabaseClient.from('books').delete().eq('id', bookId);
             if (dbError) {
@@ -639,9 +421,6 @@ const api = {
         if (bucket === 'covers') {
             // Cover files always as JPG in covers bucket
             filePath = `${bookId}.jpg`;
-        } else if (bucket === 'Books' && file.type.startsWith('image/')) {
-            // Cover files in Books bucket subfolder
-            filePath = `covers/${bookId}.jpg`;
         } else if (bookId.startsWith('covers/')) {
             // Fallback: covers in Books bucket subfolder
             const actualBookId = bookId.replace('covers/', '');
@@ -678,9 +457,6 @@ const api = {
             labels: bookData.labels, categories: bookData.categories, file_path: bookData.filePath,
             OCR: bookData.hasOCR,
             Vdtb: bookData.vectorStatus || 'pending',
-            ...(bookData.releaseVersion && { releaseVersion: bookData.releaseVersion }),
-            ...(bookData.vectorAddedAt && { vector_added_at: bookData.vectorAddedAt }),
-            ...(bookData.metadataSnapshot && { metadata_snapshot: bookData.metadataSnapshot }),
         };
         console.log('💾 Ukládám do Supabase s OCR:', supabaseData.OCR);
         const { data, error } = await supabaseClient.from('books').insert(supabaseData).select().single();
@@ -783,73 +559,78 @@ const api = {
             for (let pageNum = 1; pageNum <= numPagesToCheck; pageNum++) {
                 try {
                     const page = await pdf.getPage(pageNum);
-                    const textContent = await page.getTextContent();
                     
-                    console.log(`📄 Stránka ${pageNum}: Nalezeno ${textContent.items.length} textových objektů`);
-                    
-                    // Detailní analýza každé textové položky
-                    let pageText = '';
-                    textContent.items.forEach((item: any, index: number) => {
-                        let itemText = '';
+                    // METODA 1: Standardní getTextContent
+                    try {
+                        const textContent = await page.getTextContent();
+                        console.log(`📄 Stránka ${pageNum}: Nalezeno ${textContent.items.length} textových objektů`);
                         
-                        // Zkusíme všechny možné způsoby získání textu
-                        if (item.str !== undefined) {
-                            itemText = String(item.str);
-                        } else if (item.text !== undefined) {
-                            itemText = String(item.text);
-                        } else if (item.chars !== undefined) {
-                            itemText = String(item.chars);
-                        } else if (typeof item === 'string') {
-                            itemText = item;
-                        }
+                        let pageText = '';
+                        textContent.items.forEach((item: any, index: number) => {
+                            let itemText = '';
+                            
+                            // Zkusíme všechny možné způsoby získání textu
+                            if (item.str !== undefined) {
+                                itemText = String(item.str);
+                            } else if (item.text !== undefined) {
+                                itemText = String(item.text);
+                            } else if (item.chars !== undefined) {
+                                itemText = String(item.chars);
+                            } else if (typeof item === 'string') {
+                                itemText = item;
+                            }
+                            
+                            if (itemText && itemText.trim().length > 0) {
+                                pageText += itemText + ' ';
+                                console.log(`   Položka ${index + 1}: "${itemText.substring(0, 50)}${itemText.length > 50 ? '...' : ''}"`);
+                            }
+                        });
                         
-                        if (itemText && itemText.trim().length > 0) {
-                            pageText += itemText + ' ';
-                            console.log(`   Položka ${index + 1}: "${itemText.substring(0, 50)}${itemText.length > 50 ? '...' : ''}"`);
+                        pageText = pageText.trim();
+                        if (pageText.length > 0) {
+                            allExtractedText += pageText + ' ';
+                            totalTextLength += pageText.length;
+                            console.log(`📝 Stránka ${pageNum} (metoda 1): ${pageText.length} znaků`);
                         }
-                    });
+                    } catch (textError) {
+                        console.log(`📄 Stránka ${pageNum}: Standardní metoda selhala`);
+                    }
                     
-                    pageText = pageText.trim();
-                    allExtractedText += pageText + ' ';
-                    totalTextLength += pageText.length;
-                    
-                    console.log(`📝 Stránka ${pageNum} celkem: ${pageText.length} znaků`);
-                    if (pageText.length > 0) {
-                        console.log(`📝 Text stránky ${pageNum}: "${pageText.substring(0, 200)}${pageText.length > 200 ? '...' : ''}"`);
+                    // METODA 2: Alternativní getOperatorList (pro OCR PDF)
+                    if (totalTextLength === 0) {
+                        try {
+                            const ops = await page.getOperatorList();
+                            console.log(`📄 Stránka ${pageNum}: Nalezeno ${ops.fnArray.length} operací`);
+                            
+                            let altText = '';
+                            for (let i = 0; i < ops.fnArray.length; i++) {
+                                const fn = ops.fnArray[i];
+                                const args = ops.argsArray[i];
+                                
+                                // Textové operace v PDF
+                                if (fn === 84 || fn === 85 || fn === 82) { // TJ, Tj, ' operátory
+                                    if (args && args.length > 0 && typeof args[0] === 'string') {
+                                        const textArg = args[0].trim();
+                                        if (textArg.length > 0) {
+                                            altText += textArg + ' ';
+                                            console.log(`🔤 Nalezen text operátorem: "${textArg.substring(0, 50)}"`);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (altText.trim().length > 0) {
+                                allExtractedText += altText.trim() + ' ';
+                                totalTextLength += altText.trim().length;
+                                console.log(`📝 Stránka ${pageNum} (metoda 2): ${altText.trim().length} znaků`);
+                            }
+                        } catch (altError) {
+                            console.log(`📄 Stránka ${pageNum}: Alternativní metoda selhala`);
+                        }
                     }
                     
                 } catch (pageError) {
                     console.warn(`⚠️ Chyba při zpracování stránky ${pageNum}:`, pageError);
-                }
-            }
-            
-            // Ještě zkusíme alternativní metodu - getOperatorList
-            if (totalTextLength === 0) {
-                console.log('🔄 Žádný text nenalezen standardní metodou, zkouším alternativní přístup...');
-                try {
-                    for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 2); pageNum++) {
-                        const page = await pdf.getPage(pageNum);
-                        const ops = await page.getOperatorList();
-                        
-                        console.log(`📄 Stránka ${pageNum}: Nalezeno ${ops.fnArray.length} operací`);
-                        
-                        // Hledáme textové operace
-                        for (let i = 0; i < ops.fnArray.length; i++) {
-                            const fn = ops.fnArray[i];
-                            const args = ops.argsArray[i];
-                            
-                            // Textové operace v PDF
-                            if (fn === 84 || fn === 85 || fn === 82) { // TJ, Tj, ' operátory
-                                if (args && args.length > 0 && typeof args[0] === 'string') {
-                                    console.log(`🔤 Nalezen text operátorem: "${args[0].substring(0, 50)}"`);
-                                    allExtractedText += args[0] + ' ';
-                                    totalTextLength += args[0].length;
-                                }
-                            }
-                        }
-                    }
-                } catch (altError) {
-                    console.warn('⚠️ Alternativní metoda selhala:', altError);
                 }
             }
             
@@ -870,7 +651,7 @@ const api = {
         }
     },
     
-    // PŘEPSANÁ ROBUSTNĚJŠÍ FUNKCE PRO EXTRAKCI TEXTU Z PDF
+        // PŘEPSANÁ ROBUSTNĚJŠÍ FUNKCE PRO EXTRAKCI TEXTU Z PDF
     async extractPdfTextContent(fileData: Blob): Promise<string> {
         console.log("🚀 SPOUŠTÍM NOVÝ OCR PROCES...");
         
@@ -899,15 +680,182 @@ const api = {
             for (let pageNum = 1; pageNum <= pagesToProcess; pageNum++) {
                 try {
                     const page = await pdf.getPage(pageNum);
-                    const textContent = await page.getTextContent();
                     
-                    // Extrahujeme všechny textové položky
-                    const pageTextItems = textContent.items
-                        .filter(item => 'str' in item && item.str.trim().length > 0)
-                        .map(item => (item as any).str);
+                    // METODA 1: Standardní getTextContent (pro PDF s textovou vrstvou)
+                    let pageText = "";
+                    try {
+                        const textContent = await page.getTextContent();
+                        const pageTextItems = textContent.items
+                            .filter(item => 'str' in item && item.str.trim().length > 0)
+                            .map(item => (item as any).str);
+                        pageText = pageTextItems.join(' ').trim();
+                        
+                        if (pageText.length > 0) {
+                            console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (standardní metoda)`);
+                        }
+                    } catch (textError) {
+                        console.log(`📃 Stránka ${pageNum}: Standardní metoda selhala, zkouším alternativní...`);
+                    }
                     
-                    const pageText = pageTextItems.join(' ').trim();
+                    // METODA 2: Alternativní extrakce pomocí getOperatorList (pro OCR PDF)
+                    if (pageText.length === 0) {
+                        try {
+                            console.log(`🔄 Zkouším alternativní metodu pro stránku ${pageNum}...`);
+                            const ops = await page.getOperatorList();
+                            
+                            // Hledáme textové operace v PDF
+                            let altText = "";
+                            for (let i = 0; i < ops.fnArray.length; i++) {
+                                const fn = ops.fnArray[i];
+                                const args = ops.argsArray[i];
+                                
+                                // Textové operace v PDF.js
+                                // 84 = TJ (text positioning), 85 = Tj (text showing), 82 = ' (text positioning)
+                                if (fn === 84 || fn === 85 || fn === 82) {
+                                    if (args && args.length > 0) {
+                                        // První argument je obvykle text
+                                        const textArg = args[0];
+                                        if (typeof textArg === 'string' && textArg.trim().length > 0) {
+                                            altText += textArg + " ";
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (altText.trim().length > 0) {
+                                pageText = altText.trim();
+                                console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (alternativní metoda)`);
+                            }
+                        } catch (altError) {
+                            console.log(`📃 Stránka ${pageNum}: Alternativní metoda selhala`);
+                        }
+                    }
                     
+                    // METODA 3: Pokus o extrakci pomocí renderování na canvas a OCR
+                    if (pageText.length === 0) {
+                        try {
+                            console.log(`🔄 Zkouším renderování na canvas pro stránku ${pageNum}...`);
+                            
+                            // Vytvoříme canvas pro renderování
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            
+                            if (context) {
+                                // Nastavíme viewport
+                                const viewport = page.getViewport({ scale: 1.5 });
+                                canvas.width = viewport.width;
+                                canvas.height = viewport.height;
+                                
+                                // Renderujeme stránku
+                                await page.render({
+                                    canvasContext: context,
+                                    viewport: viewport
+                                }).promise;
+                                
+                                // Zkusíme extrahovat text z canvas pomocí Tesseract.js nebo podobné knihovny
+                                // Pro tuto chvíli použijeme jednoduchou detekci
+                                console.log(`📃 Stránka ${pageNum}: Renderování dokončeno, ale OCR vyžaduje další knihovnu`);
+                            }
+                        } catch (renderError) {
+                            console.log(`📃 Stránka ${pageNum}: Renderování selhalo`);
+                        }
+                    }
+                    
+                    // METODA 4: Pokus o extrakci pomocí analýzy PDF struktury
+                    if (pageText.length === 0) {
+                        try {
+                            console.log(`🔄 Zkouším analýzu PDF struktury pro stránku ${pageNum}...`);
+                            
+                            // Zkusíme získat metadata stránky
+                            const pageInfo = await page.getOperatorList();
+                            console.log(`📄 Stránka ${pageNum}: Nalezeno ${pageInfo.fnArray.length} operací`);
+                            
+                            // Hledáme specifické textové operace
+                            let structText = "";
+                            for (let i = 0; i < pageInfo.fnArray.length; i++) {
+                                const fn = pageInfo.fnArray[i];
+                                const args = pageInfo.argsArray[i];
+                                
+                                // Další textové operace v PDF
+                                // 86 = T* (text positioning), 87 = Td (text positioning)
+                                // 88 = TD (text positioning), 89 = Tm (text matrix)
+                                if (fn === 86 || fn === 87 || fn === 88 || fn === 89) {
+                                    if (args && args.length > 0) {
+                                        // Tyto operace mohou obsahovat text nebo souřadnice
+                                        for (let j = 0; j < args.length; j++) {
+                                            const arg = args[j];
+                                            if (typeof arg === 'string' && arg.trim().length > 0) {
+                                                structText += arg + " ";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (structText.trim().length > 0) {
+                                pageText = structText.trim();
+                                console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (strukturní analýza)`);
+                            }
+                        } catch (structError) {
+                            console.log(`📃 Stránka ${pageNum}: Strukturní analýza selhala`);
+                        }
+                    }
+                    
+                    // METODA 5: Pokus o extrakci pomocí analýzy fontů a glyfů
+                    if (pageText.length === 0) {
+                        try {
+                            console.log(`🔄 Zkouším analýzu fontů pro stránku ${pageNum}...`);
+                            
+                            // Zkusíme získat informace o fontech
+                            const commonObjs = page.commonObjs;
+                            if (commonObjs) {
+                                // Zkusíme získat počet objektů různými způsoby
+                                let objCount = 0;
+                                try {
+                                    if ('size' in commonObjs) {
+                                        objCount = (commonObjs as any).size;
+                                    } else if ('length' in commonObjs) {
+                                        objCount = (commonObjs as any).length;
+                                    } else {
+                                        // Počítáme objekty manuálně
+                                        for (const key in commonObjs) {
+                                            if (commonObjs.hasOwnProperty(key)) objCount++;
+                                        }
+                                    }
+                                } catch (e) {
+                                    objCount = 0;
+                                }
+                                
+                                if (objCount > 0) {
+                                    console.log(`📄 Stránka ${pageNum}: Nalezeno ${objCount} společných objektů`);
+                                    
+                                    // Procházíme objekty a hledáme text
+                                    let fontText = "";
+                                    try {
+                                        for (const key in commonObjs) {
+                                            if (commonObjs.hasOwnProperty(key)) {
+                                                const value = (commonObjs as any)[key];
+                                                if (typeof value === 'string' && value.trim().length > 0) {
+                                                    fontText += value + " ";
+                                                }
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.log(`📄 Stránka ${pageNum}: Chyba při procházení objektů`);
+                                    }
+                                    
+                                    if (fontText.trim().length > 0) {
+                                        pageText = fontText.trim();
+                                        console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (analýza fontů)`);
+                                    }
+                                }
+                            }
+                        } catch (fontError) {
+                            console.log(`📃 Stránka ${pageNum}: Analýza fontů selhala`);
+                        }
+                    }
+                    
+                    // Přidáme text do celkového výsledku
                     if (pageText.length > 0) {
                         allText += `\n\n=== STRÁNKA ${pageNum} ===\n${pageText}`;
                         totalChars += pageText.length;
@@ -969,8 +917,8 @@ const api = {
     },
     
     // Funkce pro odesílání dat do n8n webhook pro vektorovou databázi
-    async sendToVectorDatabase(book: Book, waitForResponse: boolean = false): Promise<{success: boolean, message: string, details?: any}> {
-        const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/10f5ed9e-e0b1-465d-8bc8-b2ba9a37bc58';
+    async sendToVectorDatabase(book: Book): Promise<{success: boolean, message: string}> {
+        const webhookUrl = 'https://n8n.srv801780.hstgr.cloud/webhook-test/10f5ed9e-e0b1-465d-8bc8-b2ba9a37bc58';
         
         try {
             // Nejdříve aktualizujeme status na pending
@@ -985,131 +933,54 @@ const api = {
                 throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
             }
             
-            console.log('📤 Odesílám binární soubor na webhook pro vektorovou databázi...');
-            console.log('📊 Velikost souboru:', fileData.size, 'bajtů');
+            // Převedeme Blob na ArrayBuffer a pak na base64
+            const arrayBuffer = await fileData.arrayBuffer();
+            const base64Data = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
             
-            // Získáme veřejný link pro stažení souboru
-            const { data: publicUrl } = supabaseClient.storage
-                .from('Books')
-                .getPublicUrl(book.filePath);
+            // Připravíme metadata
+            const metadata = {
+                id: book.id,
+                title: book.title,
+                author: book.author,
+                publicationYear: book.publicationYear,
+                publisher: book.publisher,
+                summary: book.summary,
+                keywords: book.keywords,
+                language: book.language,
+                format: book.format,
+                fileSize: book.fileSize,
+                categories: book.categories,
+                labels: book.labels
+            };
             
-            // Vytvoříme FormData pro odeslání binárního souboru a všech metadat zvlášť
-            const formData = new FormData();
-            formData.append('file', fileData, book.filePath.split('/').pop() || 'document.pdf');
-            formData.append('bookId', book.id);
-            formData.append('fileName', book.filePath.split('/').pop() || 'unknown.pdf');
-            formData.append('fileType', book.format.toLowerCase());
-            formData.append('downloadUrl', publicUrl.publicUrl);
+            // Odešleme data do n8n webhook
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    bookId: book.id,
+                    metadata: metadata,
+                    fileData: base64Data,
+                    fileName: book.filePath.split('/').pop() || 'unknown.pdf'
+                })
+            });
             
-            // Přidáme každé metadata jako samostatné pole
-            formData.append('id', book.id);
-            formData.append('title', book.title);
-            formData.append('author', book.author);
-            formData.append('publicationYear', book.publicationYear?.toString() || '');
-            formData.append('publisher', book.publisher);
-            formData.append('summary', book.summary);
-            formData.append('language', book.language);
-            formData.append('releaseVersion', book.releaseVersion || '');
-            formData.append('format', book.format);
-            formData.append('fileSize', book.fileSize.toString());
-            
-            // Pro pole (arrays) převedeme na string s hodnotami oddělenými čárkou
-            formData.append('keywords', book.keywords.join(','));
-            formData.append('categories', book.categories.join(','));
-            formData.append('labels', book.labels.join(','));
-            formData.append('publicationTypes', book.publicationTypes.join(','));
-            
-            if (waitForResponse) {
-                // Režim s čekáním na odpověď - s timeoutem 5 minut
-                console.log('⏳ Odesílám webhook a čekám na odpověď (timeout 5 minut)...');
-                
-                // Vytvoříme AbortController pro timeout
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => {
-                    controller.abort();
-                }, 5 * 60 * 1000); // 5 minut timeout
-                
-                try {
-                    const response = await fetch(webhookUrl, {
-                        method: 'POST',
-                        body: formData, // FormData automaticky nastaví správný Content-Type s boundary
-                        signal: controller.signal
-                    });
-                    
-                    clearTimeout(timeoutId);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    
-                    const result = await response.json();
-                    console.log('✅ Webhook odpověď:', result);
-                    console.log('📊 Typ odpovědi:', typeof result, 'Array?', Array.isArray(result), 'Délka:', result?.length);
-                    
-                    // Zpracujeme formát odpovědi - pole objektů
-                    let newStatus: 'success' | 'error' | 'pending' = 'error';
-                    let message = '';
-                    
-                    if (Array.isArray(result) && result.length >= 2) {
-                        console.log('🔍 Hledám objekty v poli...');
-                        const qdrantResult = result.find(item => item.hasOwnProperty('qdrant_ok'));
-                        const supabaseResult = result.find(item => item.hasOwnProperty('supabase_ok'));
-                        
-                        console.log('🗄️ Qdrant result:', qdrantResult);
-                        console.log('🗄️ Supabase result:', supabaseResult);
-                        
-                        const qdrantOk = qdrantResult?.qdrant_ok === true;
-                        const supabaseOk = supabaseResult?.supabase_ok === true;
-                        
-                        console.log('✅ Qdrant OK:', qdrantOk, 'Supabase OK:', supabaseOk);
-                        
-                        if (qdrantOk && supabaseOk) {
-                            newStatus = 'success';
-                            message = `✅ Soubor úspěšně nahrán do obou databází (Supabase + Qdrant)`;
-                        } else if (supabaseOk && !qdrantOk) {
-                            newStatus = 'error';
-                            message = `⚠️ Soubor nahrán pouze do Supabase. Chyba Qdrant: ${qdrantResult?.qdrant_error || 'Neznámá chyba'}`;
-                        } else if (qdrantOk && !supabaseOk) {
-                            newStatus = 'error';
-                            message = `⚠️ Soubor nahrán pouze do Qdrant. Chyba Supabase: ${supabaseResult?.supabase_error || 'Neznámá chyba'}`;
-                        } else {
-                            newStatus = 'error';
-                            message = `❌ Soubor se nepodařilo nahrát do žádné databáze.\nSupabase: ${supabaseResult?.supabase_error || 'Neznámá chyba'}\nQdrant: ${qdrantResult?.qdrant_error || 'Neznámá chyba'}`;
-                        }
-                    } else {
-                        // Fallback pro starší formáty
-                        console.log('⚠️ Neočekávaný formát odpovědi, používám fallback. result.success:', result.success);
-                        newStatus = result.success ? 'success' : 'error';
-                        message = result.message || (result.success ? 'Úspěšně nahráno do vektorové databáze' : 'Chyba při nahrávání do vektorové databáze');
-                    }
-                    
-                    // Aktualizujeme pouze vectorStatus
-                    const updatedBook = {...book, vectorStatus: newStatus};
-                    
-                    try {
-                        await api.updateBook(updatedBook);
-                    } catch (updateError) {
-                        console.warn('⚠️ Webhook byl úspěšný, ale nepodařilo se aktualizovat status v databázi:', updateError);
-                        // Webhook byl úspěšný, takže nebudeme měnit návratovou hodnotu
-                    }
-                    
-                    return {
-                        success: newStatus === 'success',
-                        message,
-                        details: result
-                    };
-                    
-                } catch (fetchError) {
-                    clearTimeout(timeoutId);
-                    
-                    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-                        throw new Error('⏰ Timeout: Webhook neodpověděl do 5 minut. Zkuste to později nebo kontaktujte administrátora.');
-                    }
-                    
-                    throw fetchError;
-                }
-                
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
+            
+            const result = await response.json();
+            
+            // Aktualizujeme status na základě odpovědi
+            const newStatus = result.success ? 'success' : 'error';
+            await api.updateBook({...book, vectorStatus: newStatus});
+            
+            return {
+                success: result.success,
+                message: result.message || (result.success ? 'Úspěšně nahráno do vektorové databáze' : 'Chyba při nahrávání do vektorové databáze')
+            };
             
         } catch (error) {
             console.error('Chyba při odesílání do vektorové databáze:', error);
@@ -1127,324 +998,6 @@ const api = {
             };
         }
     },
-
-    // Funkce pro mazání z Supabase vektorové databáze
-    async deleteFromSupabaseVectorDB(bookId: string): Promise<{success: boolean, message: string}> {
-        try {
-            console.log('🗑️ Mazání z Supabase vektorové databáze, bookId:', bookId);
-            
-            // Použijeme fetch API pro přímé volání Supabase REST API pro tabulku documents
-            // Protože documents tabulka není v naší TypeScript definici
-            const response = await fetch(`${supabaseUrl}/rest/v1/documents?metadata->>file_id=eq.${bookId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': supabaseKey,
-                    'Authorization': `Bearer ${supabaseKey}`,
-                    'Prefer': 'return=minimal'
-                }
-            });
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('❌ Chyba při mazání z Supabase vektorové DB:', response.status, errorText);
-                return {
-                    success: false,
-                    message: `Chyba při mazání z Supabase vektorové databáze: ${response.status} ${errorText}`
-                };
-            }
-            
-            console.log('✅ Úspěšně smazáno z Supabase vektorové databáze');
-            return {
-                success: true,
-                message: 'Úspěšně smazáno z Supabase vektorové databáze'
-            };
-            
-        } catch (error) {
-            console.error('❌ Chyba při mazání z Supabase vektorové DB:', error);
-            return {
-                success: false,
-                message: `Neočekávaná chyba při mazání z Supabase: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
-            };
-        }
-    },
-
-    // Funkce pro mazání z Qdrant vektorové databáze
-    async deleteFromQdrantVectorDB(bookId: string): Promise<{success: boolean, message: string}> {
-        // Zkusíme různé varianty URL pro Qdrant
-        const qdrantUrls = [
-            'https://9aaad106-c442-4dba-b072-3fb8ad4da051.us-west-2-0.aws.cloud.qdrant.io:6333',
-            'https://9aaad106-c442-4dba-b072-3fb8ad4da051.us-west-2-0.aws.cloud.qdrant.io',
-            'https://9aaad106-c442-4dba-b072-3fb8ad4da051.us-west-2-0.aws.cloud.qdrant.io/api'
-        ];
-        const qdrantApiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.ls9vPmwrlvxTco80TUsQBMPg0utIzNTYgk25x9__Vbo';
-        
-        for (const qdrantUrl of qdrantUrls) {
-            try {
-                console.log(`🗑️ Zkouším mazání z Qdrant s URL: ${qdrantUrl}, bookId:`, bookId);
-                
-                // Smazání všech points s daným file_id v metadata z Qdrant kolekce "documents"
-                const deleteResponse = await fetch(`${qdrantUrl}/collections/documents/points/delete`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Api-Key': qdrantApiKey
-                    },
-                    body: JSON.stringify({
-                        filter: {
-                            must: [
-                                {
-                                    key: "file_id",
-                                    match: {
-                                        value: bookId
-                                    }
-                                }
-                            ]
-                        }
-                    })
-                });
-
-                if (!deleteResponse.ok) {
-                    const errorText = await deleteResponse.text();
-                    console.warn(`❌ Chyba s URL ${qdrantUrl}:`, deleteResponse.status, errorText);
-                    continue; // Zkusíme další URL
-                }
-
-                const result = await deleteResponse.json();
-                console.log('✅ Úspěšná odpověď z Qdrant s URL', qdrantUrl, ':', result);
-                
-                return {
-                    success: true,
-                    message: 'Úspěšně smazáno z Qdrant vektorové databáze'
-                };
-                
-            } catch (error) {
-                console.warn(`❌ Chyba s URL ${qdrantUrl}:`, error instanceof Error ? error.message : 'Neznámá chyba');
-                continue; // Zkusíme další URL
-            }
-        }
-        
-        // Pokud všechny URL selhaly
-        return {
-            success: false,
-            message: `Neočekávaná chyba při mazání z Qdrant: Všechny URL varianty selhaly (CORS nebo nedostupnost)`
-        };
-    },
-
-    // Funkce pro mazání z obou vektorových databází
-    async deleteFromVectorDatabases(bookId: string): Promise<{success: boolean, message: string, details?: any}> {
-        console.log('🗑️ Zahajuji mazání z obou vektorových databází pro knihu:', bookId);
-        
-        const results = {
-            supabase: { success: false, message: '' },
-            qdrant: { success: false, message: '' }
-        };
-        
-        // Paralelně mažeme z obou databází
-        const [supabaseResult, qdrantResult] = await Promise.allSettled([
-            this.deleteFromSupabaseVectorDB(bookId),
-            this.deleteFromQdrantVectorDB(bookId)
-        ]);
-        
-        // Zpracujeme výsledky z Supabase
-        if (supabaseResult.status === 'fulfilled') {
-            results.supabase = supabaseResult.value;
-        } else {
-            results.supabase = {
-                success: false,
-                message: `Chyba při mazání z Supabase: ${supabaseResult.reason}`
-            };
-        }
-        
-        // Zpracujeme výsledky z Qdrant
-        if (qdrantResult.status === 'fulfilled') {
-            results.qdrant = qdrantResult.value;
-        } else {
-            results.qdrant = {
-                success: false,
-                message: `Chyba při mazání z Qdrant: ${qdrantResult.reason}`
-            };
-        }
-        
-        // Vyhodnotíme celkový výsledek
-        const bothSuccessful = results.supabase.success && results.qdrant.success;
-        const someSuccessful = results.supabase.success || results.qdrant.success;
-        
-        let overallMessage = '';
-        if (bothSuccessful) {
-            overallMessage = '✅ Úspěšně smazáno z obou vektorových databází (Supabase + Qdrant)';
-        } else if (someSuccessful) {
-            if (results.supabase.success) {
-                overallMessage = `⚠️ Smazáno pouze z Supabase. Qdrant chyba: ${results.qdrant.message}`;
-            } else {
-                overallMessage = `⚠️ Smazáno pouze z Qdrant. Supabase chyba: ${results.supabase.message}`;
-            }
-        } else {
-            overallMessage = `❌ Nepodařilo se smazat z žádné vektorové databáze.\nSupabase: ${results.supabase.message}\nQdrant: ${results.qdrant.message}`;
-        }
-        
-        console.log('📊 Celkový výsledek mazání z vektorových databází:', overallMessage);
-        
-        return {
-            success: bothSuccessful,
-            message: overallMessage,
-            details: results
-        };
-    },
-
-    // === METADATA MANAGEMENT API ===
-
-    // Štítky (Labels)
-    async getLabels(): Promise<string[]> {
-        const { data, error } = await supabaseClient
-            .from('labels')
-            .select('name')
-            .order('name', { ascending: true });
-        if (error) { 
-            console.error('Error fetching labels:', error.message, error); 
-            return []; // Vrátíme prázdné pole místo výjimky
-        }
-        return data ? data.map(item => item.name) : [];
-    },
-
-    async addLabel(name: string): Promise<boolean> {
-        if (!name || name.trim() === '') return false;
-        const { error } = await supabaseClient
-            .from('labels')
-            .insert({ name: name.trim() });
-        if (error) { 
-            console.error('Error adding label:', error.message, error); 
-            return false;
-        }
-        return true;
-    },
-
-    async deleteLabel(name: string): Promise<boolean> {
-        if (!name || name.trim() === '') return false;
-        const { error } = await supabaseClient
-            .from('labels')
-            .delete()
-            .eq('name', name.trim());
-        if (error) { 
-            console.error('Error deleting label:', error.message, error); 
-            return false;
-        }
-        return true;
-    },
-
-    // Kategorie (Categories)
-    async getCategories(): Promise<string[]> {
-        const { data, error } = await supabaseClient
-            .from('categories')
-            .select('name')
-            .order('name', { ascending: true });
-        if (error) { 
-            console.error('Error fetching categories:', error.message, error); 
-            return [];
-        }
-        return data ? data.map(item => item.name) : [];
-    },
-
-    async addCategory(name: string): Promise<boolean> {
-        if (!name || name.trim() === '') return false;
-        const { error } = await supabaseClient
-            .from('categories')
-            .insert({ name: name.trim() });
-        if (error) { 
-            console.error('Error adding category:', error.message, error); 
-            return false;
-        }
-        return true;
-    },
-
-    async deleteCategory(name: string): Promise<boolean> {
-        if (!name || name.trim() === '') return false;
-        const { error } = await supabaseClient
-            .from('categories')
-            .delete()
-            .eq('name', name.trim());
-        if (error) { 
-            console.error('Error deleting category:', error.message, error); 
-            return false;
-        }
-        return true;
-    },
-
-    // Jazyky (Languages)  
-    async getLanguages(): Promise<string[]> {
-        const { data, error } = await supabaseClient
-            .from('languages')
-            .select('name')
-            .order('name', { ascending: true });
-        if (error) { 
-            console.error('Error fetching languages:', error.message, error); 
-            return [];
-        }
-        return data ? data.map(item => item.name) : [];
-    },
-
-    async addLanguage(name: string, code?: string): Promise<boolean> {
-        if (!name || name.trim() === '') return false;
-        const { error } = await supabaseClient
-            .from('languages')
-            .insert({ name: name.trim(), code: code?.trim() || null });
-        if (error) { 
-            console.error('Error adding language:', error.message, error); 
-            return false;
-        }
-        return true;
-    },
-
-    async deleteLanguage(name: string): Promise<boolean> {
-        if (!name || name.trim() === '') return false;
-        const { error } = await supabaseClient
-            .from('languages')
-            .delete()
-            .eq('name', name.trim());
-        if (error) { 
-            console.error('Error deleting language:', error.message, error); 
-            return false;
-        }
-        return true;
-    },
-
-    // Typy publikací (Publication Types)
-    async getPublicationTypes(): Promise<string[]> {
-        const { data, error } = await supabaseClient
-            .from('publication_types')
-            .select('name')
-            .order('name', { ascending: true });
-        if (error) { 
-            console.error('Error fetching publication types:', error.message, error); 
-            return [];
-        }
-        return data ? data.map(item => item.name) : [];
-    },
-
-    async addPublicationType(name: string, description?: string): Promise<boolean> {
-        if (!name || name.trim() === '') return false;
-        const { error } = await supabaseClient
-            .from('publication_types')
-            .insert({ name: name.trim(), description: description?.trim() || null });
-        if (error) { 
-            console.error('Error adding publication type:', error.message, error); 
-            return false;
-        }
-        return true;
-    },
-
-    async deletePublicationType(name: string): Promise<boolean> {
-        if (!name || name.trim() === '') return false;
-        const { error } = await supabaseClient
-            .from('publication_types')
-            .delete()
-            .eq('name', name.trim());
-        if (error) { 
-            console.error('Error deleting publication type:', error.message, error); 
-            return false;
-        }
-        return true;
-    },
 };
 
 // NOVÁ GEMINI AI IMPLEMENTACE - KOMPLETNĚ PŘEPSÁNA
@@ -1456,6 +1009,8 @@ class GeminiAI {
     private dailyLimit = 50; // Free tier limit
     
     constructor(apiKey: string) {
+        console.log('🔍 DEBUG: GeminiAI konstruktor - apiKey =', apiKey);
+        console.log('🔍 DEBUG: GeminiAI konstruktor - apiKey length =', apiKey?.length);
         this.apiKey = apiKey;
         
         // Load request count from localStorage
@@ -1471,6 +1026,8 @@ class GeminiAI {
             localStorage.setItem('gemini_request_date', today);
             localStorage.setItem('gemini_request_count', '0');
         }
+        
+        console.log(`📊 Gemini API requests today: ${this.requestCount}/${this.dailyLimit}`);
     }
     
     private updateRequestCount() {
@@ -1579,6 +1136,8 @@ class GeminiAI {
 // Inicializace Gemini AI klienta (po definici třídy)
 const geminiClient = GEMINI_API_KEY ? new GeminiAI(GEMINI_API_KEY) : null;
 
+console.log('🔍 DEBUG: geminiClient vytvořen =', !!geminiClient);
+
 // Test funkce pro ověření Gemini API
 const testGeminiConnection = async (): Promise<boolean> => {
     if (!geminiClient) {
@@ -1596,7 +1155,24 @@ const testGeminiConnection = async (): Promise<boolean> => {
     }
 };
 
-// Gemini API je připraveno k použití pouze na vyžádání (ne při startu aplikace)
+// Automatický test Gemini API při spuštění
+if (typeof window !== 'undefined') {
+    setTimeout(async () => {
+        console.log('🔍 DEBUG: V setTimeout - GEMINI_API_KEY =', GEMINI_API_KEY ? `${GEMINI_API_KEY.slice(0, 8)}...` : 'null');
+        if (geminiClient) {
+            console.log('🧪 Testuji Gemini API připojení...');
+            const isWorking = await testGeminiConnection();
+            if (isWorking) {
+                console.log('🎉 Gemini AI je připraveno k použití!');
+            } else {
+                console.warn('⚠️ Gemini API test se nezdařil - zkontrolujte API klíč');
+            }
+        } else {
+            console.warn('⚠️ Gemini API klíč není nastaven v setTimeout');
+            console.log('🔍 DEBUG: process.env =', Object.keys(process.env));
+        }
+    }, 2000);
+}
 
 const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<string> => {
     if (!geminiClient) {
@@ -1608,18 +1184,13 @@ const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<st
     console.log("📁 FilePath:", book.filePath);
     console.log("📖 Kniha:", book.title, "od", book.author);
     
-    // KLÍČOVÁ ZMĚNA: Preferujeme text z mezipaměti (OCR webhook)
+    // KLÍČOVÁ ZMĚNA: Načteme skutečný obsah dokumentu
     let documentContent = "";
     try {
-        // Nejdříve zkusíme načíst text z mezipaměti (OCR webhook)
-        const cachedText = getTextFromCache(book.id);
-        if (cachedText) {
-            console.log("✅ Používám text z OCR webhook mezipaměti:", cachedText.length, "znaků");
-            documentContent = cachedText;
-        } else if (book.filePath) {
-            console.log("⬇️ Stahuju PDF soubor z databáze (fallback)...");
+        if (book.filePath) {
+            console.log("⬇️ Stahuju PDF soubor z databáze...");
             documentContent = await api.getFileContent(book.filePath);
-            console.log("✅ Obsah dokumentu načten (fallback):", documentContent.length, "znaků");
+            console.log("✅ Obsah dokumentu načten:", documentContent.length, "znaků");
             
             // Zkontrolujeme, jestli obsahuje OCR text nebo strukturální info
             if (documentContent.includes("NEOBSAHUJE DOSTATEČNÝ TEXT PRO AI ANALÝZU") || 
@@ -1660,7 +1231,7 @@ const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<st
     
     switch (field) {
         case "title":
-            prompt = `Na základě obsahu dokumentu najdi správný název publikace.  "${book.title}". Odpověz pouze názvem bez uvozovek.${contentContext}`;
+            prompt = `Na základě obsahu dokumentu najdi správný název publikace "${book.title}". Odpověz pouze názvem bez uvozovek.${contentContext}`;
             break;
         case "author":
             prompt = `Na základě obsahu dokumentu urči, kdo je autor této knihy. Pokud je více autorů, odděl je čárkou. Odpověz pouze jménem/jmény.${contentContext}`;
@@ -1673,16 +1244,13 @@ const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<st
             break;
         case "summary":
             prompt = `Na základě obsahu dokumentu napiš krátkou, výstižnou sumarizaci v češtině. Sumarizace by měla být konkrétní a informativní - po přečtení musí být jasné, o čem kniha je a co se v ní čtenář dozví. 
-            Musí obsahovat jasnou sumarizaci obsahu. Nezminuj zde ze sumarizace je delana z prvnich 50 stran. ROvněž nezačínej frázemi jako "Tato kniha je o..." Jdi rovnou k věci a neplýtvej zbytečnými frázemi.  ${contentContext}`;
+            Musí obsahovat jasnou sumarizaci obsahu. Nezminuj zde ze sumarizace je delana z prvnich 50 stran ${contentContext}`;
             break;
         case "keywords":
             prompt = `Na základě obsahu dokumentu vygeneruj 5-7 relevantních klíčových slov v češtině. Klíčová slova musí být zaměřena na obsah knihy Vrať je jako seznam oddělený čárkami.${contentContext}`;
             break;
         case "language":
-            prompt = `Na základě obsahu dokumentu urči, v jakém jazyce je tato kniha napsána. Odpověz pouze názvem jazyka v češtině (např. čeština, angličtina, němčina, francouzština). Nikdy neodpovídej "neznámý" - vždy vyber konkrétní jazyk na základě dostupných informací.${contentContext}`;
-            break;
-        case "releaseVersion":
-            prompt = `Na základě obsahu dokumentu najdi jaká je toto verze vydání originálu (např. "1. vydání", "2. vydání", "revidované vydání", "rozšířené vydání"). Hledej informace o tom, kolikáté vydání to je nebo jaký typ vydání. Pokud informaci nenajdeš, odpověz "1. vydání". Odpověz pouze označením verze bez dalšího textu.${contentContext}`;
+            prompt = `Na základě obsahu dokumentu urči, v jakém jazyce je tato kniha napsána. Odpověz pouze názvem jazyka v češtině.${contentContext}`;
             break;
         default:
             return "Toto pole není podporováno pro AI generování.";
@@ -1956,7 +1524,99 @@ const generateCoverFromPdf = async (fileData: ArrayBuffer): Promise<File | null>
     }
 };
 
+// NOVÉ FUNKCE PRO EXTRACTION TEXTU DO MEZIPAMĚTI
 
+// Funkce pro stahování textu z PDF do mezipaměti
+const extractTextToCache = async (book: Book): Promise<string> => {
+    console.log('🚀 SPOUŠTÍM EXTRACTION TEXTU DO MEZIPAMĚTI...');
+    console.log('📖 Kniha:', book.title);
+    console.log('📁 FilePath:', book.filePath);
+    
+    try {
+        if (!book.filePath) {
+            throw new Error('Kniha nemá filePath');
+        }
+        
+        // Stáhneme soubor z storage
+        console.log('⬇️ Stahuji soubor ze storage...');
+        const { data, error } = await supabaseClient.storage.from("Books").download(book.filePath);
+        
+        if (error) {
+            throw new Error(`Chyba při stahování: ${error.message}`);
+        }
+        
+        if (!data) {
+            throw new Error('Soubor je prázdný');
+        }
+        
+        console.log('✅ Soubor stažen, velikost:', Math.round(data.size / 1024), 'KB');
+        
+        // Detekce typu souboru
+        const fileExtension = book.filePath.toLowerCase().split(".").pop();
+        
+        if (fileExtension === "pdf") {
+            console.log('📄 Zpracovávám PDF soubor...');
+            const extractedText = await api.extractPdfTextContent(data);
+            
+            // Omezení na maximálně 120 000 znaků
+            const maxChars = 120000;
+            let finalText = extractedText;
+            
+            if (extractedText.length > maxChars) {
+                finalText = extractedText.substring(0, maxChars) + "\n\n... [TEXT ZKRÁCEN NA 120 000 ZNAKŮ] ...";
+                console.log(`✂️ Text zkrácen z ${extractedText.length} na ${maxChars} znaků`);
+            }
+            
+            // Uložení do mezipaměti
+            const cacheKey = `extracted_text_${book.id}`;
+            localStorage.setItem(cacheKey, finalText);
+            localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
+            
+            console.log('💾 Text uložen do mezipaměti');
+            console.log('📊 Velikost textu:', finalText.length, 'znaků');
+            console.log('🔑 Cache klíč:', cacheKey);
+            console.log('⏰ Timestamp:', new Date().toLocaleString('cs-CZ'));
+            
+            // Kontrola v konzoli
+            console.log('📝 PRVNÍCH 200 ZNAKŮ EXTRHOVANÉHO TEXTU:');
+            console.log('─'.repeat(50));
+            console.log(finalText.substring(0, 200));
+            console.log('─'.repeat(50));
+            
+            return finalText;
+            
+        } else {
+            // Pro ostatní formáty
+            console.log('📝 Zpracovávám textový soubor...');
+            const textContent = await data.text();
+            
+            // Omezení na maximálně 120 000 znaků
+            const maxChars = 120000;
+            let finalText = textContent;
+            
+            if (textContent.length > maxChars) {
+                finalText = textContent.substring(0, maxChars) + "\n\n... [TEXT ZKRÁCEN NA 120 000 ZNAKŮ] ...";
+                console.log(`✂️ Text zkrácen z ${textContent.length} na ${maxChars} znaků`);
+            }
+            
+            // Uložení do mezipaměti
+            const cacheKey = `extracted_text_${book.id}`;
+            localStorage.setItem(cacheKey, finalText);
+            localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
+            
+            console.log('💾 Text uložen do mezipaměti');
+            console.log('📊 Velikost textu:', finalText.length, 'znaků');
+            console.log('🔑 Cache klíč:', cacheKey);
+            console.log('⏰ Timestamp:', new Date().toLocaleString('cs-CZ'));
+            
+            return finalText;
+        }
+        
+    } catch (error) {
+        console.error('❌ CHYBA PŘI EXTRACTION TEXTU:', error);
+        throw error;
+    }
+};
 
 // Funkce pro získání textu z mezipaměti
 const getTextFromCache = (bookId: string): string | null => {
@@ -2057,330 +1717,70 @@ const clearTextCache = (bookId: string): void => {
     console.log('─'.repeat(50));
 };
 
-// NOVÁ FUNKCE PRO TEST KOMUNIKACE S WEBHOOKU
-const testWebhookConnection = async (): Promise<string> => {
-    const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/79522dec-53ac-4f64-9253-1c5759aa8b45';
+// Funkce pro debugování PDF struktury (pro ověření OCR)
+(window as any).debugPdfStructure = async (file: File) => {
+    console.log('🔍 DEBUGOVÁNÍ PDF STRUKTURY...');
+    console.log('📁 Soubor:', file.name, 'velikost:', Math.round(file.size / 1024), 'KB');
     
     try {
-        console.log('📄 Odesílám binární soubor na webhook...');
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+        const pdf = await loadingTask.promise;
         
-        // Vytvoříme FormData s testovací zprávou
-        const formData = new FormData();
-        formData.append('test', 'ahoj');
-        formData.append('message', 'Test komunikace s n8n webhook');
-        formData.append('timestamp', new Date().toISOString());
+        console.log(`📄 PDF načten: ${pdf.numPages} stránek`);
         
-        console.log('📤 Odesílám testovací zprávu "ahoj"...');
+        // Analýza první stránky
+        const page = await pdf.getPage(1);
+        console.log('📃 První stránka načtena');
         
-        // Odešleme testovací data na n8n webhook
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData
-        });
+        // Zkusíme všechny metody extrakce
+        console.log('🔄 Testuji metody extrakce textu...');
         
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Webhook chyba:', errorText);
-            
-            if (response.status === 404) {
-                throw new Error(`Webhook není dostupný (404). Zkontrolujte, zda je n8n workflow aktivní a webhook zaregistrovaný. Chyba: ${errorText}`);
-            }
-            
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-        }
-        
-        const result = await response.text(); // Přijímáme jakoukoliv odpověď
-        console.log('✅ Webhook odpověď:', result);
-        
-        return result;
-        
-    } catch (error) {
-        console.error('❌ Chyba při extrakci textu přes webhook:', error);
-        throw error;
-    }
-};
-
-// NOVÁ FUNKCE PRO EXTRACTION TEXTU PŘES WEBHOOK
-const extractTextViaWebhook = async (book: Book): Promise<string> => {
-    const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/79522dec-53ac-4f64-9253-1c5759aa8b45';
-    
-    try {
-        console.log('🚀 Odesílám dokument na webhook pro extrakci textu...');
-        console.log('📖 Kniha:', book.title);
-        console.log('📁 FilePath:', book.filePath);
-        
-        // Stáhneme soubor z Supabase storage
-        const { data: fileData, error: downloadError } = await supabaseClient.storage
-            .from('Books')
-            .download(book.filePath);
-            
-        if (downloadError || !fileData) {
-            throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
-        }
-        
-        console.log('📤 Odesílám binární soubor na webhook...');
-        console.log('📊 Velikost souboru:', fileData.size, 'bajtů');
-        
-        // Vytvoříme FormData pro odeslání binárního souboru
-        const formData = new FormData();
-        formData.append('file', fileData, book.filePath.split('/').pop() || 'document.pdf');
-        formData.append('bookId', book.id);
-        formData.append('fileName', book.filePath.split('/').pop() || 'unknown.pdf');
-        formData.append('fileType', book.format.toLowerCase());
-        formData.append('metadata', JSON.stringify({
-            title: book.title,
-            author: book.author,
-            publicationYear: book.publicationYear,
-            language: book.language,
-            releaseVersion: book.releaseVersion
-        }));
-        
-        // Odešleme binární soubor na n8n webhook
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData // FormData automaticky nastaví správný Content-Type s boundary
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Webhook chyba:', errorText);
-            
-            if (response.status === 404) {
-                throw new Error(`Webhook není dostupný (404). Zkontrolujte, zda je n8n workflow aktivní a webhook zaregistrovaný. Chyba: ${errorText}`);
-            }
-            
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-        }
-        
-        // Nejdříve zkusíme JSON, pokud to selže, vezmeme to jako čistý text
-        let extractedText;
-        const responseText = await response.text();
-        
+        // Metoda 1: getTextContent
         try {
-            // Pokusíme se parsovat jako JSON
-            const result = JSON.parse(responseText);
-            console.log('✅ Webhook JSON odpověď:', result);
-            
-            if (result.success && result.extractedText) {
-                extractedText = result.extractedText;
-            } else if (result.extractedText) {
-                extractedText = result.extractedText;
-            } else {
-                // JSON neobsahuje extractedText, použijeme celý text
-                extractedText = responseText;
+            const textContent = await page.getTextContent();
+            console.log(`📝 getTextContent: ${textContent.items.length} položek`);
+            if (textContent.items.length > 0) {
+                const firstItem = textContent.items[0];
+                console.log('📝 První položka:', firstItem);
             }
-        } catch (jsonError) {
-            // Není to JSON, použijeme jako čistý text
-            console.log('✅ Webhook vrátil čistý text (ne JSON):', responseText.substring(0, 200) + '...');
-            extractedText = responseText;
+        } catch (e) {
+            console.log('❌ getTextContent selhal:', e);
         }
         
-        if (!extractedText || extractedText.trim().length === 0) {
-            throw new Error('Webhook vrátil prázdný text');
+        // Metoda 2: getOperatorList
+        try {
+            const ops = await page.getOperatorList();
+            console.log(`📝 getOperatorList: ${ops.fnArray.length} operací`);
+            
+            // Hledáme textové operace
+            const textOps = [];
+            for (let i = 0; i < ops.fnArray.length; i++) {
+                const fn = ops.fnArray[i];
+                if (fn === 84 || fn === 85 || fn === 82 || fn === 86 || fn === 87 || fn === 88 || fn === 89) {
+                    textOps.push({ index: i, fn, args: ops.argsArray[i] });
+                }
+            }
+            console.log(`📝 Nalezeno ${textOps.length} textových operací:`, textOps.slice(0, 5));
+        } catch (e) {
+            console.log('❌ getOperatorList selhal:', e);
         }
         
-        // Uložíme extrahovaný text do mezipaměti
-        const cacheKey = `extracted_text_${book.id}`;
-        localStorage.setItem(cacheKey, extractedText);
-        localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
+        // Metoda 3: Metadata
+        try {
+            const metadata = await pdf.getMetadata();
+            console.log('📝 Metadata:', metadata);
+        } catch (e) {
+            console.log('❌ Metadata selhal:', e);
+        }
         
-        console.log('💾 Text uložen do mezipaměti:', extractedText.length, 'znaků');
-        
-        return extractedText;
+        console.log('✅ Debugování dokončeno');
         
     } catch (error) {
-        console.error('❌ Chyba při extrakci textu přes webhook:', error);
-        throw error;
+        console.error('❌ Chyba při debugování:', error);
     }
 };
 
-// NOVÁ FUNKCE PRO LLM KONTEXT WEBHOOK S LIMITEM 50 STRÁNEK
-const sendToLLMContextWebhook = async (book: Book): Promise<string> => {
-    const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/c2d2f94f-1be3-4d68-a2ec-12f23b3580e1';
-    const MAX_PAGES = 50; // Limit na 50 stránek
-    
-    try {
-        console.log('🚀 Odesílám dokument na LLM kontext webhook s limitem', MAX_PAGES, 'stránek...');
-        console.log('📖 Kniha:', book.title);
-        console.log('📁 FilePath:', book.filePath);
-        
-        // Testujeme dostupnost PDFLib
-        console.log('🔍 Testování PDFLib dostupnosti:', {
-            windowPDFLib: !!window.PDFLib,
-            PDFDocument: !!(window.PDFLib && window.PDFLib.PDFDocument)
-        });
-        
-        // Stáhneme soubor ze storage
-        const { data, error: downloadError } = await supabaseClient.storage
-            .from("Books")
-            .download(book.filePath);
-        
-        if (downloadError || !data) {
-            throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
-        }
-        
-        // Zkontrolujeme počet stránek PDF a ořežeme na 50 stránek pokud je potřeba
-        let processedFileData = data;
-        
-        if (book.format.toLowerCase() === 'pdf') {
-            console.log('📄 Kontroluji počet stránek PDF...');
-            const fileBuffer = await data.arrayBuffer();
-            const loadingTask = pdfjsLib.getDocument(fileBuffer);
-            const pdf = await loadingTask.promise;
-            
-            console.log(`📊 PDF má ${pdf.numPages} stránek`);
-            
-            if (pdf.numPages > MAX_PAGES) {
-                console.log(`✂️ PDF má více než ${MAX_PAGES} stránek, ořezávám na prvních ${MAX_PAGES} stránek...`);
-                
-                try {
-                    // Zkusíme různé způsoby přístupu k PDFLib
-                    let PDFDocument = null;
-                    
-                    if (window.PDFLib && window.PDFLib.PDFDocument) {
-                        PDFDocument = window.PDFLib.PDFDocument;
-                        console.log('📚 Používám window.PDFLib.PDFDocument');
-                    } else if ((window as any).PDFLib && (window as any).PDFLib.PDFDocument) {
-                        PDFDocument = (window as any).PDFLib.PDFDocument;
-                        console.log('📚 Používám (window as any).PDFLib.PDFDocument');
-                    } else if ((globalThis as any).PDFLib && (globalThis as any).PDFLib.PDFDocument) {
-                        PDFDocument = (globalThis as any).PDFLib.PDFDocument;
-                        console.log('📚 Používám globalThis.PDFLib.PDFDocument');
-                    }
-                    
-                    if (!PDFDocument) {
-                        console.warn('⚠️ PDFLib není dostupné, posílám celé PDF s upozorněním');
-                        console.warn('🔍 Dostupné objekty:', Object.keys(window).filter(key => key.includes('PDF')));
-                        console.log(`📤 Posílám celé PDF (${pdf.numPages} stránek) - webhook musí ořezat na ${MAX_PAGES} stránek`);
-                    } else {
-                        console.log('📝 Vytvářím nové PDF s prvními', MAX_PAGES, 'stránkami...');
-                        
-                        // Načteme původní PDF
-                        const originalPdf = await PDFDocument.load(fileBuffer);
-                        
-                        // Vytvoříme nové PDF
-                        const newPdf = await PDFDocument.create();
-                        
-                        // Zkopírujeme pouze prvních MAX_PAGES stránek
-                        const pageIndices = Array.from({length: Math.min(MAX_PAGES, pdf.numPages)}, (_, i) => i);
-                        const copiedPages = await newPdf.copyPages(originalPdf, pageIndices);
-                        
-                        // Přidáme stránky do nového PDF
-                        copiedPages.forEach((page) => newPdf.addPage(page));
-                        
-                        // Převedeme na bytes
-                        const pdfBytes = await newPdf.save();
-                        
-                        // Vytvoříme nový Blob s ořezaným PDF
-                        processedFileData = new Blob([pdfBytes], { type: 'application/pdf' });
-                        
-                        console.log(`✅ PDF úspěšně ořezáno z ${pdf.numPages} na ${MAX_PAGES} stránek`);
-                        console.log(`📦 Nová velikost: ${Math.round(processedFileData.size / 1024)} KB (původní: ${Math.round(data.size / 1024)} KB)`);
-                    }
-                } catch (trimError) {
-                    console.error('❌ Chyba při ořezávání PDF pomocí PDFLib:', trimError);
-                    console.log(`⚠️ Pokusím se o alternativní řešení...`);
-                    
-                    // Alternativní řešení: informujeme webhook o nutnosti ořezání
-                    console.log(`⚠️ Posílám celé PDF s explicitní instrukcí pro ořezání na ${MAX_PAGES} stránek`);
-                    
-                    // Přidáme flag do FormData později, že PDF nebylo ořezáno na frontendu
-                    (processedFileData as any).__needsTrimming = true;
-                    (processedFileData as any).__originalPages = pdf.numPages;
-                }
-            } else {
-                console.log(`✅ PDF má ${pdf.numPages} stránek, což je v limitu ${MAX_PAGES} stránek`);
-            }
-        }
-        
-        // Zjistíme aktuální počet stránek pro metadata
-        let actualPages = MAX_PAGES;
-        if (book.format.toLowerCase() === 'pdf') {
-            try {
-                const checkBuffer = await processedFileData.arrayBuffer();
-                const checkTask = pdfjsLib.getDocument(checkBuffer);
-                const checkPdf = await checkTask.promise;
-                actualPages = checkPdf.numPages;
-                console.log(`📋 Skutečný počet stránek v odesílaném PDF: ${actualPages}`);
-            } catch (e) {
-                console.warn('⚠️ Nepodařilo se zjistit počet stránek ořezaného PDF, používám MAX_PAGES');
-            }
-        }
-        
-        console.log('📤 Odesílám soubor na LLM kontext webhook...');
-        console.log('📊 Velikost souboru:', processedFileData.size, 'bajtů');
-        console.log('🌐 Webhook URL:', webhookUrl);
-        
-        // Vytvoříme FormData pro odeslání binárního souboru
-        const formData = new FormData();
-        formData.append('file', processedFileData, book.filePath.split('/').pop() || 'document.pdf');
-        formData.append('bookId', book.id);
-        formData.append('fileName', book.filePath.split('/').pop() || 'unknown.pdf');
-        formData.append('fileType', book.format.toLowerCase());
-        formData.append('maxPages', MAX_PAGES.toString());
-        formData.append('actualPages', actualPages.toString());
-        formData.append('isLLMContext', 'true');
-        
-        // Přidáme informaci o tom, jestli PDF bylo ořezáno nebo potřebuje ořezání
-        const needsTrimming = (processedFileData as any).__needsTrimming || false;
-        const originalPages = (processedFileData as any).__originalPages || actualPages;
-        formData.append('needsTrimming', needsTrimming.toString());
-        formData.append('originalPages', originalPages.toString());
-        formData.append('metadata', JSON.stringify({
-            title: book.title,
-            author: book.author,
-            publicationYear: book.publicationYear,
-            language: book.language,
-            releaseVersion: book.releaseVersion,
-            requestedMaxPages: MAX_PAGES,
-            actualPages: actualPages
-        }));
-        
-        console.log('📋 FormData obsahuje:', {
-            fileName: book.filePath.split('/').pop(),
-            bookId: book.id,
-            fileType: book.format.toLowerCase(),
-            maxPages: MAX_PAGES,
-            actualPages: actualPages,
-            needsTrimming: needsTrimming,
-            originalPages: originalPages,
-            isLLMContext: true
-        });
-        
-        // Odešleme soubor na LLM kontext webhook
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData // FormData automaticky nastaví správný Content-Type s boundary
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ LLM kontext webhook chyba:', errorText);
-            
-            if (response.status === 404) {
-                throw new Error(`LLM kontext webhook není dostupný (404). Zkontrolujte, zda je n8n workflow aktivní a webhook zaregistrovaný. Chyba: ${errorText}`);
-            }
-            
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-        }
-        
-        const result = await response.text();
-        console.log('✅ LLM kontext webhook odpověď:', result.length, 'znaků');
-        
-        // Uložíme extrahovaný text do mezipaměti (přepíše stávající OCR text)
-        const cacheKey = `extracted_text_${book.id}`;
-        localStorage.setItem(cacheKey, result);
-        localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
-        
-        console.log('💾 LLM kontext text uložen do mezipaměti a přepsal stávající OCR:', result.length, 'znaků');
-        
-        return result;
-        
-    } catch (error) {
-        console.error('❌ Chyba při odesílání na LLM kontext webhook:', error);
-        throw error;
-    }
-};
 
 // --- COMPONENTS ---
 
@@ -2610,9 +2010,6 @@ const App = () => {
     const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
     const [typeFilter, setTypeFilter] = useState<string[]>([]);
     const [langFilter, setLangFilter] = useState<string[]>([]);
-    const [versionFilter, setVersionFilter] = useState<string[]>([]);
-
-    const [vdbFilter, setVdbFilter] = useState<'all' | 'success' | 'error' | 'pending'>('all');
     const [yearRange, setYearRange] = useState<{from: number|null, to: number|null}>({from: null, to: null});
     const [dateAddedRange, setDateAddedRange] = useState({ from: 0, to: 0 });
 
@@ -2621,75 +2018,38 @@ const App = () => {
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; book: Book | null }>({ isOpen: false, book: null });
     const [isBulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
     const [vectorDbConfirmation, setVectorDbConfirmation] = useState<{ isOpen: boolean; book: Book | null; missingFields: string[] }>({ isOpen: false, book: null, missingFields: [] });
-    const [vectorProcessingBooks, setVectorProcessingBooks] = useState<Set<string>>(new Set()); // Sleduje, které knihy se právě zpracovávají
-    const [isChatbotManagementOpen, setChatbotManagementOpen] = useState(false);
-    const [activeChatbot, setActiveChatbot] = useState<{id: string, features: any} | null>(null);
-    
-    // Upload processing modal
-    const [isUploadProcessingModalOpen, setUploadProcessingModalOpen] = useState(false);
-    const [uploadOptions, setUploadOptions] = useState({ performOCR: false, performCompression: false });
-    const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
-    const [selectedOCRLanguage, setSelectedOCRLanguage] = useState<string>('Angličtina');
-    const [selectedCompressionLevel, setSelectedCompressionLevel] = useState<string>('recommended');
     
     const [allLabels, setAllLabels] = useState<string[]>([]);
     const [allCategories, setAllCategories] = useState<string[]>(['Aromaterapie', 'Masáže', 'Akupunktura', 'Diagnostika']);
     const [allPublicationTypes, setAllPublicationTypes] = useState<string[]>(['public', 'students', 'internal_bewit']);
-    const [allVersions, setAllVersions] = useState<string[]>([]); // Všechny verze vydání nalezené v knihách
-    const [allLanguages, setAllLanguages] = useState<string[]>([]); // Pro filtraci (pouze používané jazyky)
-    const [allAvailableLanguages, setAllAvailableLanguages] = useState<string[]>([]); // Všechny jazyky z databáze pro dropdown
+    const [allLanguages, setAllLanguages] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setIsLoading(true);
-        
-        // Načteme všechna data paralelně
-        Promise.all([
-            api.getBooks(),
-            api.getLabels(),
-            api.getCategories(),
-            api.getLanguages(),
-            api.getPublicationTypes()
-        ]).then(([books, labels, categories, allLanguagesFromDB, publicationTypes]) => {
-            console.log('📊 Načtená metadata z databáze:');
-            console.log('- Štítky:', labels.length);
-            console.log('- Kategorie:', categories.length);
-            console.log('- Všechny jazyky z DB:', allLanguagesFromDB.length);
-            console.log('- Typy publikací:', publicationTypes.length);
-            
-            setBooks(books);
-            setAllLabels(labels);
-            setAllCategories(categories);
-            setAllAvailableLanguages(allLanguagesFromDB); // Všechny jazyky z databáze pro dropdown
-            setAllPublicationTypes(publicationTypes);
-            
-            // Pro filtraci zobrazíme pouze jazyky, které mají přiřazené nějaké knihy
-            const usedLanguages = new Set<string>();
-            const usedVersions = new Set<string>();
-            books.forEach(book => {
-                if (book.language) {
-                    usedLanguages.add(book.language);
-                }
-                if (book.releaseVersion && book.releaseVersion.trim() !== '') {
-                    usedVersions.add(book.releaseVersion.trim());
-                }
+        api.getBooks().then(data => {
+            setBooks(data);
+            const initialLabels = new Set<string>();
+            const initialCategories = new Set<string>(['Aromaterapie', 'Masáže', 'Akupunktura', 'Diagnostika']);
+            const initialPublicationTypes = new Set<string>(['public', 'students', 'internal_bewit']);
+            const initialLangs = new Set<string>();
+            data.forEach(book => {
+                book.labels.forEach(label => initialLabels.add(label));
+                book.categories.forEach(cat => initialCategories.add(cat));
+                book.publicationTypes.forEach(type => initialPublicationTypes.add(type));
+                if(book.language) initialLangs.add(book.language);
             });
-            
-            // Odfiltrujeme duplicity a seřadíme
-            const uniqueUsedLanguages = Array.from(usedLanguages).sort();
-            const uniqueUsedVersions = Array.from(usedVersions).sort();
-            console.log('📝 Jazyky používané v knihách pro filtraci:', uniqueUsedLanguages);
-            console.log('📝 Verze vydání používané v knihách pro filtraci:', uniqueUsedVersions);
-            setAllLanguages(uniqueUsedLanguages);
-            setAllVersions(uniqueUsedVersions);
-            
-            if (books.length > 0 && !selectedBookId) {
-                setSelectedBookId(books[0].id);
+            setAllLabels(Array.from(initialLabels).sort());
+            setAllCategories(Array.from(initialCategories).sort());
+            setAllPublicationTypes(Array.from(initialPublicationTypes).sort());
+            setAllLanguages(Array.from(initialLangs).sort());
+            if (data.length > 0 && !selectedBookId) {
+                setSelectedBookId(data[0].id);
             }
         }).catch(err => {
-            console.error("Failed to fetch data:", err.message, err);
-            alert(`Nepodařilo se načíst data z databáze: ${err.message}`);
+            console.error("Failed to fetch books:", err.message, err);
+            alert(`Nepodařilo se načíst knihy z databáze: ${err.message}`);
         }).finally(() => {
             setIsLoading(false);
         });
@@ -2730,14 +2090,12 @@ const App = () => {
             console.log('📝 Zpracovávám textový formát');
             return {
                 title: file.name.replace(/\.[^/.]+$/, ""),
-                releaseVersion: '',
                 format: file.name.split('.').pop()?.toUpperCase() || 'N/A'
             };
         } catch (error) {
             console.error("❌ Chyba při extrakci metadat:", error);
             return {
                 title: file.name.replace(/\.[^/.]+$/, ""),
-                releaseVersion: '',
                 format: file.name.split('.').pop()?.toUpperCase() || 'N/A'
             };
         }
@@ -2782,7 +2140,6 @@ const App = () => {
                 publisher: filterPublisher((info as any)?.Producer || ''),
                 publicationYear: (info as any)?.CreationDate ? extractYearFromDate((info as any).CreationDate) : null,
                 language: detectLanguageFromMetadata((info as any)?.Language) || 'Neznámý',
-                releaseVersion: '', // Bude vyplněno až AI generováním
                 format: 'PDF'
             };
         } catch (error) {
@@ -2791,7 +2148,6 @@ const App = () => {
                 title: file.name.replace(/\.[^/.]+$/, ""),
                 author: 'Neznámý',
                 language: 'Neznámý',
-                releaseVersion: '',
                 format: 'PDF'
             };
         }
@@ -2804,7 +2160,6 @@ const App = () => {
             title: file.name.replace(/\.[^/.]+$/, ""),
             author: 'Neznámý',
             language: 'Neznámý',
-            releaseVersion: '',
             format: 'EPUB'
         };
     };
@@ -2835,26 +2190,6 @@ const App = () => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        // Pro PDF soubory zobrazíme modal s možnostmi zpracování
-        if (file.type === 'application/pdf') {
-            setPendingUploadFile(file);
-            setUploadOptions({ performOCR: false, performCompression: false });
-            
-            // Pokusíme se detekovat jazyk z názvu souboru a nastavit nejlepší shodu
-            const extractedMetadata = await extractMetadataFromFile(file);
-            const detectedLanguage = extractedMetadata.language || 'Neznámý';
-            const bestLanguageMatch = ILovePDFService.getBestLanguageMatch(detectedLanguage);
-            setSelectedOCRLanguage(bestLanguageMatch);
-            
-            setUploadProcessingModalOpen(true);
-            return;
-        }
-
-        // Pro ostatní formáty pokračujeme přímo s uplodem
-        await processFileUpload(file, { performOCR: false, performCompression: false }, 'Angličtina');
-    };
-
-    const processFileUpload = async (file: File, options: { performOCR: boolean; performCompression: boolean }, ocrLanguage: string, compressionLevel: string = 'recommended') => {
         setIsLoading(true);
         try {
             // 1. Extract metadata from the file FIRST
@@ -2865,91 +2200,18 @@ const App = () => {
                 format: extractedMetadata.format
             });
             
-            // 2. Zpracovat soubor pomocí iLovePDF pokud je to PDF a jsou zvolené možnosti
-            let finalFile = file;
-            let hasOCRAfterProcessing = extractedMetadata.hasOCR;
-            
-            if (file.type === 'application/pdf' && (options.performOCR || options.performCompression)) {
-                const operationsText = [];
-                if (options.performOCR) operationsText.push('OCR');
-                if (options.performCompression) operationsText.push('komprese');
-                
-                console.log(`🔄 Spouštím zpracování pomocí iLovePDF (${operationsText.join(' + ')})...`);
-                
-                try {
-                    if (options.performOCR && options.performCompression) {
-                        // Kombinované zpracování: OCR + komprese
-                        finalFile = await ILovePDFService.processWithOCRAndCompression(file, ocrLanguage, compressionLevel);
-                        hasOCRAfterProcessing = true;
-                        console.log(`✅ Kombinované zpracování (OCR + komprese ${compressionLevel}) dokončeno`);
-                    } else if (options.performOCR) {
-                        // Pouze OCR
-                        finalFile = await ILovePDFService.performOCR(file, ocrLanguage);
-                        hasOCRAfterProcessing = true;
-                        console.log('✅ OCR zpracování dokončeno');
-                    } else if (options.performCompression) {
-                        // Pouze komprese
-                        finalFile = await ILovePDFService.compressPDF(file, compressionLevel);
-                        console.log(`✅ Komprese (${compressionLevel}) dokončena`);
-                    }
-                    
-                    // Vytvoříme nový File objekt se správným názvem
-                    finalFile = new File([finalFile], file.name, { type: file.type });
-                    
-                } catch (ilovepdfError: any) {
-                    console.error('❌ iLovePDF zpracování selhalo:', ilovepdfError.message);
-                    
-                    // Vytvoříme více informativní dialog
-                    const operationsText = [];
-                    if (options.performOCR) operationsText.push('OCR rozpoznání textu');
-                    if (options.performCompression) operationsText.push('komprese souboru');
-                    
-                    const dialogMessage = [
-                        `Zpracování pomocí iLovePDF se nezdařilo:`,
-                        ``,
-                        `${ilovepdfError.message}`,
-                        ``,
-                        `Zvolené operace: ${operationsText.join(' a ')}`,
-                        ``,
-                        `Můžete:`,
-                        `• ZRUŠIT nahrání a zkusit to později`,
-                        `• POKRAČOVAT a nahrát soubor bez zpracování`,
-                        ``,
-                        `Chcete pokračovat s nahráním bez zpracování?`
-                    ].join('\n');
-                    
-                    const userWantsToContinue = confirm(dialogMessage);
-                    
-                    if (!userWantsToContinue) {
-                        throw new Error(`Upload zrušen uživatelem. Původní chyba: ${ilovepdfError.message}`);
-                    }
-                    
-                    console.log('📁 Pokračuji s nahráváním bez iLovePDF zpracování...');
-                    console.log(`ℹ️  Soubor bude nahrán s původními metadaty bez ${operationsText.join(' a ')}`);
-                    
-                    // Zobrazíme uživatelskou zprávu o tom, že pokračujeme s fallback
-                    alert(`✅ Pokračuji s nahráním bez zpracování\n\nSoubor bude nahrán s původními metadaty.\nZpracování ${operationsText.join(' a ')} můžete zkusit později.`);
-                    
-                    // finalFile zůstává původní soubor
-                    // hasOCRAfterProcessing zůstává false pro komprese, původní hodnota pro OCR
-                    if (!options.performOCR) {
-                        hasOCRAfterProcessing = extractedMetadata.hasOCR;
-                    }
-                }
-            }
-            
-            // 3. Generate unique ID for this book (will be used for both book and cover)
+            // 2. Generate unique ID for this book (will be used for both book and cover)
             const bookId = `book_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             
-            // 4. Upload the processed book file with the unique ID
-            const { filePath, fileSize } = await api.uploadFileWithId(finalFile, 'Books', bookId);
+            // 3. Upload the original book file with the unique ID
+            const { filePath, fileSize } = await api.uploadFileWithId(file, 'Books', bookId);
 
-            // 5. Generate and upload cover if it's a PDF.
+            // 4. Generate and upload cover if it's a PDF.
             let coverImageUrl = `https://placehold.co/150x225/f3eee8/4a4a4a?text=${extractedMetadata.format || file.name.split('.').pop()?.toUpperCase()}`;
-            if (finalFile.type === 'application/pdf') {
+            if (file.type === 'application/pdf') {
                 try {
                     console.log('Starting PDF cover generation...');
-                    const fileBuffer = await finalFile.arrayBuffer();
+                    const fileBuffer = await file.arrayBuffer();
                     console.log('PDF file buffer created, size:', fileBuffer.byteLength);
                     
                     const coverImageFile = await generateCoverFromPdf(fileBuffer);
@@ -3034,46 +2296,39 @@ const App = () => {
                 publicationTypes: extractedMetadata.publicationTypes || [],
                 labels: extractedMetadata.labels || [],
                 categories: extractedMetadata.categories || [],
-                releaseVersion: extractedMetadata.releaseVersion || '',
                 filePath: filePath,
                 vectorStatus: 'pending',
-                hasOCR: hasOCRAfterProcessing || false,
+                hasOCR: extractedMetadata.hasOCR || false,
             };
             
             console.log('📚 Vytvářím knihu s předběžným OCR stavem:', newBookData.hasOCR);
             const createdBook = await api.createBook(newBookData);
             console.log('✅ Kniha vytvořena, nyní detekuji skutečný OCR stav...');
 
-            // 6. Pokud jsme neprovádeli OCR pomocí iLovePDF, detekujeme OCR ze storage
-            if (!options.performOCR) {
-                try {
-                    const realOCRStatus = await api.detectOCRFromStorage(filePath);
-                    console.log('🔍 Skutečný OCR stav:', realOCRStatus);
+            // 6. Skutečná detekce OCR z nahraného souboru
+            try {
+                const realOCRStatus = await api.detectOCRFromStorage(filePath);
+                console.log('🔍 Skutečný OCR stav:', realOCRStatus);
+                
+                if (realOCRStatus !== createdBook.hasOCR) {
+                    console.log('📝 Aktualizuji OCR stav v databázi...');
+                    const updatedBook = await api.updateBook({
+                        ...createdBook,
+                        hasOCR: realOCRStatus
+                    });
+                    console.log('✅ OCR stav aktualizován:', updatedBook.hasOCR);
                     
-                    if (realOCRStatus !== createdBook.hasOCR) {
-                        console.log('📝 Aktualizuji OCR stav v databázi...');
-                        const updatedBook = await api.updateBook({
-                            ...createdBook,
-                            hasOCR: realOCRStatus
-                        });
-                        console.log('✅ OCR stav aktualizován:', updatedBook.hasOCR);
-                        
-                        // Aktualizujeme lokální stav
-                        const finalBooks = [updatedBook, ...books];
-                        setBooks(finalBooks);
-                    } else {
-                        // OCR stav se nezměnil, použijeme původní seznam
-                        const finalBooks = [createdBook, ...books];
-                        setBooks(finalBooks);
-                    }
-                } catch (ocrError) {
-                    console.error('❌ Chyba při detekci OCR:', ocrError);
-                    // Pokud detekce OCR selže, pokračujeme s původní knihou
+                    // Aktualizujeme lokální stav
+                    const finalBooks = [updatedBook, ...books];
+                    setBooks(finalBooks);
+                } else {
+                    // OCR stav se nezměnil, použijeme původní seznam
                     const finalBooks = [createdBook, ...books];
                     setBooks(finalBooks);
                 }
-            } else {
-                // OCR jsme provedli pomocí iLovePDF, takže již víme správný stav
+            } catch (ocrError) {
+                console.error('❌ Chyba při detekci OCR:', ocrError);
+                // Pokud detekce OCR selže, pokračujeme s původní knihou
                 const finalBooks = [createdBook, ...books];
                 setBooks(finalBooks);
             }
@@ -3083,9 +2338,7 @@ const App = () => {
             setLabelFilter([]); 
             setCategoryFilter([]); 
             setTypeFilter([]); 
-            setLangFilter([]);
-
-            setVdbFilter('all');
+            setLangFilter([]); 
             setYearRange({ from: null, to: null });
             
             // availableMonths se přepočítá automaticky díky useMemo závislosti na books
@@ -3100,20 +2353,6 @@ const App = () => {
             setIsLoading(false);
             if(fileInputRef.current) fileInputRef.current.value = "";
         }
-    };
-
-    const handleUploadProcessingConfirm = async () => {
-        if (!pendingUploadFile) return;
-        
-        setUploadProcessingModalOpen(false);
-        await processFileUpload(pendingUploadFile, uploadOptions, selectedOCRLanguage, selectedCompressionLevel);
-        setPendingUploadFile(null);
-    };
-
-    const handleUploadProcessingCancel = () => {
-        setUploadProcessingModalOpen(false);
-        setPendingUploadFile(null);
-        if(fileInputRef.current) fileInputRef.current.value = "";
     };
 
     const handleUpdateBook = (updatedBook: Book) => {
@@ -3143,148 +2382,6 @@ const App = () => {
         const book = books.find(b => b.id === bookId);
         if (book) {
             setDeleteConfirmation({ isOpen: true, book });
-        }
-    };
-
-    const handleDownloadBook = async (bookId: string) => {
-        const book = books.find(b => b.id === bookId);
-        if (!book) {
-            alert('❌ Kniha nebyla nalezena');
-            return;
-        }
-
-        try {
-            console.log('📥 Stahování knihy:', book.title);
-            
-            // Stáhneme soubor z Supabase storage
-            const { data: fileData, error: downloadError } = await supabaseClient.storage
-                .from('Books')
-                .download(book.filePath);
-                
-            if (downloadError || !fileData) {
-                throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
-            }
-
-            // Vytvoříme URL pro stažení
-            const url = URL.createObjectURL(fileData);
-            
-            // Vytvoříme název souboru - pokud není k dispozici, použijeme původní název s extensí
-            const fileName = book.filePath.split('/').pop() || 
-                             `${book.title.replace(/[^a-zA-Z0-9]/g, '_')}.${book.format.toLowerCase()}`;
-            
-            // Vytvoříme dočasný link element pro stažení
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            
-            // Vyčistíme
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            
-            console.log('✅ Soubor byl úspěšně stažen:', fileName);
-            
-        } catch (error) {
-            console.error('Chyba při stahování knihy:', error);
-            alert(`❌ Chyba při stahování knihy: ${error.message}`);
-        }
-    };
-
-    const handleBulkDownload = async () => {
-        const selectedBooks = books.filter(book => selectedBookIds.has(book.id));
-        
-        if (selectedBooks.length === 0) {
-            alert('❌ Nejsou vybrané žádné knihy pro stažení');
-            return;
-        }
-
-        if (selectedBooks.length === 1) {
-            // Pro jednu knihu použijeme standard stahování
-            await handleDownloadBook(selectedBooks[0].id);
-            return;
-        }
-
-        // Pro více knih vytvoříme ZIP archiv
-        try {
-            console.log(`📥 Stahování ${selectedBooks.length} knih...`);
-            
-            // Dynamicky importujeme JSZip
-            const JSZip = (await import('jszip')).default;
-            const zip = new JSZip();
-            
-            let successCount = 0;
-            let errorCount = 0;
-            
-            // Stáhneme všechny soubory paralelně
-            const downloadPromises = selectedBooks.map(async (book) => {
-                try {
-                    console.log(`📥 Stahování: ${book.title}`);
-                    
-                    const { data: fileData, error: downloadError } = await supabaseClient.storage
-                        .from('Books')
-                        .download(book.filePath);
-                        
-                    if (downloadError || !fileData) {
-                        console.error(`❌ Chyba při stahování ${book.title}:`, downloadError?.message);
-                        errorCount++;
-                        return null;
-                    }
-
-                    // Vytvoříme název souboru
-                    const fileName = book.filePath.split('/').pop() || 
-                                   `${book.title.replace(/[^a-zA-Z0-9]/g, '_')}.${book.format.toLowerCase()}`;
-                    
-                    // Přidáme soubor do ZIP
-                    zip.file(fileName, fileData);
-                    successCount++;
-                    console.log(`✅ Úspěšně přidáno do ZIP: ${fileName}`);
-                    
-                    return fileName;
-                } catch (error) {
-                    console.error(`❌ Chyba při zpracování ${book.title}:`, error);
-                    errorCount++;
-                    return null;
-                }
-            });
-            
-            // Počkáme na dokončení všech stahování
-            await Promise.all(downloadPromises);
-            
-            if (successCount === 0) {
-                alert('❌ Nepodařilo se stáhnout žádnou knihu');
-                return;
-            }
-            
-            console.log(`📦 Vytváření ZIP archivu s ${successCount} soubory...`);
-            
-            // Vytvoříme ZIP archiv
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
-            
-            // Stáhneme ZIP soubor
-            const url = URL.createObjectURL(zipBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `knihy_${selectedBooks.length}_souboru.zip`;
-            document.body.appendChild(link);
-            link.click();
-            
-            // Vyčistíme
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            
-            // Informujeme uživatele o výsledku
-            if (errorCount === 0) {
-                alert(`✅ Úspěšně staženo ${successCount} knih do ZIP archivu`);
-            } else {
-                alert(`⚠️ Staženo ${successCount} knih, ${errorCount} se nepodařilo stáhnout`);
-            }
-            
-            console.log('✅ Hromadné stahování dokončeno');
-            
-        } catch (error) {
-            console.error('Chyba při hromadném stahování:', error);
-            alert(`❌ Chyba při vytváření ZIP archivu: ${error.message}`);
         }
     };
 
@@ -3372,168 +2469,24 @@ const App = () => {
             return;
         }
         
-        // Přidáme knihu do loading stavu
-        setVectorProcessingBooks(prev => new Set([...prev, book.id]));
-        
         try {
-            console.log('📤 Odesílání knihy do vektorové databáze:', book.title);
-            console.log('⏳ Čekám na webhook odpověď (může trvat až 5 minut)...');
-            
-            // Vždy čekáme na webhook odpověď
-            const result = await api.sendToVectorDatabase(book, true);
+            console.log('Odesílání knihy do vektorové databáze:', book.title);
+            const result = await api.sendToVectorDatabase(book);
             
             if (result.success) {
-                console.log('✅ Webhook úspěšně zpracován');
                 alert(`✅ ${result.message}`);
-                
-                // Aktualizujeme knihu v seznamu na success
+                // Aktualizujeme knihu v seznamu
                 setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'success'} : b));
             } else {
-                console.error('❌ Webhook selhal:', result.message);
                 alert(`❌ ${result.message}`);
-                
-                // Aktualizujeme knihu v seznamu na error
+                // Aktualizujeme knihu v seznamu
                 setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
             }
         } catch (error) {
-            console.error('❌ Chyba při komunikaci s webhookem:', error);
-            
+            console.error('Chyba při odesílání do vektorové databáze:', error);
+            alert('❌ Chyba při odesílání do vektorové databáze');
             // Aktualizujeme knihu v seznamu
             setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
-        } finally {
-            // Odebereme knihu z loading stavu
-            setVectorProcessingBooks(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(book.id);
-                return newSet;
-            });
-        }
-    };
-
-    const detectChangedMetadata = (book: Book): any => {
-        // Pokud neexistuje snapshot metadat nebo datum přidání do VDB, vraťme všechna data
-        if (!book.metadataSnapshot || !book.vectorAddedAt) {
-            console.log('⚠️ Žádný snapshot metadat nebo datum VDB - posílám všechna data');
-            return {
-                id: book.id,
-                title: book.title,
-                author: book.author,
-                publicationYear: book.publicationYear,
-                publisher: book.publisher,
-                summary: book.summary,
-                keywords: book.keywords,
-                language: book.language,
-                format: book.format,
-                fileSize: book.fileSize,
-                coverImageUrl: book.coverImageUrl,
-                publicationTypes: book.publicationTypes,
-                labels: book.labels,
-                categories: book.categories,
-                releaseVersion: book.releaseVersion
-            };
-        }
-
-        try {
-            const snapshotData = JSON.parse(book.metadataSnapshot);
-            const currentData = {
-                title: book.title,
-                author: book.author,
-                publicationYear: book.publicationYear,
-                publisher: book.publisher,
-                summary: book.summary,
-                keywords: book.keywords,
-                language: book.language,
-                format: book.format,
-                fileSize: book.fileSize,
-                coverImageUrl: book.coverImageUrl,
-                publicationTypes: book.publicationTypes,
-                labels: book.labels,
-                categories: book.categories,
-                releaseVersion: book.releaseVersion
-            };
-
-            const changedData: any = { id: book.id }; // ID vždy potřebujeme
-            let hasChanges = false;
-
-            // Porovnáme každé pole
-            Object.keys(currentData).forEach(key => {
-                const currentValue = (currentData as any)[key];
-                const snapshotValue = snapshotData[key];
-                
-                // Pro pole porovnáváme jako JSON stringy
-                const currentStr = Array.isArray(currentValue) ? JSON.stringify(currentValue.sort()) : String(currentValue || '');
-                const snapshotStr = Array.isArray(snapshotValue) ? JSON.stringify(snapshotValue.sort()) : String(snapshotValue || '');
-                
-                if (currentStr !== snapshotStr) {
-                    changedData[key] = currentValue;
-                    hasChanges = true;
-                    console.log(`🔄 Změna v poli '${key}':`, { před: snapshotValue, nyní: currentValue });
-                }
-            });
-
-            if (!hasChanges) {
-                console.log('✅ Žádné změny v metadatech od přidání do VDB');
-                return null; // Žádné změny
-            }
-
-            console.log('📝 Detekované změny:', Object.keys(changedData).filter(k => k !== 'id'));
-            return changedData;
-
-        } catch (error) {
-            console.error('❌ Chyba při parsování snapshot metadat:', error);
-            // V případě chyby vrátíme všechna data
-            return {
-                id: book.id,
-                title: book.title,
-                author: book.author,
-                publicationYear: book.publicationYear,
-                publisher: book.publisher,
-                summary: book.summary,
-                keywords: book.keywords,
-                language: book.language,
-                format: book.format,
-                fileSize: book.fileSize,
-                coverImageUrl: book.coverImageUrl,
-                publicationTypes: book.publicationTypes,
-                labels: book.labels,
-                categories: book.categories,
-                releaseVersion: book.releaseVersion
-            };
-        }
-    };
-
-    const updateMetadataWebhook = async (book: Book) => {
-        try {
-            console.log('Volání webhook pro aktualizaci metadat:', book.title);
-            
-            // Detekce změněných metadat
-            const changedData = detectChangedMetadata(book);
-            
-            if (!changedData) {
-                alert('ℹ️ Žádné změny v metadatech od přidání do vektorové databáze');
-                return;
-            }
-            
-            console.log('📤 Odesílám pouze změněná metadata:', changedData);
-
-            const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook/822e584e-0836-4d1d-aef1-5c4dce6573c0', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(changedData)
-            });
-
-            if (response.ok) {
-                const responseData = await response.json().catch(() => ({}));
-                const changedFieldsCount = Object.keys(changedData).filter(k => k !== 'id').length;
-                alert(`✅ Metadata úspěšně aktualizována (${changedFieldsCount} změn)`);
-            } else {
-                alert('❌ Chyba při aktualizaci metadat');
-            }
-        } catch (error) {
-            console.error('Chyba při volání webhooku:', error);
-            alert('❌ Chyba při aktualizaci metadat');
         }
     };
     
@@ -3614,50 +2567,25 @@ const App = () => {
         }
     };
     
-    const handleAddNewLabel = async (labelName: string) => {
+    const handleAddNewLabel = (labelName: string) => {
         if(labelName && !allLabels.includes(labelName)) {
-            const success = await api.addLabel(labelName);
-            if (success) {
-                setAllLabels(prev => [...prev, labelName].sort());
-                console.log('✅ Štítek přidán do databáze:', labelName);
-            } else {
-                alert(`Nepodařilo se přidat štítek "${labelName}" do databáze.`);
-            }
+            setAllLabels(prev => [...prev, labelName].sort());
         }
     }
 
-    const handleAddNewCategory = async (categoryName: string) => {
+    const handleAddNewCategory = (categoryName: string) => {
         if(categoryName && !allCategories.includes(categoryName)) {
-            const success = await api.addCategory(categoryName);
-            if (success) {
-                setAllCategories(prev => [...prev, categoryName].sort());
-                console.log('✅ Kategorie přidána do databáze:', categoryName);
-            } else {
-                alert(`Nepodařilo se přidat kategorii "${categoryName}" do databáze.`);
-            }
+            setAllCategories(prev => [...prev, categoryName].sort());
         }
     }
 
-    const handleAddNewPublicationType = async (typeName: string) => {
+    const handleAddNewPublicationType = (typeName: string) => {
         if(typeName && !allPublicationTypes.includes(typeName)) {
-            const success = await api.addPublicationType(typeName);
-            if (success) {
-                setAllPublicationTypes(prev => [...prev, typeName].sort());
-                console.log('✅ Typ publikace přidán do databáze:', typeName);
-            } else {
-                alert(`Nepodařilo se přidat typ publikace "${typeName}" do databáze.`);
-            }
+            setAllPublicationTypes(prev => [...prev, typeName].sort());
         }
     }
 
-    const handleDeleteLabel = async (labelName: string) => {
-        // Nejdříve smazat z databáze
-        const success = await api.deleteLabel(labelName);
-        if (!success) {
-            alert(`Nepodařilo se smazat štítek "${labelName}" z databáze.`);
-            return;
-        }
-        
+    const handleDeleteLabel = (labelName: string) => {
         // Odebrat štítek ze všech knih
         const updatedBooks = books.map(book => ({
             ...book,
@@ -3679,18 +2607,9 @@ const App = () => {
                 });
             }
         });
-        
-        console.log('✅ Štítek smazán z databáze a všech knih:', labelName);
     };
 
-    const handleDeleteCategory = async (categoryName: string) => {
-        // Nejdříve smazat z databáze
-        const success = await api.deleteCategory(categoryName);
-        if (!success) {
-            alert(`Nepodařilo se smazat kategorii "${categoryName}" z databáze.`);
-            return;
-        }
-        
+    const handleDeleteCategory = (categoryName: string) => {
         // Odebrat kategorii ze všech knih
         const updatedBooks = books.map(book => ({
             ...book,
@@ -3712,18 +2631,9 @@ const App = () => {
                 });
             }
         });
-        
-        console.log('✅ Kategorie smazána z databáze a všech knih:', categoryName);
     };
 
-    const handleDeletePublicationType = async (typeName: string) => {
-        // Nejdříve smazat z databáze
-        const success = await api.deletePublicationType(typeName);
-        if (!success) {
-            alert(`Nepodařilo se smazat typ publikace "${typeName}" z databáze.`);
-            return;
-        }
-        
+    const handleDeletePublicationType = (typeName: string) => {
         // Odebrat typ publikace ze všech knih
         const updatedBooks = books.map(book => ({
             ...book,
@@ -3745,8 +2655,6 @@ const App = () => {
                 });
             }
         });
-        
-        console.log('✅ Typ publikace smazán z databáze a všech knih:', typeName);
     };
 
     const handleConvert = (format: string) => {
@@ -3780,10 +2688,7 @@ const App = () => {
             const matchesLabels = labelFilter.length === 0 || labelFilter.every(t => book.labels.includes(t));
             const matchesCategories = categoryFilter.length === 0 || categoryFilter.every(c => book.categories.includes(c));
             const matchesTypes = typeFilter.length === 0 || typeFilter.some(t => book.publicationTypes.includes(t));
-            const matchesVersions = versionFilter.length === 0 || versionFilter.includes(book.releaseVersion);
             const matchesLangs = langFilter.length === 0 || langFilter.includes(book.language);
-            
-            const matchesVdb = vdbFilter === 'all' || book.vectorStatus === vdbFilter;
             
             const matchesYear = (!yearRange.from || (book.publicationYear && book.publicationYear >= yearRange.from)) &&
                                 (!yearRange.to || (book.publicationYear && book.publicationYear <= yearRange.to));
@@ -3796,8 +2701,8 @@ const App = () => {
             const bookMonthStr = `${bookDate.getFullYear()}-${String(bookDate.getMonth() + 1).padStart(2, '0')}`;
             const matchesDateAdded = bookMonthStr >= fromMonthStr && bookMonthStr <= toMonthStr;
 
-            return matchesText && matchesLabels && matchesCategories && matchesTypes && matchesVersions && matchesLangs && matchesVdb && matchesYear && matchesDateAdded;
-        }), [books, filter, labelFilter, categoryFilter, typeFilter, versionFilter, langFilter, vdbFilter, yearRange, dateAddedRange, availableMonths]);
+            return matchesText && matchesLabels && matchesCategories && matchesTypes && matchesLangs && matchesYear && matchesDateAdded;
+        }), [books, filter, labelFilter, categoryFilter, typeFilter, langFilter, yearRange, dateAddedRange, availableMonths]);
 
     const selectedBook = useMemo(() => books.find(b => b.id === selectedBookId), [books, selectedBookId]);
 
@@ -3817,11 +2722,9 @@ const App = () => {
                 onViewModeChange={setViewMode}
                 selectedCount={selectedBookIds.size}
                 onBulkDelete={handleBulkDelete}
-                onBulkDownload={handleBulkDownload}
                 onExportXml={handleExportXml}
                 onConvertClick={() => setConvertModalOpen(true)}
                 isAnyBookSelected={selectedBookIds.size > 0}
-                onChatbotManagementClick={() => setChatbotManagementOpen(true)}
             />
 
             <div style={styles.mainContent}>
@@ -3830,10 +2733,7 @@ const App = () => {
                     allLabels={allLabels} selectedLabels={labelFilter} onLabelFilterChange={setLabelFilter} onAddLabel={handleAddNewLabel} onDeleteLabel={handleDeleteLabel}
                     allCategories={allCategories} selectedCategories={categoryFilter} onCategoryFilterChange={setCategoryFilter} onAddCategory={handleAddNewCategory} onDeleteCategory={handleDeleteCategory}
                     allTypes={allPublicationTypes} selectedTypes={typeFilter} onTypeFilterChange={setTypeFilter} onAddType={handleAddNewPublicationType} onDeleteType={handleDeletePublicationType}
-                    allVersions={allVersions} selectedVersions={versionFilter} onVersionFilterChange={setVersionFilter}
                     allLanguages={allLanguages} selectedLanguages={langFilter} onLanguageFilterChange={setLangFilter}
-
-                    vdbFilter={vdbFilter} onVdbFilterChange={setVdbFilter}
                     yearRange={yearRange} onYearRangeChange={setYearRange} minYear={minYear} maxYear={maxYear}
                     availableMonths={availableMonths} dateAddedRange={dateAddedRange} onDateAddedRangeChange={setDateAddedRange}
                 />
@@ -3848,9 +2748,7 @@ const App = () => {
                                 onToggleSelection={handleToggleSelection}
                                 onSelectAll={handleSelectAll}
                                 onDeleteBook={handleDeleteBook}
-                                onDownloadBook={handleDownloadBook}
                                 onVectorDatabaseAction={handleVectorDatabaseAction}
-                                vectorProcessingBooks={vectorProcessingBooks}
                             /> :
                             <BookGridView books={filteredBooks} selectedBookId={selectedBookId} onSelectBook={setSelectedBookId} />
                     )}
@@ -3871,7 +2769,6 @@ const App = () => {
                             allPublicationTypes={allPublicationTypes}
                             onAddNewPublicationType={handleAddNewPublicationType}
                             onDeletePublicationType={handleDeletePublicationType}
-                            allAvailableLanguages={allAvailableLanguages}
                         />
                     </aside>
                 ) : !isLoading && books.length > 0 && (
@@ -3966,32 +2863,12 @@ const App = () => {
                         <p style={{fontSize: '0.9em', color: 'var(--text-secondary)', marginTop: '1rem'}}>
                             ⚠️ Tato operace může trvat několik minut. Kniha bude zpracována n8n workflow a přidána do vektorové databáze.
                         </p>
-                        
-                        <div style={{margin: '1.5rem 0', padding: '1rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', border: '1px solid var(--border-color)'}}>
-                            <div style={{fontSize: '0.95em'}}>
-                                <div style={{fontWeight: '500', marginBottom: '4px'}}>⏳ Čekání na zpracování</div>
-                                <div style={{fontSize: '0.85em', color: 'var(--text-secondary)'}}>
-                                    Aplikace bude čekat na webhook odpověď až 5 minut a zobrazí výsledek zpracování. Ikona se bude otáčet během celého procesu.
-                                </div>
-                            </div>
-                        </div>
-                        
                         <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end'}}>
                             <button style={styles.button} onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}>
                                 Zrušit
                             </button>
                             <button 
-                                style={{...styles.button, backgroundColor: '#6c757d', color: 'white', border: '1px solid #6c757d'}} 
-                                onClick={() => {
-                                    if (vectorDbConfirmation.book) {
-                                        updateMetadataWebhook(vectorDbConfirmation.book);
-                                    }
-                                }}
-                            >
-                                🔄 Aktualizovat metadata
-                            </button>
-                            <button 
-                                style={{...styles.button, backgroundColor: '#007bff', color: 'white', border: '1px solid #007bff'}} 
+                                style={{...styles.button, backgroundColor: 'var(--primary-color)', color: 'white'}} 
                                 onClick={confirmVectorDatabaseAction}
                             >
                                 <IconDatabase status="pending" /> Odeslat do VDB
@@ -4000,198 +2877,6 @@ const App = () => {
                     </>
                 )}
             </Modal>
-
-            {/* Modal pro volbu OCR a komprese při uploadu */}
-            <Modal 
-                isOpen={isUploadProcessingModalOpen} 
-                onClose={handleUploadProcessingCancel} 
-                title="Zpracování PDF souboru"
-            >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
-                        Vyberte, které operace chcete provést s nahrávaným PDF souborem:
-                    </p>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                            <input 
-                                type="checkbox" 
-                                checked={uploadOptions.performOCR}
-                                onChange={(e) => setUploadOptions(prev => ({ ...prev, performOCR: e.target.checked }))}
-                                style={{ marginRight: '0.5rem' }}
-                            />
-                            <strong>Provést OCR</strong>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9em' }}>
-                                - Rozpoznání textu v naskenovaných dokumentech
-                            </span>
-                        </label>
-                        
-                        {uploadOptions.performOCR && (
-                            <div style={{ 
-                                marginLeft: '1.5rem', 
-                                padding: '1rem', 
-                                backgroundColor: 'var(--background-tertiary)', 
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <strong style={{ fontSize: '0.9em' }}>Jazyk dokumentu pro OCR:</strong>
-                                    <select 
-                                        value={selectedOCRLanguage}
-                                        onChange={(e) => setSelectedOCRLanguage(e.target.value)}
-                                        style={{
-                                            padding: '0.5rem',
-                                            borderRadius: '4px',
-                                            border: '1px solid var(--border-color)',
-                                            backgroundColor: 'var(--background-primary)',
-                                            color: 'var(--text-primary)',
-                                            fontSize: '0.9em'
-                                        }}
-                                    >
-                                        {ILovePDFService.getAvailableLanguages().map(lang => (
-                                            <option key={lang.code} value={lang.label}>
-                                                {lang.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-                            </div>
-                        )}
-                        
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                            <input 
-                                type="checkbox" 
-                                checked={uploadOptions.performCompression}
-                                onChange={(e) => setUploadOptions(prev => ({ ...prev, performCompression: e.target.checked }))}
-                                style={{ marginRight: '0.5rem' }}
-                            />
-                            <strong>Provést kompresi</strong>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9em' }}>
-                                - Zmenšení velikosti souboru
-                            </span>
-                        </label>
-                        
-                        {uploadOptions.performCompression && (
-                            <div style={{ 
-                                marginLeft: '1.5rem',
-                                padding: '1rem', 
-                                backgroundColor: 'var(--background-tertiary)', 
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <strong style={{ fontSize: '0.9em' }}>Úroveň komprese:</strong>
-                                    <select 
-                                        value={selectedCompressionLevel}
-                                        onChange={(e) => setSelectedCompressionLevel(e.target.value)}
-                                        style={{
-                                            padding: '0.5rem',
-                                            borderRadius: '4px',
-                                            border: '1px solid var(--border-color)',
-                                            backgroundColor: 'var(--background-primary)',
-                                            color: 'var(--text-primary)',
-                                            fontSize: '0.9em'
-                                        }}
-                                    >
-                                        <option value="low">Low - Minimální komprese (zachová kvalitu)</option>
-                                        <option value="recommended">Recommended - Optimální poměr velikost/kvalita</option>
-                                        <option value="extreme">Extreme - Maximální komprese (může snížit kvalitu)</option>
-                                    </select>
-                                </label>
-                                <div style={{ 
-                                    marginTop: '0.5rem', 
-                                    fontSize: '0.8em', 
-                                    color: 'var(--text-secondary)',
-                                    lineHeight: '1.4'
-                                }}>
-                                    {selectedCompressionLevel === 'low' && (
-                                        <>🔹 <strong>Low:</strong> Minimální komprese pro zachování kvality bez ztráty dat</>
-                                    )}
-                                    {selectedCompressionLevel === 'recommended' && (
-                                        <>🔹 <strong>Recommended:</strong> Nejlepší mix komprese a kvality pro běžné použití</>
-                                    )}
-                                    {selectedCompressionLevel === 'extreme' && (
-                                        <>🔹 <strong>Extreme:</strong> Maximální komprese, může snížit kvalitu obrázků</>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    
-                    {(uploadOptions.performOCR || uploadOptions.performCompression) && (
-                        <div style={{ 
-                            backgroundColor: 'var(--background-tertiary)', 
-                            padding: '1rem', 
-                            borderRadius: '8px',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-secondary)' }}>
-                                ⏱️ Zpracování pomocí iLovePDF API může trvat několik sekund až minut v závislosti na velikosti souboru.
-                                {uploadOptions.performOCR && (
-                                    <>
-                                        <br />
-                                        🔍 OCR bude provedeno v jazyce: <strong>{selectedOCRLanguage}</strong>
-                                    </>
-                                )}
-                                {uploadOptions.performCompression && (
-                                    <>
-                                        <br />
-                                        🗜️ Komprese: <strong>{selectedCompressionLevel}</strong>
-                                    </>
-                                )}
-                            </p>
-                        </div>
-                    )}
-                    
-                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                        <button 
-                            style={styles.button} 
-                            onClick={handleUploadProcessingCancel}
-                        >
-                            Zrušit
-                        </button>
-                        <button 
-                            style={{ ...styles.button, backgroundColor: 'var(--accent-primary)', color: 'white' }}
-                            onClick={handleUploadProcessingConfirm}
-                        >
-                            {uploadOptions.performOCR || uploadOptions.performCompression 
-                                ? 'Zpracovat a nahrát' 
-                                : 'Nahrát bez zpracování'
-                            }
-                        </button>
-                    </div>
-                </div>
-            </Modal>
-
-            {/* Správa chatbotů */}
-            {isChatbotManagementOpen && (
-                <ChatbotManagement 
-                    onClose={() => setChatbotManagementOpen(false)} 
-                    onOpenChat={(chatbotId, features) => {
-                        console.log(`🚀 Otevírám chat: ${chatbotId}`, features);
-                        setActiveChatbot({ id: chatbotId, features });
-                    }}
-                />
-            )}
-
-            {/* Aktivní chat */}
-            {activeChatbot && (
-                <div style={styles.chatOverlay}>
-                    <div style={styles.chatContainer}>
-                        <div style={styles.chatContent}>
-                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                <FilteredSanaChat 
-                                    onClose={() => setActiveChatbot(null)}
-                                    chatbotSettings={{
-                                        product_recommendations: activeChatbot.features.product_recommendations || false,
-                                        book_database: activeChatbot.features.book_database || false
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
@@ -4202,31 +2887,18 @@ interface TopToolbarProps {
     onViewModeChange: (mode: 'list' | 'grid') => void;
     selectedCount: number;
     onBulkDelete: () => void;
-    onBulkDownload: () => void;
     onExportXml: () => void;
     onConvertClick: () => void;
     isAnyBookSelected: boolean;
-    onChatbotManagementClick: () => void;
 }
-const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, onBulkDelete, onBulkDownload, onExportXml, onConvertClick, isAnyBookSelected, onChatbotManagementClick }: TopToolbarProps) => {
+const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, onBulkDelete, onExportXml, onConvertClick, isAnyBookSelected }: TopToolbarProps) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     return (
         <header style={styles.header}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '2rem'}}>
-                <img 
-                    src="https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/image-removebg-preview%20(1).png "
-                    alt="MedBase Logo"
-                    style={{
-                        height: '60px',
-                        width: 'auto',
-                        objectFit: 'contain'
-                    }}
-                />
-                <div style={styles.headerActions}>
-                    <button style={styles.button} onClick={onUploadClick}><IconUpload /> Přidat knihu</button>
-                    <button style={styles.button} onClick={onConvertClick} disabled={!isAnyBookSelected}>Konvertovat knihu</button>
-                    <button style={styles.button} onClick={onChatbotManagementClick}><IconChatbot /> Správa chatbotů</button>
+            <div style={styles.headerActions}>
+                <button style={styles.button} onClick={onUploadClick}><IconUpload /> Přidat knihu</button>
+                <button style={styles.button} onClick={onConvertClick} disabled={!isAnyBookSelected}>Konvertovat knihu</button>
                  {selectedCount > 0 && (
                     <div style={{ position: 'relative' }}>
                         <button style={styles.button} onClick={() => setDropdownOpen(o => !o)} onBlur={() => setTimeout(() => setDropdownOpen(false), 200)}>
@@ -4235,13 +2907,12 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                         {dropdownOpen && (
                             <div style={styles.dropdownMenu}>
                                 <a style={styles.dropdownMenuLink} onClick={() => { onBulkDelete(); setDropdownOpen(false); }}><IconDelete size={14}/> Smazat vybrané</a>
-                                <a style={styles.dropdownMenuLink} onClick={() => { onBulkDownload(); setDropdownOpen(false); }}><IconDownload/> Stáhnout vybrané</a>
+                                <a style={styles.dropdownMenuLink} onClick={() => alert('Stahování není implementováno.')}><IconDownload/> Stáhnout vybrané</a>
                                 <a style={styles.dropdownMenuLink} onClick={() => { onExportXml(); setDropdownOpen(false); }}><IconExport/> Exportovat do XML</a>
                             </div>
                         )}
                     </div>
                 )}
-                </div>
             </div>
             <div style={styles.viewToggle}>
                 <button style={{...styles.iconButton, ...(viewMode === 'list' ? styles.iconButtonActive : {})}} onClick={() => onViewModeChange('list')} aria-label="List view"><IconList/></button>
@@ -4250,102 +2921,6 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
         </header>
     );
 }
-
-// Komponenta pro omezené zobrazení filtrů s možností rozbalení
-const LimitedFilterList = ({ items, selectedItems, onItemClick, maxVisible = 10, renderItem }: { 
-    items: string[], 
-    selectedItems: string[], 
-    onItemClick: (item: string) => void, 
-    maxVisible?: number, 
-    renderItem?: (item: string, isSelected: boolean) => React.ReactNode 
-}) => {
-    const [showAll, setShowAll] = useState(false);
-    
-    if (items.length === 0) return <div style={{ color: 'var(--text-secondary)', fontSize: '0.9em', fontStyle: 'italic' }}>Žádné položky</div>;
-    
-    const visibleItems = showAll ? items : items.slice(0, maxVisible);
-    const hasMore = items.length > maxVisible;
-    
-    return (
-        <div style={styles.tagList}>
-            {visibleItems.map(item => {
-                const isSelected = selectedItems.includes(item);
-                return (
-                    <span key={item} onClick={() => onItemClick(item)}>
-                        {renderItem ? renderItem(item, isSelected) : (
-                            <span style={{...styles.tag, ...(isSelected ? styles.tagSelected : {})}}>
-                                {item}
-                            </span>
-                        )}
-                    </span>
-                );
-            })}
-            {hasMore && (
-                <div style={{ width: '100%', textAlign: 'center', marginTop: '8px' }}>
-                    <button
-                        onClick={() => setShowAll(!showAll)}
-                        style={{
-                            background: 'none',
-                            border: '1px solid var(--border)',
-                            color: 'var(--primary-color)',
-                            cursor: 'pointer',
-                            fontSize: '0.8em',
-                            padding: '4px 12px',
-                            borderRadius: '12px',
-                            backgroundColor: 'var(--surface)'
-                        }}
-                    >
-                        {showAll ? `← Zobrazit méně` : `Zobrazit více (+${items.length - maxVisible})`}
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// Komponenta pro minimalistické tlačítkové filtry
-const ButtonFilter = <T extends string>({ title, options, selectedValue, onChange }: { 
-    title: string, 
-    options: { value: T, label: string, icon?: React.ReactNode }[], 
-    selectedValue: T, 
-    onChange: (value: T) => void 
-}) => {
-    return (
-        <div style={styles.fieldGroup}>
-            <label style={styles.label}>{title}</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {options.map(option => (
-                    <button
-                        key={option.value}
-                        onClick={() => onChange(option.value)}
-                        style={{
-                            backgroundColor: selectedValue === option.value ? 'var(--accent-primary)' : 'transparent',
-                            color: selectedValue === option.value ? 'white' : 'var(--text-secondary)',
-                            border: `1px solid ${selectedValue === option.value ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            fontSize: '0.75rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            transition: 'all 0.2s ease',
-                            minWidth: 'auto'
-                        }}
-                        title={option.label}
-                    >
-                        {option.icon && (
-                            <span style={{ display: 'flex', alignItems: 'center', fontSize: '12px' }}>
-                                {option.icon}
-                            </span>
-                        )}
-                        <span style={{ fontSize: '0.75rem' }}>{option.label}</span>
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-};
 
 const FilterGroup = ({title, children, onAdd, onDelete, allItems}: {title: string, children: React.ReactNode, onAdd?: () => void, onDelete?: (item: string) => void, allItems?: string[]}) => {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
@@ -4503,10 +3078,7 @@ interface LeftFilterPanelProps {
     allLabels: string[]; selectedLabels: string[]; onLabelFilterChange: (labels: string[]) => void; onAddLabel: (label: string) => void; onDeleteLabel: (label: string) => void;
     allCategories: string[]; selectedCategories: string[]; onCategoryFilterChange: (cats: string[]) => void; onAddCategory: (cat: string) => void; onDeleteCategory: (cat: string) => void;
     allTypes: string[]; selectedTypes: string[]; onTypeFilterChange: (types: string[]) => void; onAddType: (type: string) => void; onDeleteType: (type: string) => void;
-    allVersions: string[]; selectedVersions: string[]; onVersionFilterChange: (versions: string[]) => void;
     allLanguages: string[]; selectedLanguages: string[]; onLanguageFilterChange: (langs: string[]) => void;
-
-    vdbFilter: 'all' | 'success' | 'error' | 'pending'; onVdbFilterChange: (filter: 'all' | 'success' | 'error' | 'pending') => void;
     yearRange: {from: number|null, to: number|null}; onYearRangeChange: (range: {from: number|null, to: number|null}) => void; minYear: number; maxYear: number;
     availableMonths: string[]; dateAddedRange: {from: number, to: number}; onDateAddedRangeChange: (range: {from: number, to: number}) => void;
 }
@@ -4600,16 +3172,13 @@ const LeftFilterPanel = (props: LeftFilterPanelProps) => {
                     onDelete={props.onDeleteType}
                     allItems={props.allTypes}
                 >
-                    <LimitedFilterList
-                        items={props.allTypes}
-                        selectedItems={props.selectedTypes}
-                        onItemClick={(type) => handleTagClick(type, props.selectedTypes, props.onTypeFilterChange)}
-                        renderItem={(type, isSelected) => (
-                            <span style={{...styles.tag, ...(isSelected ? styles.tagSelected : {})}}>
+                    <div style={styles.tagList}>
+                        {props.allTypes.map(type => (
+                            <span key={type} style={{...styles.tag, ...(props.selectedTypes.includes(type) ? styles.tagSelected : {})}} onClick={() => handleTagClick(type, props.selectedTypes, props.onTypeFilterChange)}>
                                 {type.replace('_', ' ')}
                             </span>
-                        )}
-                    />
+                        ))}
+                    </div>
                 </FilterGroup>
                 
                 <FilterGroup 
@@ -4618,11 +3187,13 @@ const LeftFilterPanel = (props: LeftFilterPanelProps) => {
                     onDelete={props.onDeleteCategory}
                     allItems={props.allCategories}
                 >
-                    <LimitedFilterList
-                        items={props.allCategories}
-                        selectedItems={props.selectedCategories}
-                        onItemClick={(cat) => handleTagClick(cat, props.selectedCategories, props.onCategoryFilterChange)}
-                    />
+                    <div style={styles.tagList}>
+                        {props.allCategories.map(cat => (
+                            <span key={cat} style={{...styles.tag, ...(props.selectedCategories.includes(cat) ? styles.tagSelected : {})}} onClick={() => handleTagClick(cat, props.selectedCategories, props.onCategoryFilterChange)}>
+                                {cat}
+                            </span>
+                        ))}
+                    </div>
                 </FilterGroup>
 
                 <FilterGroup 
@@ -4631,50 +3202,24 @@ const LeftFilterPanel = (props: LeftFilterPanelProps) => {
                     onDelete={props.onDeleteLabel}
                     allItems={props.allLabels}
                 >
-                    <LimitedFilterList
-                        items={props.allLabels}
-                        selectedItems={props.selectedLabels}
-                        onItemClick={(label) => handleTagClick(label, props.selectedLabels, props.onLabelFilterChange)}
-                    />
+                    <div style={styles.tagList}>
+                        {props.allLabels.map(label => (
+                            <span key={label} style={{...styles.tag, ...(props.selectedLabels.includes(label) ? styles.tagSelected : {})}} onClick={() => handleTagClick(label, props.selectedLabels, props.onLabelFilterChange)}>
+                                {label}
+                            </span>
+                        ))}
+                    </div>
                 </FilterGroup>
 
                 <FilterGroup title="Jazyky">
-                    <LimitedFilterList
-                        items={props.allLanguages}
-                        selectedItems={props.selectedLanguages}
-                        onItemClick={(lang) => handleTagClick(lang, props.selectedLanguages, props.onLanguageFilterChange)}
-                        renderItem={(lang, isSelected) => (
-                            <span style={{...styles.tag, ...(isSelected ? styles.tagSelected : {})}}>
+                     <div style={styles.tagList}>
+                        {props.allLanguages.map(lang => (
+                            <span key={lang} style={{...styles.tag, ...(props.selectedLanguages.includes(lang) ? styles.tagSelected : {})}} onClick={() => handleTagClick(lang, props.selectedLanguages, props.onLanguageFilterChange)}>
                                 {getFlagEmoji(lang)} {lang}
                             </span>
-                        )}
-                    />
+                        ))}
+                    </div>
                 </FilterGroup>
-
-                <FilterGroup title="Verze vydání">
-                    <LimitedFilterList
-                        items={props.allVersions}
-                        selectedItems={props.selectedVersions}
-                        onItemClick={(version) => handleTagClick(version, props.selectedVersions, props.onVersionFilterChange)}
-                        renderItem={(version, isSelected) => (
-                            <span style={{...styles.tag, ...(isSelected ? styles.tagSelected : {})}}>
-                                📖 {version}
-                            </span>
-                        )}
-                    />
-                </FilterGroup>
-
-                <ButtonFilter
-                    title="VDB"
-                    selectedValue={props.vdbFilter}
-                    onChange={props.onVdbFilterChange}
-                    options={[
-                        { value: 'all' as const, label: 'Vše' },
-                        { value: 'success' as const, label: 'OK', icon: <IconDatabase status="success" /> },
-                        { value: 'error' as const, label: 'Err', icon: <IconDatabase status="error" /> },
-                        { value: 'pending' as const, label: '...', icon: <IconDatabase status="pending" /> }
-                    ]}
-                />
             </aside>
             <Modal
                 isOpen={isModalOpen}
@@ -4708,25 +3253,23 @@ interface BookListViewProps {
     onToggleSelection: (id: string) => void;
     onSelectAll: (checked: boolean) => void;
     onDeleteBook: (id: string) => void;
-    onDownloadBook: (id: string) => void;
     onVectorDatabaseAction: (book: Book) => void;
-    vectorProcessingBooks: Set<string>;
 }
-const BookListView = ({ books, selectedBookId, selectedBookIds, onSelectBook, onToggleSelection, onSelectAll, onDeleteBook, onDownloadBook, onVectorDatabaseAction, vectorProcessingBooks }: BookListViewProps) => {
+const BookListView = ({ books, selectedBookId, selectedBookIds, onSelectBook, onToggleSelection, onSelectAll, onDeleteBook, onVectorDatabaseAction }: BookListViewProps) => {
     const isAllSelected = books.length > 0 && selectedBookIds.size === books.length;
     return (
         <div style={styles.bookTableWrapper}>
-            <table style={styles.bookTable} className="book-table">
+            <table style={styles.bookTable}>
                 <thead>
                     <tr>
                         <th style={{...styles.th, width: '40px'}}><input type="checkbox" checked={isAllSelected} onChange={e => onSelectAll(e.target.checked)} /></th>
                         <th style={{...styles.th, width: '40px'}}></th>
+                        <th style={{...styles.th, width: '40px'}}>OCR</th>
                         <th style={styles.th}>Název</th>
                         <th style={styles.th}>Autor</th>
                         <th style={styles.th}>Kategorie</th>
                         <th style={styles.th}>Štítky</th>
                         <th style={styles.th}>Rok vydání</th>
-                        <th style={styles.th}>Verze vydání</th>
                         <th style={styles.th}>Typ publikace</th>
                         <th style={styles.th}>Jazyk</th>
                         <th style={styles.th}>Formát</th>
@@ -4737,43 +3280,22 @@ const BookListView = ({ books, selectedBookId, selectedBookIds, onSelectBook, on
                 </thead>
                 <tbody>
                     {books.map(book => (
-                        <tr key={book.id} style={{ ...styles.tr, ...(book.id === selectedBookId ? styles.trSelected : {}) }} className={book.id === selectedBookId ? 'selected' : ''}>
+                        <tr key={book.id} style={{ ...styles.tr, ...(book.id === selectedBookId ? styles.trSelected : {}) }} >
                             <td style={styles.td} onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedBookIds.has(book.id)} onChange={() => onToggleSelection(book.id)} /></td>
-                            <td style={{...styles.td, textAlign: 'center', cursor: 'pointer'}} onClick={(e) => {e.stopPropagation(); onVectorDatabaseAction(book);}} title={`Stav vektorové databáze: ${book.vectorStatus === 'pending' ? 'čeká na nahrání' : book.vectorStatus === 'success' ? 'úspěšně nahráno' : 'chyba při nahrávání'}\n\nKlikněte pro odeslání do vektorové databáze.\n${vectorProcessingBooks.has(book.id) ? '⏳ Zpracovává se... (může trvat až 5 minut)' : 'Před odesláním budou zkontrolována povinná metadata.'}`}><IconDatabase status={book.vectorStatus} isLoading={vectorProcessingBooks.has(book.id)} /></td>
+                            <td style={{...styles.td, textAlign: 'center', cursor: 'pointer'}} onClick={(e) => {e.stopPropagation(); onVectorDatabaseAction(book);}} title={`Stav vektorové databáze: ${book.vectorStatus === 'pending' ? 'čeká na nahrání' : book.vectorStatus === 'success' ? 'úspěšně nahráno' : 'chyba při nahrávání'}\n\nKlikněte pro odeslání do vektorové databáze.\nPřed odesláním budou zkontrolována povinná metadata.`}><IconDatabase status={book.vectorStatus} /></td>
+                            <td style={{...styles.td, textAlign: 'center'}} onClick={() => onSelectBook(book.id)} title={`OCR: ${book.hasOCR ? 'Dokument obsahuje rozpoznaný text' : 'Dokument neobsahuje rozpoznaný text'}`}><IconOCR hasOCR={book.hasOCR} /></td>
                             <td style={{...styles.td, ...styles.tdTitle}} onClick={() => onSelectBook(book.id)}>{book.title}</td>
                             <td style={styles.td} onClick={() => onSelectBook(book.id)}>{book.author}</td>
-                            <td style={{...styles.td, minWidth: '150px'}} onClick={() => onSelectBook(book.id)}>
-                                <LimitedTagDisplay 
-                                    items={book.categories}
-                                    maxVisible={3}
-                                    tableMode={true}
-                                    renderTag={(c) => <span className="tag" style={{...styles.tag, fontSize: '0.7rem', padding: '2px 6px'}}>{c}</span>}
-                                />
-                            </td>
-                            <td style={{...styles.td, minWidth: '150px'}} onClick={() => onSelectBook(book.id)}>
-                                <LimitedTagDisplay 
-                                    items={book.labels}
-                                    maxVisible={3}
-                                    tableMode={true}
-                                    renderTag={(l) => <span className="tag" style={{...styles.tag, fontSize: '0.7rem', padding: '2px 6px'}}>{l}</span>}
-                                />
-                            </td>
+                            <td style={{...styles.td, minWidth: '150px'}} onClick={() => onSelectBook(book.id)}>{book.categories.join(', ')}</td>
+                            <td style={{...styles.td, minWidth: '150px'}} onClick={() => onSelectBook(book.id)}>{book.labels.join(', ')}</td>
                             <td style={styles.td} onClick={() => onSelectBook(book.id)}>{book.publicationYear || '–'}</td>
-                            <td style={styles.td} onClick={() => onSelectBook(book.id)}>{book.releaseVersion || '–'}</td>
-                            <td style={styles.td} onClick={() => onSelectBook(book.id)}>
-                                <LimitedTagDisplay 
-                                    items={book.publicationTypes}
-                                    maxVisible={3}
-                                    tableMode={true}
-                                    renderTag={(t) => <span className="tag" style={{...styles.tag, fontSize: '0.7rem', padding: '2px 6px'}}>{t.replace('_', ' ')}</span>}
-                                />
-                            </td>
+                            <td style={styles.td} onClick={() => onSelectBook(book.id)}>{book.publicationTypes.length ? book.publicationTypes.map(t => t.replace('_',' ')).join(', ') : '–'}</td>
                             <td style={styles.td} onClick={() => onSelectBook(book.id)}>{getFlagEmoji(book.language)}</td>
                             <td style={styles.td} onClick={() => onSelectBook(book.id)}>{book.format}</td>
                             <td style={styles.td} onClick={() => onSelectBook(book.id)}>{formatFileSize(book.fileSize)}</td>
                             <td style={styles.td} onClick={() => onSelectBook(book.id)}>{formatDate(book.dateAdded)}</td>
                             <td style={{...styles.td, ...styles.tdActions}} onClick={e => e.stopPropagation()}>
-                                <button style={styles.iconButton} onClick={() => onDownloadBook(book.id)} aria-label="Stáhnout knihu"><IconDownload/></button>
+                                <button style={styles.iconButton} onClick={() => alert('Stahování není implementováno.')} aria-label="Stáhnout knihu"><IconDownload/></button>
                                 <button style={{...styles.iconButton, color: 'var(--danger-color)'}} onClick={() => onDeleteBook(book.id)} aria-label="Smazat knihu"><IconDelete/></button>
                             </td>
                         </tr>
@@ -4815,20 +3337,12 @@ interface BookDetailPanelProps {
     allPublicationTypes: string[];
     onAddNewPublicationType: (typeName: string) => void;
     onDeletePublicationType: (typeName: string) => void;
-    allAvailableLanguages: string[]; // Všechny jazyky z databáze pro dropdown
 }
-const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onAddNewLabel, onDeleteLabel, allCategories, onAddNewCategory, onDeleteCategory, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, allAvailableLanguages }: BookDetailPanelProps) => {
+const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onAddNewLabel, onDeleteLabel, allCategories, onAddNewCategory, onDeleteCategory, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType }: BookDetailPanelProps) => {
     const [isEditing, setIsEditing] = useState(false);
     const [localBook, setLocalBook] = useState(book);
     const [isGenerating, setIsGenerating] = useState<Partial<Record<keyof Book, boolean>>>({});
     const [isBulkGenerating, setIsBulkGenerating] = useState(false);
-    
-    // Testovací prostředí pro iLovePDF
-    const [isTestingOCR, setIsTestingOCR] = useState(false);
-    const [isTestingCompression, setIsTestingCompression] = useState(false);
-    const [testSelectedLanguage, setTestSelectedLanguage] = useState('Angličtina');
-    const [isCheckingApiStatus, setIsCheckingApiStatus] = useState(false);
-
 
     // Stabilní callback pro setLocalBook
     const updateLocalBook = useCallback((updater: React.SetStateAction<Book>) => {
@@ -4844,211 +3358,30 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
         }
     }, [book.id, localBook.id]); // Reaguje pouze na změnu ID knihy
 
-    // Testovací funkce pro OCR
-    const handleTestOCR = async () => {
-        if (!book.filePath || book.format !== 'PDF') {
-            alert('OCR lze testovat pouze na PDF souborech');
-            return;
-        }
-
-        // Potvrzení před testováním
-        const confirmed = confirm(
-            `🔍 OCR Test pro "${book.title}"\n\n` +
-            `Jazyk: ${testSelectedLanguage}\n` +
-            `⚠️ POZOR: Toto nahradí původní soubor!\n\n` +
-            `Pokračovat?`
-        );
-        
-        if (!confirmed) return;
-
-        setIsTestingOCR(true);
-        try {
-            console.log(`🧪 Testování OCR pro knihu: ${book.title}`);
-            console.log(`📄 Soubor: ${book.filePath}`);
-            console.log(`🌐 Jazyk: ${testSelectedLanguage}`);
-
-            // Stáhneme soubor z Supabase storage
-            const { data: fileData, error } = await supabaseClient.storage
-                .from('Books')
-                .download(book.filePath);
-
-            if (error) throw error;
-
-            // Převedeme blob na File objekt
-            const file = new File([fileData], `${book.title}.pdf`, { type: 'application/pdf' });
-            console.log(`📊 Velikost souboru: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
-
-            // Spustíme OCR
-            const processedFile = await ILovePDFService.performOCR(file, testSelectedLanguage);
-            console.log(`✅ OCR dokončeno. Nová velikost: ${(processedFile.size / 1024 / 1024).toFixed(2)} MB`);
-
-            // Nahradíme soubor v storage
-            const newFilePath = `${Date.now()}-ocr-${book.filePath}`;
-            const { error: uploadError } = await supabaseClient.storage
-                .from('Books')
-                .upload(newFilePath, processedFile);
-
-            if (uploadError) throw uploadError;
-
-            // Aktualizujeme databázi
-            const updatedBook = {
-                ...book,
-                filePath: newFilePath,
-                hasOCR: true
-            };
-
-            await supabaseClient
-                .from('books')
-                .update({ file_path: newFilePath, has_ocr: true })
-                .eq('id', book.id);
-
-            onUpdate(updatedBook);
-            alert(`✅ OCR test úspěšný!\n\nSoubor byl zpracován a nahrazen.\nNový soubor: ${newFilePath}`);
-
-        } catch (error: any) {
-            console.error('❌ Test OCR selhal:', error);
-            
-            // Specifická zpráva podle typu chyby
-            let userMessage = `❌ Test OCR selhal:\n\n${error.message}`;
-            
-            if (error.message.includes('HTTP 500') || error.message.includes('ServerError')) {
-                userMessage = `❌ Test OCR selhal - iLovePDF API má problémy\n\n` +
-                    `🔧 Co můžete zkusit:\n` +
-                    `• Zkuste to za 5-10 minut\n` +
-                    `• Zkontrolujte velikost souboru (max ~50MB)\n` +
-                    `• Ověřte, že PDF není poškozené\n\n` +
-                    `Technická chyba: ${error.message}`;
-            } else if (error.message.includes('network') || error.message.includes('fetch')) {
-                userMessage = `❌ Test OCR selhal - problém s připojením\n\n` +
-                    `🌐 Zkontrolujte internetové připojení a zkuste znovu.\n\n` +
-                    `Chyba: ${error.message}`;
-            }
-            
-            alert(userMessage);
-        } finally {
-            setIsTestingOCR(false);
-        }
-    };
-
-    // Testovací funkce pro kompresi
-    const handleTestCompression = async () => {
-        if (!book.filePath || book.format !== 'PDF') {
-            alert('Kompresi lze testovat pouze na PDF souborech');
-            return;
-        }
-
-        // Potvrzení před testováním
-        const confirmed = confirm(
-            `🗜️ Komprese Test pro "${book.title}"\n\n` +
-            `Aktuální velikost: ${(book.fileSize / 1024).toFixed(2)} MB\n` +
-            `⚠️ POZOR: Toto nahradí původní soubor!\n\n` +
-            `Pokračovat?`
-        );
-        
-        if (!confirmed) return;
-
-        setIsTestingCompression(true);
-        try {
-            console.log(`🧪 Testování komprese pro knihu: ${book.title}`);
-            console.log(`📄 Soubor: ${book.filePath}`);
-
-            // Stáhneme soubor z Supabase storage
-            const { data: fileData, error } = await supabaseClient.storage
-                .from('Books')
-                .download(book.filePath);
-
-            if (error) throw error;
-
-            // Převedeme blob na File objekt
-            const originalFile = new File([fileData], `${book.title}.pdf`, { type: 'application/pdf' });
-            const originalSizeMB = originalFile.size / 1024 / 1024;
-            console.log(`📊 Původní velikost: ${originalSizeMB.toFixed(2)} MB`);
-
-            // Spustíme kompresi
-            const compressedFile = await ILovePDFService.compressPDF(originalFile, 'recommended');
-            const compressedSizeMB = compressedFile.size / 1024 / 1024;
-            const savedPercent = ((originalSizeMB - compressedSizeMB) / originalSizeMB * 100);
-            
-            console.log(`✅ Komprese dokončena. Nová velikost: ${compressedSizeMB.toFixed(2)} MB`);
-            console.log(`💾 Ušetřeno: ${savedPercent.toFixed(1)}%`);
-
-            // Nahradíme soubor v storage
-            const newFilePath = `${Date.now()}-compressed-${book.filePath}`;
-            const { error: uploadError } = await supabaseClient.storage
-                .from('Books')
-                .upload(newFilePath, compressedFile);
-
-            if (uploadError) throw uploadError;
-
-            // Aktualizujeme databázi
-            const updatedBook = {
-                ...book,
-                filePath: newFilePath,
-                fileSize: Math.round(compressedFile.size / 1024) // převod na KB
-            };
-
-            await supabaseClient
-                .from('books')
-                .update({ 
-                    file_path: newFilePath, 
-                    file_size: Math.round(compressedFile.size / 1024)
-                })
-                .eq('id', book.id);
-
-            onUpdate(updatedBook);
-            alert(`✅ Komprese test úspěšná!\n\nPůvodní velikost: ${originalSizeMB.toFixed(2)} MB\nNová velikost: ${compressedSizeMB.toFixed(2)} MB\nUšetřeno: ${savedPercent.toFixed(1)}%\n\nSoubor byl nahrazen: ${newFilePath}`);
-
-        } catch (error: any) {
-            console.error('❌ Test komprese selhal:', error);
-            alert(`❌ Test komprese selhal:\n\n${error.message}`);
-        } finally {
-            setIsTestingCompression(false);
-        }
-    };
-
-    // Funkce pro kontrolu stavu API
-    const handleCheckApiStatus = async () => {
-        setIsCheckingApiStatus(true);
-        try {
-            const statusResult = await ILovePDFService.checkApiStatus();
-            
-            const statusEmoji = statusResult.available ? '✅' : '❌';
-            const title = statusResult.available ? 'API je funkční' : 'API má problémy';
-            
-            alert(`${statusEmoji} ${title}\n\n${statusResult.message}`);
-            
-        } catch (error: any) {
-            alert(`❌ Kontrola API selhala:\n\n${error.message}`);
-        } finally {
-            setIsCheckingApiStatus(false);
-        }
-    };
-
     const handleAIGenerate = useCallback(async (field: keyof Book) => {
         setIsGenerating(prev => ({ ...prev, [field]: true }));
         
         try {
-            // AUTOMATICKÁ EXTRACTION TEXTU DO MEZIPAMĚTI PŘED AI GENEROVÁNÍM (POUZE PRO AI)
+            // AUTOMATICKÁ EXTRACTION TEXTU DO MEZIPAMĚTI PŘED AI GENEROVÁNÍM
             console.log('🤖 AI generování spuštěno pro pole:', field);
             
             // Kontrola, jestli už není text v mezipaměti
             const cacheStatus = checkCacheStatus(localBook.id);
             if (!cacheStatus.hasCache) {
-                console.log('📥 Text není v mezipaměti, spouštím automatickou OCR extrakci přes webhook...');
+                console.log('📥 Text není v mezipaměti, spouštím automatickou extrakci...');
                 
                 try {
-                    const extractedText = await extractTextViaWebhook(localBook);
-                    console.log('✅ Text automaticky extrahován přes OCR webhook do mezipaměti:', extractedText.length, 'znaků');
+                    const extractedText = await extractTextToCache(localBook);
+                    console.log('✅ Text automaticky extrahován do mezipaměti:', extractedText.length, 'znaků');
                     
                     // Aktualizace UI pro zobrazení nového stavu mezipaměti
                     updateLocalBook(prev => ({...prev}));
                     
                 } catch (extractError) {
-                    console.warn('⚠️ Automatická OCR extrakce selhala, pokračuji s AI generováním bez textu:', extractError);
-                    alert('⚠️ Nepodařilo se extrahovat text přes OCR webhook. AI bude generovat metadata pouze z názvu knihy.');
+                    console.warn('⚠️ Automatická extrakce textu selhala, pokračuji s AI generováním:', extractError);
                 }
             } else {
-                console.log('💾 Text už je v mezipaměti z předchozí OCR extrakce:', cacheStatus.size, 'znaků,', cacheStatus.age, 'starý');
+                console.log('💾 Text už je v mezipaměti:', cacheStatus.size, 'znaků,', cacheStatus.age, 'starý');
             }
             
             // Pokračování s AI generováním
@@ -5069,7 +3402,7 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
         } finally {
             setIsGenerating(prev => ({ ...prev, [field]: false }));
         }
-    }, [updateLocalBook, localBook.id, checkCacheStatus, extractTextViaWebhook]);
+    }, [updateLocalBook, localBook.id, checkCacheStatus, extractTextToCache]); // Přidány nové závislosti
 
     const handleBulkAIGenerate = async () => {
         setIsBulkGenerating(true);
@@ -5083,30 +3416,12 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
         if (!currentBook.publisher) fieldsToFill.push('publisher');
         if (!currentBook.summary) fieldsToFill.push('summary');
         if (!currentBook.keywords || currentBook.keywords.length === 0) fieldsToFill.push('keywords');
-        // Jazyk se nebude automaticky vyplňovat - často je to špatně
+        if (!currentBook.language || currentBook.language === 'Neznámý') fieldsToFill.push('language');
 
         if (fieldsToFill.length === 0) {
             alert("Všechna metadata se zdají být vyplněna.");
             setIsBulkGenerating(false);
             return;
-        }
-
-        // AUTOMATICKÁ OCR EXTRAKCE PŘED HROMADNÝM AI GENEROVÁNÍM
-        try {
-            const cacheStatus = checkCacheStatus(localBook.id);
-            if (!cacheStatus.hasCache) {
-                console.log('📥 Spouštím automatickou OCR extrakci před hromadným AI generováním...');
-                const extractedText = await extractTextViaWebhook(localBook);
-                console.log('✅ Text extrahován přes OCR webhook:', extractedText.length, 'znaků');
-                updateLocalBook(prev => ({...prev}));
-            }
-        } catch (extractError) {
-            console.warn('⚠️ Automatická OCR extrakce selhala před hromadným generováním:', extractError);
-            const shouldContinue = confirm('⚠️ Nepodařilo se extrahovat text přes OCR webhook. AI bude generovat metadata pouze z názvu knihy. Pokračovat?');
-            if (!shouldContinue) {
-                setIsBulkGenerating(false);
-                return;
-            }
         }
 
         const generationPromises = fieldsToFill.map(field =>
@@ -5149,58 +3464,11 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
         updateLocalBook(book);
         setIsEditing(false);
     };
-
-    const handleCoverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        // Kontrola typu souboru
-        if (!file.type.startsWith('image/')) {
-            alert('❌ Prosím vyberte pouze obrázkové soubory (JPG, PNG, GIF, atd.)');
-            return;
-        }
-
-        // Kontrola velikosti souboru (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-            alert('❌ Soubor je příliš velký. Maximální velikost je 10MB.');
-            return;
-        }
-
-        try {
-            console.log('📷 Nahrávám cover obrázek:', file.name, file.size, 'bytes');
-            
-            // Nahrání do Books bucketu v podadresáři covers s ID knihy
-            const { filePath } = await api.uploadFileWithId(file, 'Books', localBook.id);
-            
-            // Vytvoření public URL z Books bucketu
-            const { data: urlData } = supabaseClient.storage.from('Books').getPublicUrl(filePath);
-            const newCoverUrl = urlData.publicUrl;
-            
-            console.log('✅ Cover úspěšně nahrán:', newCoverUrl);
-            
-            // Aktualizace lokálního stavu knihy
-            const updatedBook = { ...localBook, coverImageUrl: newCoverUrl };
-            updateLocalBook(prev => ({ ...prev, coverImageUrl: newCoverUrl }));
-            
-            // Okamžitá aktualizace hlavního stavu pro zobrazení v grid/list view
-            onUpdate(updatedBook);
-            
-            alert(`✅ Cover obrázek byl úspěšně nahrán!\n\nNový cover: ${file.name}\nVelikost: ${Math.round(file.size / 1024)} KB`);
-            
-            // Vyčištění inputu
-            event.target.value = '';
-            
-        } catch (error) {
-            console.error('❌ Chyba při nahrávání cover:', error);
-            alert(`❌ Chyba při nahrávání cover obrázku: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    };
     
     const ReadOnlyView = () => (
         <>
             {renderStaticField("Autor", localBook.author)}
             {renderStaticField("Rok vydání", localBook.publicationYear)}
-            {renderStaticField("Verze vydání", localBook.releaseVersion)}
             {renderStaticField("Nakladatelství", localBook.publisher)}
             {renderStaticField("Jazyk", localBook.language)}
             {renderStaticField("Typ publikace", localBook.publicationTypes.length > 0 ? localBook.publicationTypes.map(t => <span key={t} style={styles.tag}>{t.replace('_', ' ')}</span>) : null)}
@@ -5218,40 +3486,81 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                     </span>
                 </div>
             ))}
-            {renderStaticField("OCR extrakce textu", (
+            {renderStaticField("OCR", (
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                    <IconOCR hasOCR={localBook.hasOCR} />
+                    <span style={{color: localBook.hasOCR ? '#22c55e' : '#6b7280'}}>
+                        {localBook.hasOCR ? 'Dokument obsahuje rozpoznaný text' : 'Dokument neobsahuje rozpoznaný text'}
+                    </span>
+                    <button 
+                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', marginLeft: '8px'}}
+                        onClick={async () => {
+                            try {
+                                console.log('🔍 Manuální kontrola OCR...');
+                                const realOCRStatus = await api.detectOCRFromStorage(localBook.filePath);
+                                console.log('🔍 Detekovaný OCR stav:', realOCRStatus);
+                                
+                                if (realOCRStatus !== localBook.hasOCR) {
+                                    const updatedBook = { ...localBook, hasOCR: realOCRStatus };
+                                    updateLocalBook(updatedBook);
+                                    await api.updateBook(updatedBook);
+                                    alert(`OCR stav aktualizován: ${realOCRStatus ? 'NALEZEN text' : 'NENALEZEN text'}`);
+                                } else {
+                                    alert(`OCR stav je správný: ${realOCRStatus ? 'NALEZEN text' : 'NENALEZEN text'}`);
+                                }
+                            } catch (error) {
+                                console.error('❌ Chyba při kontrole OCR:', error);
+                                alert('Chyba při kontrole OCR stavu');
+                            }
+                        }}
+                        title="Zkontrolovat OCR stav znovu"
+                    >
+                        🔍 Zkontrolovat
+                    </button>
+                </div>
+            ))}
+            {renderStaticField("Extrakce textu", (
                 <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
                     <span style={{color: checkCacheStatus(localBook.id).hasCache ? '#22c55e' : '#6b7280'}}>
                         {checkCacheStatus(localBook.id).hasCache 
-                            ? `✅ Text extrahován (${checkCacheStatus(localBook.id).size} znaků, ${checkCacheStatus(localBook.id).age} starý)`
-                            : '⏳ Text bude automaticky extrahován při prvním AI generování'
+                            ? `Text v mezipaměti (${checkCacheStatus(localBook.id).size} znaků, ${checkCacheStatus(localBook.id).age} starý)`
+                            : 'Text není v mezipaměti'
                         }
                     </span>
-
-                    {!checkCacheStatus(localBook.id).hasCache && (
-                        <button 
-                            style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: '#007bff', color: 'white'}}
-                            onClick={async () => {
-                                try {
-                                    const shouldProceed = confirm(`KONTEXT PRO LLM\n\n⚠️ Speciální OCR extrakce s limitem 50 stránek\n• Určeno pro LLM kontextové analýzy\n• Uloží se do mezipaměti jako běžný OCR text\n\nPokračovat?`);
-                                    if (!shouldProceed) return;
-                                    
-                                    console.log('🧠 Spouštím LLM kontext extrakci z hlavního view...');
-                                    const extractedText = await sendToLLMContextWebhook(localBook);
-                                    
-                                    alert(`✅ LLM kontext extrahován!\n\nVelikost: ${extractedText.length} znaků\n(Max 50 stránek)`);
-                                    updateLocalBook({...localBook});
-                                    
-                                } catch (error) {
-                                    console.error('❌ Chyba při LLM kontext extrakci:', error);
-                                    alert(`❌ Chyba: ${error instanceof Error ? error.message : String(error)}`);
+                    <button 
+                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', marginLeft: '8px'}}
+                        onClick={async () => {
+                            try {
+                                console.log('🚀 Spouštím extrakci textu do mezipaměti...');
+                                
+                                // Kontrola, jestli už není text v mezipaměti
+                                const cacheStatus = checkCacheStatus(localBook.id);
+                                if (cacheStatus.hasCache) {
+                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat?`);
+                                    if (!shouldOverwrite) {
+                                        console.log('❌ Uživatel zrušil přepsání mezipaměti');
+                                        return;
+                                    }
                                 }
-                            }}
-                            title="Extrahovat obsah pro LLM kontext - max 50 stránek"
-                        >
-                            Kontext pro LLM
-                        </button>
-                    )}
-
+                                
+                                // Spuštění extrakce
+                                const extractedText = await extractTextToCache(localBook);
+                                
+                                // Zobrazení úspěchu
+                                alert(`✅ Text úspěšně extrahován a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
+                                
+                                // Aktualizace UI
+                                updateLocalBook({...localBook});
+                                
+                            } catch (error) {
+                                console.error('❌ Chyba při extrakci textu:', error);
+                                alert(`❌ Chyba při extrakci textu: ${error instanceof Error ? error.message : String(error)}`);
+                            }
+                        }}
+                        title="Stáhnout text z dokumentu do mezipaměti (max. 120 000 znaků)"
+                    >
+                        📥 Extrahovat text
+                    </button>
                     {checkCacheStatus(localBook.id).hasCache && (
                         <>
                             <button 
@@ -5365,15 +3674,6 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                 type="number"
             />
             <EditableField 
-                label="Verze vydání"
-                name="releaseVersion"
-                value={localBook.releaseVersion || ''}
-                setLocalBook={updateLocalBook}
-                onAIGenerate={handleAIGenerate}
-                isGenerating={isGenerating.releaseVersion || false}
-                type="text"
-            />
-            <EditableField 
                 label="Nakladatelství"
                 name="publisher"
                 value={localBook.publisher}
@@ -5382,12 +3682,14 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                 isGenerating={isGenerating.publisher || false}
                 type="text"
             />
-            <LanguageSelector
+            <EditableField 
+                label="Jazyk"
+                name="language"
                 value={localBook.language}
-                onChange={(language) => setLocalBook(prev => ({ ...prev, language }))}
-                onAIGenerate={handleAIGenerate ? () => handleAIGenerate('language') : null}
+                setLocalBook={updateLocalBook}
+                onAIGenerate={handleAIGenerate}
                 isGenerating={isGenerating.language || false}
-                allLanguages={allAvailableLanguages}
+                type="text"
             />
             <EditableField 
                 label="Sumarizace"
@@ -5458,7 +3760,20 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                     </select>
                 </div>
             </div>
-
+            <div style={styles.fieldGroup}>
+                <label style={styles.label}>OCR</label>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                    <IconOCR hasOCR={localBook.hasOCR} />
+                    <select 
+                        value={localBook.hasOCR ? 'true' : 'false'} 
+                        onChange={(e) => updateLocalBook(prev => ({ ...prev, hasOCR: e.target.value === 'true' }))}
+                        style={styles.input}
+                    >
+                        <option value="true">Dokument obsahuje rozpoznaný text</option>
+                        <option value="false">Dokument neobsahuje rozpoznaný text</option>
+                    </select>
+                </div>
+            </div>
             <div style={styles.fieldGroup}>
                 <label style={styles.label}>Extrakce textu</label>
                 <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
@@ -5468,85 +3783,40 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                             : 'Text není v mezipaměti'
                         }
                     </span>
-
                     <button 
-                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: 'var(--accent-primary)', color: 'white'}}
+                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px'}}
                         onClick={async () => {
                             try {
-                                // Upozornění pro test webhook
-                                const shouldProceed = confirm(`📄 ODESLÁNÍ BINÁRNÍHO SOUBORU\n\n⚠️ DŮLEŽITÉ: Před kliknutím na OK:\n1. Přejděte do n8n workflow\n2. Klikněte "Execute workflow" nebo "Listen for test event"\n3. Hned poté klikněte OK\n\nOdešle se binární soubor knihy na webhook\n\nPokračovat?`);
-                                if (!shouldProceed) {
-                                    return;
-                                }
-                                
-                                console.log('📄 Odesílám binární soubor na webhook...');
+                                console.log('🚀 Spouštím extrakci textu do mezipaměti...');
                                 
                                 // Kontrola, jestli už není text v mezipaměti
                                 const cacheStatus = checkCacheStatus(localBook.id);
                                 if (cacheStatus.hasCache) {
-                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat přes webhook?`);
+                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat?`);
                                     if (!shouldOverwrite) {
                                         console.log('❌ Uživatel zrušil přepsání mezipaměti');
                                         return;
                                     }
                                 }
                                 
-                                // Spuštění extrakce přes webhook
-                                const extractedText = await extractTextViaWebhook(localBook);
+                                // Spuštění extrakce
+                                const extractedText = await extractTextToCache(localBook);
                                 
                                 // Zobrazení úspěchu
-                                alert(`✅ Text úspěšně extrahován přes webhook a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
+                                alert(`✅ Text úspěšně extrahován a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
                                 
                                 // Aktualizace UI
                                 updateLocalBook({...localBook});
                                 
                             } catch (error) {
-                                console.error('❌ Chyba při extrakci textu přes webhook:', error);
-                                alert(`❌ Chyba při extrakci textu přes webhook: ${error instanceof Error ? error.message : String(error)}`);
+                                console.error('❌ Chyba při extrakci textu:', error);
+                                alert(`❌ Chyba při extrakci textu: ${error instanceof Error ? error.message : String(error)}`);
                             }
                         }}
-                        title="Extrahovat text přes n8n webhook (binární soubor) - POZOR: Nejdříve spusťte listening v n8n!"
+                        title="Stáhnout text z dokumentu do mezipaměti (max. 120 000 znaků)"
                     >
-                        🌐 Webhook OCR
+                        📥 Extrahovat text
                     </button>
-                    
-                    <button 
-                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: '#007bff', color: 'white'}}
-                        onClick={async () => {
-                            try {
-                                // Upozornění pro LLM kontext webhook
-                                const shouldProceed = confirm(`KONTEXT PRO LLM\n\n⚠️ DŮLEŽITÉ:\n• Dokument bude omezen na max 50 stránek\n• Výsledek přepíše stávající OCR text v mezipaměti\n• Speciální webhook pro pokročilou OCR extrakci\n\nPokračovat?`);
-                                if (!shouldProceed) {
-                                    return;
-                                }
-                                
-                                console.log('🧠 Odesílám dokument na LLM kontext webhook...');
-                                
-                                // Informace o přepsání cache
-                                const cacheStatus = checkCacheStatus(localBook.id);
-                                if (cacheStatus.hasCache) {
-                                    console.log(`💾 Přepíším existující OCR text v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý)`);
-                                }
-                                
-                                // Spuštění LLM kontext extrakce
-                                const extractedText = await sendToLLMContextWebhook(localBook);
-                                
-                                // Zobrazení úspěchu
-                                alert(`✅ LLM kontext úspěšně extrahován a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n(Max 50 stránek)\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
-                                
-                                // Aktualizace UI
-                                updateLocalBook({...localBook});
-                                
-                            } catch (error) {
-                                console.error('❌ Chyba při LLM kontext extrakci:', error);
-                                alert(`❌ Chyba při LLM kontext extrakci: ${error instanceof Error ? error.message : String(error)}`);
-                            }
-                        }}
-                        title="Extrahovat obsah pro LLM kontext - max 50 stránek (přepíše stávající OCR text)"
-                    >
-                        Kontext pro LLM
-                    </button>
-                    
                     {checkCacheStatus(localBook.id).hasCache && (
                         <>
                             <button 
@@ -5628,15 +3898,12 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                 </div>
             </div>
         </>
-    ), [localBook, updateLocalBook, handleAIGenerate, isGenerating, allCategories, onAddNewCategory, onDeleteCategory, allLabels, onAddNewLabel, onDeleteLabel, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, checkCacheStatus, clearTextCache, getTextFromCache, extractTextViaWebhook, handleCoverUpload]);
+    ), [localBook, updateLocalBook, handleAIGenerate, isGenerating, allCategories, onAddNewCategory, onDeleteCategory, allLabels, onAddNewLabel, onDeleteLabel, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, checkCacheStatus, extractTextToCache, clearTextCache, getTextFromCache]);
 
     return (
         <div style={styles.detailContent}>
-            <img src={localBook.coverImageUrl} alt={`Obálka: ${localBook.title}`} style={styles.detailCover} />
+            <img src={book.coverImageUrl} alt={`Obálka: ${book.title}`} style={styles.detailCover} />
             <h2 style={styles.detailTitle}>{localBook.title || "Bez názvu"}</h2>
-            
-
-            
             <div style={styles.detailActions}>
                  <button style={styles.button} onClick={onReadClick}>Číst knihu</button>
                  {isEditing ? (
@@ -5644,22 +3911,8 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                         <button style={styles.button} onClick={handleBulkAIGenerate} disabled={isBulkGenerating}>
                             {isBulkGenerating ? 'Generuji...' : <><IconMagic /> Vyplnit metadata</>}
                         </button>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            id="cover-upload"
-                            style={{ display: 'none' }}
-                            onChange={handleCoverUpload}
-                        />
-                        <button 
-                            style={styles.button} 
-                            onClick={() => document.getElementById('cover-upload')?.click()}
-                            title="Nahrát nový cover obrázek"
-                        >
-                            Nahrát cover
-                        </button>
-                        <button style={{...styles.button, color: 'var(--danger-color)', background: 'transparent', border: '1px solid var(--danger-color)'}} onClick={handleCancel}>Zrušit</button>
-                        <button style={{...styles.button, background: 'transparent', border: '1px solid var(--accent-primary)'}} onClick={handleSave}><IconSave /></button>
+                        <button style={{...styles.button, ...styles.buttonDanger}} onClick={handleCancel}>Zrušit</button>
+                        <button style={{...styles.button, ...styles.buttonSuccess}} onClick={handleSave}><IconSave /> Uložit</button>
                     </>
                  ) : (
                     <>
@@ -5668,235 +3921,9 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                     </>
                  )}
             </div>
-            
-            {/* Testovací prostředí pro iLovePDF - zobrazí se pouze u PDF souborů a v read-only režimu */}
-            {!isEditing && book.format === 'PDF' && (
-                <div style={{ 
-                    margin: '1rem 0', 
-                    padding: '1rem', 
-                    backgroundColor: 'var(--background-tertiary)', 
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)'
-                }}>
-                    <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        marginBottom: '1rem'
-                    }}>
-                        <h4 style={{ 
-                            margin: 0, 
-                            fontSize: '0.9rem', 
-                            color: 'var(--text-secondary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
-                        }}>
-                            🧪 Testovací prostředí iLovePDF
-                            <span style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
-                                (nahradí původní soubor)
-                            </span>
-                        </h4>
-                        
-                        <button 
-                            style={{
-                                padding: '0.25rem 0.5rem',
-                                fontSize: '0.75rem',
-                                backgroundColor: isCheckingApiStatus ? '#6c757d' : '#17a2b8',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: isCheckingApiStatus ? 'not-allowed' : 'pointer'
-                            }}
-                            onClick={handleCheckApiStatus}
-                            disabled={isCheckingApiStatus}
-                            title="Zkontrolovat dostupnost iLovePDF API"
-                        >
-                            {isCheckingApiStatus ? '🔄 Kontroluji...' : '🔍 Status API'}
-                        </button>
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {/* OCR Test sekce */}
-                        <div style={{ 
-                            padding: '0.75rem', 
-                            backgroundColor: 'var(--background-primary)', 
-                            borderRadius: '6px',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                <strong style={{ fontSize: '0.85rem' }}>🔍 OCR Test</strong>
-                                <span style={{ 
-                                    fontSize: '0.75rem', 
-                                    color: book.hasOCR ? '#28a745' : 'var(--text-secondary)',
-                                    fontWeight: 500
-                                }}>
-                                    {book.hasOCR ? '✅ Má OCR' : '❌ Bez OCR'}
-                                </span>
-                            </div>
-                            
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <select 
-                                    value={testSelectedLanguage}
-                                    onChange={(e) => setTestSelectedLanguage(e.target.value)}
-                                    style={{
-                                        padding: '0.25rem 0.5rem',
-                                        borderRadius: '4px',
-                                        border: '1px solid var(--border-color)',
-                                        backgroundColor: 'var(--background-secondary)',
-                                        color: 'var(--text-primary)',
-                                        fontSize: '0.8rem',
-                                        minWidth: '120px'
-                                    }}
-                                    disabled={isTestingOCR}
-                                >
-                                    {ILovePDFService.getAvailableLanguages().map(lang => (
-                                        <option key={lang.code} value={lang.label}>
-                                            {lang.label}
-                                        </option>
-                                    ))}
-                                </select>
-                                
-                                <button 
-                                    style={{
-                                        ...styles.button,
-                                        padding: '0.25rem 0.75rem',
-                                        fontSize: '0.8rem',
-                                        backgroundColor: isTestingOCR ? '#6c757d' : '#007cba',
-                                        minWidth: '100px'
-                                    }}
-                                    onClick={handleTestOCR}
-                                    disabled={isTestingOCR}
-                                >
-                                    {isTestingOCR ? '🔄 Zpracovávám...' : '🔍 Test OCR'}
-                                </button>
-                            </div>
-                        </div>
-                        
-                        {/* Komprese Test sekce */}
-                        <div style={{ 
-                            padding: '0.75rem', 
-                            backgroundColor: 'var(--background-primary)', 
-                            borderRadius: '6px',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                <strong style={{ fontSize: '0.85rem' }}>🗜️ Komprese Test</strong>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                    Aktuální: {(book.fileSize / 1024).toFixed(2)} MB
-                                </span>
-                            </div>
-                            
-                            <button 
-                                style={{
-                                    ...styles.button,
-                                    padding: '0.25rem 0.75rem',
-                                    fontSize: '0.8rem',
-                                    backgroundColor: isTestingCompression ? '#6c757d' : '#ffc107',
-                                    minWidth: '120px'
-                                }}
-                                onClick={handleTestCompression}
-                                disabled={isTestingCompression}
-                            >
-                                {isTestingCompression ? '🔄 Komprimuji...' : '🗜️ Test Komprese'}
-                            </button>
-                        </div>
-                        
-                        <p style={{ 
-                            fontSize: '0.75rem', 
-                            color: 'var(--text-secondary)', 
-                            margin: '0.5rem 0 0 0',
-                            fontStyle: 'italic'
-                        }}>
-                            ⚠️ Testy nahradí původní soubor zpracovanou verzí. Ujistěte se, že máte zálohu.
-                        </p>
-                    </div>
-                </div>
-            )}
             <div style={styles.detailMeta}>
                 {isEditing ? editableContent : <ReadOnlyView />}
             </div>
-        </div>
-    );
-};
-
-// Komponenta pro omezené zobrazení tagů/kategorií s možností rozbalení
-const LimitedTagDisplay = ({ items, maxVisible = 3, renderTag, tableMode = false }: { items: any[], maxVisible?: number, renderTag: (item: any) => React.ReactNode, tableMode?: boolean }) => {
-    const [showAll, setShowAll] = useState(false);
-    
-    if (items.length === 0) return null;
-    
-    // PEVNĚ omezíme na maxVisible položek, bez ohledu na jejich šířku
-    const visibleItems = showAll ? items : items.slice(0, maxVisible);
-    const hasMore = items.length > maxVisible;
-    
-    return (
-        <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            flexWrap: showAll ? 'wrap' : 'nowrap',
-            overflow: showAll ? 'visible' : 'hidden'
-        }}>
-            {visibleItems.map((item, index) => (
-                <span key={`${item}-${index}`} style={{ flexShrink: 0 }}>
-                    {renderTag(item)}
-                </span>
-            ))}
-            {hasMore && !showAll && (
-                tableMode ? (
-                    <span
-                        style={{
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.8em',
-                            padding: '2px 4px',
-                            flexShrink: 0,
-                            whiteSpace: 'nowrap'
-                        }}
-                        title={`+${items.length - maxVisible} dalších položek`}
-                    >
-                        ... (+{items.length - maxVisible})
-                    </span>
-                ) : (
-                    <button
-                        onClick={() => setShowAll(true)}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--primary-color)',
-                            cursor: 'pointer',
-                            fontSize: '0.9em',
-                            padding: '2px 4px',
-                            borderRadius: '4px',
-                            textDecoration: 'underline',
-                            flexShrink: 0,
-                            whiteSpace: 'nowrap'
-                        }}
-                        title={`Zobrazit všech ${items.length} položek`}
-                    >
-                        ... (+{items.length - maxVisible})
-                    </button>
-                )
-            )}
-            {showAll && hasMore && !tableMode && (
-                <button
-                    onClick={() => setShowAll(false)}
-                    style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        fontSize: '0.8em',
-                        padding: '2px 4px',
-                        borderRadius: '4px',
-                        flexShrink: 0,
-                        whiteSpace: 'nowrap'
-                    }}
-                    title="Zobrazit méně"
-                >
-                    ← méně
-                </button>
-            )}
         </div>
     );
 };
@@ -5911,121 +3938,6 @@ const renderStaticField = (label: string, value: React.ReactNode | string | numb
                 <div style={isParagraph ? styles.staticTextParagraph : styles.staticText}>
                     {hasValue ? value : '–'}
                 </div>
-            </div>
-        </div>
-    );
-};
-
-// Komponenta pro výběr jazyka s dropdownem
-interface LanguageSelectorProps {
-    value: string;
-    onChange: (language: string) => void;
-    onAIGenerate: (() => void) | null;
-    isGenerating: boolean;
-    allLanguages: string[];
-}
-
-const LanguageSelector = ({ value, onChange, onAIGenerate, isGenerating, allLanguages }: LanguageSelectorProps) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, []);
-
-    const handleLanguageSelect = (language: string) => {
-        onChange(language);
-        setIsOpen(false);
-    };
-
-    return (
-        <div style={{ marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <label style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>Jazyk:</label>
-                {onAIGenerate && (
-                    <button
-                        onClick={onAIGenerate}
-                        disabled={isGenerating}
-                        style={{
-                            ...styles.aiButton,
-                            opacity: isGenerating ? 0.6 : 1,
-                            cursor: isGenerating ? 'not-allowed' : 'pointer'
-                        }}
-                        title="AI generování jazyka"
-                    >
-                        {isGenerating ? '⏳' : '🤖'}
-                    </button>
-                )}
-            </div>
-            <div style={{ position: 'relative' }} ref={dropdownRef}>
-                <div
-                    onClick={() => setIsOpen(!isOpen)}
-                    style={{
-                        ...styles.input,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                        userSelect: 'none'
-                    }}
-                >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {getFlagEmoji(value)} {value}
-                    </span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {isOpen ? '▲' : '▼'}
-                    </span>
-                </div>
-                {isOpen && (
-                    <div
-                        style={{
-                            position: 'absolute',
-                            top: '100%',
-                            left: 0,
-                            right: 0,
-                            backgroundColor: 'var(--background-primary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '4px',
-                            maxHeight: '200px',
-                            overflowY: 'auto',
-                            zIndex: 1000,
-                            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                        }}
-                    >
-                        {allLanguages.map((language) => (
-                            <div
-                                key={language}
-                                onClick={() => handleLanguageSelect(language)}
-                                style={{
-                                    padding: '0.5rem',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    backgroundColor: language === value ? 'var(--background-secondary)' : 'transparent',
-                                    borderBottom: '1px solid var(--border-color)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--background-secondary)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = language === value ? 'var(--background-secondary)' : 'transparent';
-                                }}
-                            >
-                                {getFlagEmoji(language)} {language}
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -6073,11 +3985,7 @@ const EditableField = ({ label, name, value, setLocalBook, onAIGenerate, isGener
                     type={type === 'number' ? 'number' : 'text'} 
                 />
                 {onAIGenerate && (
-                    <button onClick={handleAIGenerate} disabled={isGenerating} style={{
-                        ...styles.aiButton,
-                        opacity: 1, // Vždy zobrazit tlačítko
-                        cursor: isGenerating ? 'not-allowed' : 'pointer'
-                    }} aria-label={`Generovat ${label}`}>
+                    <button onClick={handleAIGenerate} disabled={isGenerating} style={styles.aiButton} aria-label={`Generovat ${label}`}>
                         {isGenerating ? '...' : <IconMagic />}
                     </button>
                 )}
@@ -6102,7 +4010,7 @@ const renderEditableField = (label: string, name: keyof Book, value: string, set
 
 const styles: { [key: string]: React.CSSProperties } = {
     appContainer: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--background-primary)', color: 'var(--text-primary)' },
-    header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px', backgroundColor: 'var(--background-secondary)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 },
+    header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', backgroundColor: 'var(--background-secondary)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 },
     headerActions: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
     mainContent: { display: 'flex', flexGrow: 1, overflow: 'hidden' },
     leftPanel: { width: '320px', flexShrink: 0, borderRight: '1px solid var(--border-color)', padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: 'var(--background-secondary)' },
@@ -6165,88 +4073,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     tagInputAddButton: { background: 'none', border: '1px dashed var(--border-color)', color: 'var(--text-secondary)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', marginLeft: 'auto' },
     tagDropdown: { position: 'absolute', top: 'calc(100% + 5px)', left: 0, right: 0, backgroundColor: 'var(--background-secondary)', borderRadius: '8px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)', zIndex: 10, maxHeight: '200px', overflowY: 'auto', padding: '5px 0' },
     addNewTagLink: { borderTop: '1px solid var(--border-color)', color: 'var(--accent-primary)', fontWeight: 500, },
-    
-    // Chat overlay styles
-    chatOverlay: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000,
-        padding: '10px',
-    },
-    chatContainer: {
-        backgroundColor: 'white',
-        borderRadius: '12px',
-        width: '98%',
-        maxWidth: '1000px',
-        height: '98%',
-        minHeight: '80vh',
-        maxHeight: '95vh',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-        // Responzivní úpravy pro menší obrazovky
-        '@media (max-width: 768px)': {
-            width: '100%',
-            height: '100%',
-            borderRadius: '0px',
-        },
-    },
-    chatHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '16px 20px',
-        borderBottom: '1px solid #e0e0e0',
-        backgroundColor: '#f8f9fa',
-    },
-    chatTitle: {
-        margin: 0,
-        fontSize: '18px',
-        fontWeight: '600',
-        color: '#333',
-    },
-    chatFeatures: {
-        display: 'flex',
-        gap: '8px',
-    },
-    featureBadge: {
-        padding: '4px 8px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: '500',
-        backgroundColor: '#e3f2fd',
-        color: '#1976d2',
-    },
-    chatCloseButton: {
-        background: 'none',
-        border: 'none',
-        cursor: 'pointer',
-        padding: '8px',
-        borderRadius: '4px',
-        fontSize: '16px',
-        transition: 'all 0.2s',
-    },
-    chatContent: {
-        flex: 1,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0, // Důležité pro správné fungování flex
-    },
 };
 
 const root = createRoot(document.getElementById('root')!);
-root.render(
-  <React.StrictMode>
-    <App />
-    <ChatWidget />
-  </React.StrictMode>
-);
+root.render(<App />);
