@@ -559,73 +559,78 @@ const api = {
             for (let pageNum = 1; pageNum <= numPagesToCheck; pageNum++) {
                 try {
                     const page = await pdf.getPage(pageNum);
-                    const textContent = await page.getTextContent();
                     
-                    console.log(`📄 Stránka ${pageNum}: Nalezeno ${textContent.items.length} textových objektů`);
-                    
-                    // Detailní analýza každé textové položky
-                    let pageText = '';
-                    textContent.items.forEach((item: any, index: number) => {
-                        let itemText = '';
+                    // METODA 1: Standardní getTextContent
+                    try {
+                        const textContent = await page.getTextContent();
+                        console.log(`📄 Stránka ${pageNum}: Nalezeno ${textContent.items.length} textových objektů`);
                         
-                        // Zkusíme všechny možné způsoby získání textu
-                        if (item.str !== undefined) {
-                            itemText = String(item.str);
-                        } else if (item.text !== undefined) {
-                            itemText = String(item.text);
-                        } else if (item.chars !== undefined) {
-                            itemText = String(item.chars);
-                        } else if (typeof item === 'string') {
-                            itemText = item;
-                        }
+                        let pageText = '';
+                        textContent.items.forEach((item: any, index: number) => {
+                            let itemText = '';
+                            
+                            // Zkusíme všechny možné způsoby získání textu
+                            if (item.str !== undefined) {
+                                itemText = String(item.str);
+                            } else if (item.text !== undefined) {
+                                itemText = String(item.text);
+                            } else if (item.chars !== undefined) {
+                                itemText = String(item.chars);
+                            } else if (typeof item === 'string') {
+                                itemText = item;
+                            }
+                            
+                            if (itemText && itemText.trim().length > 0) {
+                                pageText += itemText + ' ';
+                                console.log(`   Položka ${index + 1}: "${itemText.substring(0, 50)}${itemText.length > 50 ? '...' : ''}"`);
+                            }
+                        });
                         
-                        if (itemText && itemText.trim().length > 0) {
-                            pageText += itemText + ' ';
-                            console.log(`   Položka ${index + 1}: "${itemText.substring(0, 50)}${itemText.length > 50 ? '...' : ''}"`);
+                        pageText = pageText.trim();
+                        if (pageText.length > 0) {
+                            allExtractedText += pageText + ' ';
+                            totalTextLength += pageText.length;
+                            console.log(`📝 Stránka ${pageNum} (metoda 1): ${pageText.length} znaků`);
                         }
-                    });
+                    } catch (textError) {
+                        console.log(`📄 Stránka ${pageNum}: Standardní metoda selhala`);
+                    }
                     
-                    pageText = pageText.trim();
-                    allExtractedText += pageText + ' ';
-                    totalTextLength += pageText.length;
-                    
-                    console.log(`📝 Stránka ${pageNum} celkem: ${pageText.length} znaků`);
-                    if (pageText.length > 0) {
-                        console.log(`📝 Text stránky ${pageNum}: "${pageText.substring(0, 200)}${pageText.length > 200 ? '...' : ''}"`);
+                    // METODA 2: Alternativní getOperatorList (pro OCR PDF)
+                    if (totalTextLength === 0) {
+                        try {
+                            const ops = await page.getOperatorList();
+                            console.log(`📄 Stránka ${pageNum}: Nalezeno ${ops.fnArray.length} operací`);
+                            
+                            let altText = '';
+                            for (let i = 0; i < ops.fnArray.length; i++) {
+                                const fn = ops.fnArray[i];
+                                const args = ops.argsArray[i];
+                                
+                                // Textové operace v PDF
+                                if (fn === 84 || fn === 85 || fn === 82) { // TJ, Tj, ' operátory
+                                    if (args && args.length > 0 && typeof args[0] === 'string') {
+                                        const textArg = args[0].trim();
+                                        if (textArg.length > 0) {
+                                            altText += textArg + ' ';
+                                            console.log(`🔤 Nalezen text operátorem: "${textArg.substring(0, 50)}"`);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (altText.trim().length > 0) {
+                                allExtractedText += altText.trim() + ' ';
+                                totalTextLength += altText.trim().length;
+                                console.log(`📝 Stránka ${pageNum} (metoda 2): ${altText.trim().length} znaků`);
+                            }
+                        } catch (altError) {
+                            console.log(`📄 Stránka ${pageNum}: Alternativní metoda selhala`);
+                        }
                     }
                     
                 } catch (pageError) {
                     console.warn(`⚠️ Chyba při zpracování stránky ${pageNum}:`, pageError);
-                }
-            }
-            
-            // Ještě zkusíme alternativní metodu - getOperatorList
-            if (totalTextLength === 0) {
-                console.log('🔄 Žádný text nenalezen standardní metodou, zkouším alternativní přístup...');
-                try {
-                    for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 2); pageNum++) {
-                        const page = await pdf.getPage(pageNum);
-                        const ops = await page.getOperatorList();
-                        
-                        console.log(`📄 Stránka ${pageNum}: Nalezeno ${ops.fnArray.length} operací`);
-                        
-                        // Hledáme textové operace
-                        for (let i = 0; i < ops.fnArray.length; i++) {
-                            const fn = ops.fnArray[i];
-                            const args = ops.argsArray[i];
-                            
-                            // Textové operace v PDF
-                            if (fn === 84 || fn === 85 || fn === 82) { // TJ, Tj, ' operátory
-                                if (args && args.length > 0 && typeof args[0] === 'string') {
-                                    console.log(`🔤 Nalezen text operátorem: "${args[0].substring(0, 50)}"`);
-                                    allExtractedText += args[0] + ' ';
-                                    totalTextLength += args[0].length;
-                                }
-                            }
-                        }
-                    }
-                } catch (altError) {
-                    console.warn('⚠️ Alternativní metoda selhala:', altError);
                 }
             }
             
@@ -646,7 +651,7 @@ const api = {
         }
     },
     
-    // PŘEPSANÁ ROBUSTNĚJŠÍ FUNKCE PRO EXTRAKCI TEXTU Z PDF
+        // PŘEPSANÁ ROBUSTNĚJŠÍ FUNKCE PRO EXTRAKCI TEXTU Z PDF
     async extractPdfTextContent(fileData: Blob): Promise<string> {
         console.log("🚀 SPOUŠTÍM NOVÝ OCR PROCES...");
         
@@ -675,15 +680,182 @@ const api = {
             for (let pageNum = 1; pageNum <= pagesToProcess; pageNum++) {
                 try {
                     const page = await pdf.getPage(pageNum);
-                    const textContent = await page.getTextContent();
                     
-                    // Extrahujeme všechny textové položky
-                    const pageTextItems = textContent.items
-                        .filter(item => 'str' in item && item.str.trim().length > 0)
-                        .map(item => (item as any).str);
+                    // METODA 1: Standardní getTextContent (pro PDF s textovou vrstvou)
+                    let pageText = "";
+                    try {
+                        const textContent = await page.getTextContent();
+                        const pageTextItems = textContent.items
+                            .filter(item => 'str' in item && item.str.trim().length > 0)
+                            .map(item => (item as any).str);
+                        pageText = pageTextItems.join(' ').trim();
+                        
+                        if (pageText.length > 0) {
+                            console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (standardní metoda)`);
+                        }
+                    } catch (textError) {
+                        console.log(`📃 Stránka ${pageNum}: Standardní metoda selhala, zkouším alternativní...`);
+                    }
                     
-                    const pageText = pageTextItems.join(' ').trim();
+                    // METODA 2: Alternativní extrakce pomocí getOperatorList (pro OCR PDF)
+                    if (pageText.length === 0) {
+                        try {
+                            console.log(`🔄 Zkouším alternativní metodu pro stránku ${pageNum}...`);
+                            const ops = await page.getOperatorList();
+                            
+                            // Hledáme textové operace v PDF
+                            let altText = "";
+                            for (let i = 0; i < ops.fnArray.length; i++) {
+                                const fn = ops.fnArray[i];
+                                const args = ops.argsArray[i];
+                                
+                                // Textové operace v PDF.js
+                                // 84 = TJ (text positioning), 85 = Tj (text showing), 82 = ' (text positioning)
+                                if (fn === 84 || fn === 85 || fn === 82) {
+                                    if (args && args.length > 0) {
+                                        // První argument je obvykle text
+                                        const textArg = args[0];
+                                        if (typeof textArg === 'string' && textArg.trim().length > 0) {
+                                            altText += textArg + " ";
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (altText.trim().length > 0) {
+                                pageText = altText.trim();
+                                console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (alternativní metoda)`);
+                            }
+                        } catch (altError) {
+                            console.log(`📃 Stránka ${pageNum}: Alternativní metoda selhala`);
+                        }
+                    }
                     
+                    // METODA 3: Pokus o extrakci pomocí renderování na canvas a OCR
+                    if (pageText.length === 0) {
+                        try {
+                            console.log(`🔄 Zkouším renderování na canvas pro stránku ${pageNum}...`);
+                            
+                            // Vytvoříme canvas pro renderování
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            
+                            if (context) {
+                                // Nastavíme viewport
+                                const viewport = page.getViewport({ scale: 1.5 });
+                                canvas.width = viewport.width;
+                                canvas.height = viewport.height;
+                                
+                                // Renderujeme stránku
+                                await page.render({
+                                    canvasContext: context,
+                                    viewport: viewport
+                                }).promise;
+                                
+                                // Zkusíme extrahovat text z canvas pomocí Tesseract.js nebo podobné knihovny
+                                // Pro tuto chvíli použijeme jednoduchou detekci
+                                console.log(`📃 Stránka ${pageNum}: Renderování dokončeno, ale OCR vyžaduje další knihovnu`);
+                            }
+                        } catch (renderError) {
+                            console.log(`📃 Stránka ${pageNum}: Renderování selhalo`);
+                        }
+                    }
+                    
+                    // METODA 4: Pokus o extrakci pomocí analýzy PDF struktury
+                    if (pageText.length === 0) {
+                        try {
+                            console.log(`🔄 Zkouším analýzu PDF struktury pro stránku ${pageNum}...`);
+                            
+                            // Zkusíme získat metadata stránky
+                            const pageInfo = await page.getOperatorList();
+                            console.log(`📄 Stránka ${pageNum}: Nalezeno ${pageInfo.fnArray.length} operací`);
+                            
+                            // Hledáme specifické textové operace
+                            let structText = "";
+                            for (let i = 0; i < pageInfo.fnArray.length; i++) {
+                                const fn = pageInfo.fnArray[i];
+                                const args = pageInfo.argsArray[i];
+                                
+                                // Další textové operace v PDF
+                                // 86 = T* (text positioning), 87 = Td (text positioning)
+                                // 88 = TD (text positioning), 89 = Tm (text matrix)
+                                if (fn === 86 || fn === 87 || fn === 88 || fn === 89) {
+                                    if (args && args.length > 0) {
+                                        // Tyto operace mohou obsahovat text nebo souřadnice
+                                        for (let j = 0; j < args.length; j++) {
+                                            const arg = args[j];
+                                            if (typeof arg === 'string' && arg.trim().length > 0) {
+                                                structText += arg + " ";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (structText.trim().length > 0) {
+                                pageText = structText.trim();
+                                console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (strukturní analýza)`);
+                            }
+                        } catch (structError) {
+                            console.log(`📃 Stránka ${pageNum}: Strukturní analýza selhala`);
+                        }
+                    }
+                    
+                    // METODA 5: Pokus o extrakci pomocí analýzy fontů a glyfů
+                    if (pageText.length === 0) {
+                        try {
+                            console.log(`🔄 Zkouším analýzu fontů pro stránku ${pageNum}...`);
+                            
+                            // Zkusíme získat informace o fontech
+                            const commonObjs = page.commonObjs;
+                            if (commonObjs) {
+                                // Zkusíme získat počet objektů různými způsoby
+                                let objCount = 0;
+                                try {
+                                    if ('size' in commonObjs) {
+                                        objCount = (commonObjs as any).size;
+                                    } else if ('length' in commonObjs) {
+                                        objCount = (commonObjs as any).length;
+                                    } else {
+                                        // Počítáme objekty manuálně
+                                        for (const key in commonObjs) {
+                                            if (commonObjs.hasOwnProperty(key)) objCount++;
+                                        }
+                                    }
+                                } catch (e) {
+                                    objCount = 0;
+                                }
+                                
+                                if (objCount > 0) {
+                                    console.log(`📄 Stránka ${pageNum}: Nalezeno ${objCount} společných objektů`);
+                                    
+                                    // Procházíme objekty a hledáme text
+                                    let fontText = "";
+                                    try {
+                                        for (const key in commonObjs) {
+                                            if (commonObjs.hasOwnProperty(key)) {
+                                                const value = (commonObjs as any)[key];
+                                                if (typeof value === 'string' && value.trim().length > 0) {
+                                                    fontText += value + " ";
+                                                }
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.log(`📄 Stránka ${pageNum}: Chyba při procházení objektů`);
+                                    }
+                                    
+                                    if (fontText.trim().length > 0) {
+                                        pageText = fontText.trim();
+                                        console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (analýza fontů)`);
+                                    }
+                                }
+                            }
+                        } catch (fontError) {
+                            console.log(`📃 Stránka ${pageNum}: Analýza fontů selhala`);
+                        }
+                    }
+                    
+                    // Přidáme text do celkového výsledku
                     if (pageText.length > 0) {
                         allText += `\n\n=== STRÁNKA ${pageNum} ===\n${pageText}`;
                         totalChars += pageText.length;
@@ -1352,7 +1524,99 @@ const generateCoverFromPdf = async (fileData: ArrayBuffer): Promise<File | null>
     }
 };
 
+// NOVÉ FUNKCE PRO EXTRACTION TEXTU DO MEZIPAMĚTI
 
+// Funkce pro stahování textu z PDF do mezipaměti
+const extractTextToCache = async (book: Book): Promise<string> => {
+    console.log('🚀 SPOUŠTÍM EXTRACTION TEXTU DO MEZIPAMĚTI...');
+    console.log('📖 Kniha:', book.title);
+    console.log('📁 FilePath:', book.filePath);
+    
+    try {
+        if (!book.filePath) {
+            throw new Error('Kniha nemá filePath');
+        }
+        
+        // Stáhneme soubor z storage
+        console.log('⬇️ Stahuji soubor ze storage...');
+        const { data, error } = await supabaseClient.storage.from("Books").download(book.filePath);
+        
+        if (error) {
+            throw new Error(`Chyba při stahování: ${error.message}`);
+        }
+        
+        if (!data) {
+            throw new Error('Soubor je prázdný');
+        }
+        
+        console.log('✅ Soubor stažen, velikost:', Math.round(data.size / 1024), 'KB');
+        
+        // Detekce typu souboru
+        const fileExtension = book.filePath.toLowerCase().split(".").pop();
+        
+        if (fileExtension === "pdf") {
+            console.log('📄 Zpracovávám PDF soubor...');
+            const extractedText = await api.extractPdfTextContent(data);
+            
+            // Omezení na maximálně 120 000 znaků
+            const maxChars = 120000;
+            let finalText = extractedText;
+            
+            if (extractedText.length > maxChars) {
+                finalText = extractedText.substring(0, maxChars) + "\n\n... [TEXT ZKRÁCEN NA 120 000 ZNAKŮ] ...";
+                console.log(`✂️ Text zkrácen z ${extractedText.length} na ${maxChars} znaků`);
+            }
+            
+            // Uložení do mezipaměti
+            const cacheKey = `extracted_text_${book.id}`;
+            localStorage.setItem(cacheKey, finalText);
+            localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
+            
+            console.log('💾 Text uložen do mezipaměti');
+            console.log('📊 Velikost textu:', finalText.length, 'znaků');
+            console.log('🔑 Cache klíč:', cacheKey);
+            console.log('⏰ Timestamp:', new Date().toLocaleString('cs-CZ'));
+            
+            // Kontrola v konzoli
+            console.log('📝 PRVNÍCH 200 ZNAKŮ EXTRHOVANÉHO TEXTU:');
+            console.log('─'.repeat(50));
+            console.log(finalText.substring(0, 200));
+            console.log('─'.repeat(50));
+            
+            return finalText;
+            
+        } else {
+            // Pro ostatní formáty
+            console.log('📝 Zpracovávám textový soubor...');
+            const textContent = await data.text();
+            
+            // Omezení na maximálně 120 000 znaků
+            const maxChars = 120000;
+            let finalText = textContent;
+            
+            if (textContent.length > maxChars) {
+                finalText = textContent.substring(0, maxChars) + "\n\n... [TEXT ZKRÁCEN NA 120 000 ZNAKŮ] ...";
+                console.log(`✂️ Text zkrácen z ${textContent.length} na ${maxChars} znaků`);
+            }
+            
+            // Uložení do mezipaměti
+            const cacheKey = `extracted_text_${book.id}`;
+            localStorage.setItem(cacheKey, finalText);
+            localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
+            
+            console.log('💾 Text uložen do mezipaměti');
+            console.log('📊 Velikost textu:', finalText.length, 'znaků');
+            console.log('🔑 Cache klíč:', cacheKey);
+            console.log('⏰ Timestamp:', new Date().toLocaleString('cs-CZ'));
+            
+            return finalText;
+        }
+        
+    } catch (error) {
+        console.error('❌ CHYBA PŘI EXTRACTION TEXTU:', error);
+        throw error;
+    }
+};
 
 // Funkce pro získání textu z mezipaměti
 const getTextFromCache = (bookId: string): string | null => {
@@ -1453,141 +1717,70 @@ const clearTextCache = (bookId: string): void => {
     console.log('─'.repeat(50));
 };
 
-// NOVÁ FUNKCE PRO TEST KOMUNIKACE S WEBHOOKU
-const testWebhookConnection = async (): Promise<string> => {
-    const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/79522dec-53ac-4f64-9253-1c5759aa8b45';
+// Funkce pro debugování PDF struktury (pro ověření OCR)
+(window as any).debugPdfStructure = async (file: File) => {
+    console.log('🔍 DEBUGOVÁNÍ PDF STRUKTURY...');
+    console.log('📁 Soubor:', file.name, 'velikost:', Math.round(file.size / 1024), 'KB');
     
     try {
-        console.log('📄 Odesílám binární soubor na webhook...');
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+        const pdf = await loadingTask.promise;
         
-        // Vytvoříme FormData s testovací zprávou
-        const formData = new FormData();
-        formData.append('test', 'ahoj');
-        formData.append('message', 'Test komunikace s n8n webhook');
-        formData.append('timestamp', new Date().toISOString());
+        console.log(`📄 PDF načten: ${pdf.numPages} stránek`);
         
-        console.log('📤 Odesílám testovací zprávu "ahoj"...');
+        // Analýza první stránky
+        const page = await pdf.getPage(1);
+        console.log('📃 První stránka načtena');
         
-        // Odešleme testovací data na n8n webhook
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData
-        });
+        // Zkusíme všechny metody extrakce
+        console.log('🔄 Testuji metody extrakce textu...');
         
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Webhook chyba:', errorText);
-            
-            if (response.status === 404) {
-                throw new Error(`Webhook není dostupný (404). Zkontrolujte, zda je n8n workflow aktivní a webhook zaregistrovaný. Chyba: ${errorText}`);
+        // Metoda 1: getTextContent
+        try {
+            const textContent = await page.getTextContent();
+            console.log(`📝 getTextContent: ${textContent.items.length} položek`);
+            if (textContent.items.length > 0) {
+                const firstItem = textContent.items[0];
+                console.log('📝 První položka:', firstItem);
             }
-            
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        } catch (e) {
+            console.log('❌ getTextContent selhal:', e);
         }
         
-        const result = await response.text(); // Přijímáme jakoukoliv odpověď
-        console.log('✅ Webhook odpověď:', result);
+        // Metoda 2: getOperatorList
+        try {
+            const ops = await page.getOperatorList();
+            console.log(`📝 getOperatorList: ${ops.fnArray.length} operací`);
+            
+            // Hledáme textové operace
+            const textOps = [];
+            for (let i = 0; i < ops.fnArray.length; i++) {
+                const fn = ops.fnArray[i];
+                if (fn === 84 || fn === 85 || fn === 82 || fn === 86 || fn === 87 || fn === 88 || fn === 89) {
+                    textOps.push({ index: i, fn, args: ops.argsArray[i] });
+                }
+            }
+            console.log(`📝 Nalezeno ${textOps.length} textových operací:`, textOps.slice(0, 5));
+        } catch (e) {
+            console.log('❌ getOperatorList selhal:', e);
+        }
         
-        return result;
+        // Metoda 3: Metadata
+        try {
+            const metadata = await pdf.getMetadata();
+            console.log('📝 Metadata:', metadata);
+        } catch (e) {
+            console.log('❌ Metadata selhal:', e);
+        }
+        
+        console.log('✅ Debugování dokončeno');
         
     } catch (error) {
-        console.error('❌ Chyba při extrakci textu přes webhook:', error);
-        throw error;
+        console.error('❌ Chyba při debugování:', error);
     }
 };
 
-// NOVÁ FUNKCE PRO EXTRACTION TEXTU PŘES WEBHOOK
-const extractTextViaWebhook = async (book: Book): Promise<string> => {
-    const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/79522dec-53ac-4f64-9253-1c5759aa8b45';
-    
-    try {
-        console.log('🚀 Odesílám dokument na webhook pro extrakci textu...');
-        console.log('📖 Kniha:', book.title);
-        console.log('📁 FilePath:', book.filePath);
-        
-        // Stáhneme soubor z Supabase storage
-        const { data: fileData, error: downloadError } = await supabaseClient.storage
-            .from('Books')
-            .download(book.filePath);
-            
-        if (downloadError || !fileData) {
-            throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
-        }
-        
-        console.log('📤 Odesílám binární soubor na webhook...');
-        console.log('📊 Velikost souboru:', fileData.size, 'bajtů');
-        
-        // Vytvoříme FormData pro odeslání binárního souboru
-        const formData = new FormData();
-        formData.append('file', fileData, book.filePath.split('/').pop() || 'document.pdf');
-        formData.append('bookId', book.id);
-        formData.append('fileName', book.filePath.split('/').pop() || 'unknown.pdf');
-        formData.append('fileType', book.format.toLowerCase());
-        formData.append('metadata', JSON.stringify({
-            title: book.title,
-            author: book.author,
-            publicationYear: book.publicationYear,
-            language: book.language
-        }));
-        
-        // Odešleme binární soubor na n8n webhook
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData // FormData automaticky nastaví správný Content-Type s boundary
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Webhook chyba:', errorText);
-            
-            if (response.status === 404) {
-                throw new Error(`Webhook není dostupný (404). Zkontrolujte, zda je n8n workflow aktivní a webhook zaregistrovaný. Chyba: ${errorText}`);
-            }
-            
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-        }
-        
-        // Nejdříve zkusíme JSON, pokud to selže, vezmeme to jako čistý text
-        let extractedText;
-        const responseText = await response.text();
-        
-        try {
-            // Pokusíme se parsovat jako JSON
-            const result = JSON.parse(responseText);
-            console.log('✅ Webhook JSON odpověď:', result);
-            
-            if (result.success && result.extractedText) {
-                extractedText = result.extractedText;
-            } else if (result.extractedText) {
-                extractedText = result.extractedText;
-            } else {
-                // JSON neobsahuje extractedText, použijeme celý text
-                extractedText = responseText;
-            }
-        } catch (jsonError) {
-            // Není to JSON, použijeme jako čistý text
-            console.log('✅ Webhook vrátil čistý text (ne JSON):', responseText.substring(0, 200) + '...');
-            extractedText = responseText;
-        }
-        
-        if (!extractedText || extractedText.trim().length === 0) {
-            throw new Error('Webhook vrátil prázdný text');
-        }
-        
-        // Uložíme extrahovaný text do mezipaměti
-        const cacheKey = `extracted_text_${book.id}`;
-        localStorage.setItem(cacheKey, extractedText);
-        localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
-        
-        console.log('💾 Text uložen do mezipaměti:', extractedText.length, 'znaků');
-        
-        return extractedText;
-        
-    } catch (error) {
-        console.error('❌ Chyba při extrakci textu přes webhook:', error);
-        throw error;
-    }
-};
 
 // --- COMPONENTS ---
 
@@ -3178,7 +3371,7 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                 console.log('📥 Text není v mezipaměti, spouštím automatickou extrakci...');
                 
                 try {
-                    const extractedText = await extractTextViaWebhook(localBook);
+                    const extractedText = await extractTextToCache(localBook);
                     console.log('✅ Text automaticky extrahován do mezipaměti:', extractedText.length, 'znaků');
                     
                     // Aktualizace UI pro zobrazení nového stavu mezipaměti
@@ -3209,7 +3402,7 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
         } finally {
             setIsGenerating(prev => ({ ...prev, [field]: false }));
         }
-    }, [updateLocalBook, localBook.id, checkCacheStatus, extractTextViaWebhook]); // Přidány nové závislosti
+    }, [updateLocalBook, localBook.id, checkCacheStatus, extractTextToCache]); // Přidány nové závislosti
 
     const handleBulkAIGenerate = async () => {
         setIsBulkGenerating(true);
@@ -3334,46 +3527,39 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                             : 'Text není v mezipaměti'
                         }
                     </span>
-
                     <button 
-                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', marginLeft: '8px', background: 'var(--accent-primary)', color: 'white'}}
+                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', marginLeft: '8px'}}
                         onClick={async () => {
                             try {
-                                // Upozornění pro test webhook
-                                const shouldProceed = confirm(`📄 ODESLÁNÍ BINÁRNÍHO SOUBORU\n\n⚠️ DŮLEŽITÉ: Před kliknutím na OK:\n1. Přejděte do n8n workflow\n2. Klikněte "Execute workflow" nebo "Listen for test event"\n3. Hned poté klikněte OK\n\nOdešle se binární soubor knihy na webhook\n\nPokračovat?`);
-                                if (!shouldProceed) {
-                                    return;
-                                }
-                                
-                                console.log('📄 Odesílám binární soubor na webhook...');
+                                console.log('🚀 Spouštím extrakci textu do mezipaměti...');
                                 
                                 // Kontrola, jestli už není text v mezipaměti
                                 const cacheStatus = checkCacheStatus(localBook.id);
                                 if (cacheStatus.hasCache) {
-                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat přes webhook?`);
+                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat?`);
                                     if (!shouldOverwrite) {
                                         console.log('❌ Uživatel zrušil přepsání mezipaměti');
                                         return;
                                     }
                                 }
                                 
-                                // Spuštění extrakce přes webhook
-                                const extractedText = await extractTextViaWebhook(localBook);
+                                // Spuštění extrakce
+                                const extractedText = await extractTextToCache(localBook);
                                 
                                 // Zobrazení úspěchu
-                                alert(`✅ Text úspěšně extrahován přes webhook a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
+                                alert(`✅ Text úspěšně extrahován a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
                                 
                                 // Aktualizace UI
                                 updateLocalBook({...localBook});
                                 
                             } catch (error) {
-                                console.error('❌ Chyba při extrakci textu přes webhook:', error);
-                                alert(`❌ Chyba při extrakci textu přes webhook: ${error instanceof Error ? error.message : String(error)}`);
+                                console.error('❌ Chyba při extrakci textu:', error);
+                                alert(`❌ Chyba při extrakci textu: ${error instanceof Error ? error.message : String(error)}`);
                             }
                         }}
-                        title="Extrahovat text přes n8n webhook (binární soubor) - POZOR: Nejdříve spusťte listening v n8n!"
+                        title="Stáhnout text z dokumentu do mezipaměti (max. 120 000 znaků)"
                     >
-                        🌐 Webhook OCR
+                        📥 Extrahovat text
                     </button>
                     {checkCacheStatus(localBook.id).hasCache && (
                         <>
@@ -3597,46 +3783,39 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                             : 'Text není v mezipaměti'
                         }
                     </span>
-
                     <button 
-                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: 'var(--accent-primary)', color: 'white'}}
+                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px'}}
                         onClick={async () => {
                             try {
-                                // Upozornění pro test webhook
-                                const shouldProceed = confirm(`📄 ODESLÁNÍ BINÁRNÍHO SOUBORU\n\n⚠️ DŮLEŽITÉ: Před kliknutím na OK:\n1. Přejděte do n8n workflow\n2. Klikněte "Execute workflow" nebo "Listen for test event"\n3. Hned poté klikněte OK\n\nOdešle se binární soubor knihy na webhook\n\nPokračovat?`);
-                                if (!shouldProceed) {
-                                    return;
-                                }
-                                
-                                console.log('📄 Odesílám binární soubor na webhook...');
+                                console.log('🚀 Spouštím extrakci textu do mezipaměti...');
                                 
                                 // Kontrola, jestli už není text v mezipaměti
                                 const cacheStatus = checkCacheStatus(localBook.id);
                                 if (cacheStatus.hasCache) {
-                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat přes webhook?`);
+                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat?`);
                                     if (!shouldOverwrite) {
                                         console.log('❌ Uživatel zrušil přepsání mezipaměti');
                                         return;
                                     }
                                 }
                                 
-                                // Spuštění extrakce přes webhook
-                                const extractedText = await extractTextViaWebhook(localBook);
+                                // Spuštění extrakce
+                                const extractedText = await extractTextToCache(localBook);
                                 
                                 // Zobrazení úspěchu
-                                alert(`✅ Text úspěšně extrahován přes webhook a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
+                                alert(`✅ Text úspěšně extrahován a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
                                 
                                 // Aktualizace UI
                                 updateLocalBook({...localBook});
                                 
                             } catch (error) {
-                                console.error('❌ Chyba při extrakci textu přes webhook:', error);
-                                alert(`❌ Chyba při extrakci textu přes webhook: ${error instanceof Error ? error.message : String(error)}`);
+                                console.error('❌ Chyba při extrakci textu:', error);
+                                alert(`❌ Chyba při extrakci textu: ${error instanceof Error ? error.message : String(error)}`);
                             }
                         }}
-                        title="Extrahovat text přes n8n webhook (binární soubor) - POZOR: Nejdříve spusťte listening v n8n!"
+                        title="Stáhnout text z dokumentu do mezipaměti (max. 120 000 znaků)"
                     >
-                        🌐 Webhook OCR
+                        📥 Extrahovat text
                     </button>
                     {checkCacheStatus(localBook.id).hasCache && (
                         <>
@@ -3719,7 +3898,7 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                 </div>
             </div>
         </>
-    ), [localBook, updateLocalBook, handleAIGenerate, isGenerating, allCategories, onAddNewCategory, onDeleteCategory, allLabels, onAddNewLabel, onDeleteLabel, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, checkCacheStatus, clearTextCache, getTextFromCache, extractTextViaWebhook]);
+    ), [localBook, updateLocalBook, handleAIGenerate, isGenerating, allCategories, onAddNewCategory, onDeleteCategory, allLabels, onAddNewLabel, onDeleteLabel, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, checkCacheStatus, extractTextToCache, clearTextCache, getTextFromCache]);
 
     return (
         <div style={styles.detailContent}>

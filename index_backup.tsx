@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 // Removed GoogleGenAI import - using direct fetch API calls instead
@@ -489,7 +490,7 @@ const api = {
             
             if (fileExtension === "pdf") {
                 console.log("🔍 Detekován PDF soubor - spouštím inteligentní analýzu...");
-                return await this.extractPdfTextContent(data);
+                return await this.extractPdfTextContent(data, false); // Standardní extrakce
             } else {
                 // Pro ostatní formáty použijeme standardní text()
                 return await data.text();
@@ -646,18 +647,104 @@ const api = {
         }
     },
     
-    // PŘEPSANÁ ROBUSTNĚJŠÍ FUNKCE PRO EXTRAKCI TEXTU Z PDF
-    async extractPdfTextContent(fileData: Blob): Promise<string> {
-        console.log("🚀 SPOUŠTÍM NOVÝ OCR PROCES...");
+    // ROBUSTNÍ FUNKCE PRO EXTRAKCI TEXTU Z PDF - BEZPODMÍNEČNÁ PRO OCR DOKUMENTY
+    async extractPdfTextContent(fileData: Blob, forceExtraction: boolean = false): Promise<string> {
+        console.log("🚀 SPOUŠTÍM SUPER ROBUSTNÍ OCR EXTRAKCI...");
+        console.log("🔍 Force extraction:", forceExtraction ? "✅ ANO (OCR dokument)" : "❌ NE");
         
-        try {
-            // Převedeme Blob na ArrayBuffer
-            const arrayBuffer = await fileData.arrayBuffer();
-            console.log("📦 PDF načten, velikost:", Math.round(arrayBuffer.byteLength / 1024), "KB");
-            
-            // Načteme PDF pomocí PDF.js
-            const loadingTask = pdfjsLib.getDocument(arrayBuffer);
-            const pdf = await loadingTask.promise;
+        const extractionMethods = [
+            () => this.tryAdvancedPdfJs(fileData, forceExtraction),
+            () => this.tryRawPdfParsing(fileData),
+            () => this.tryBinaryPdfParsing(fileData),
+            () => this.tryStreamDecoding(fileData),
+            () => this.tryAlternativePdfParsing(fileData)
+        ];
+        
+        // Zkusíme všechny metody dokud jedna neuspěje
+        for (let i = 0; i < extractionMethods.length; i++) {
+            try {
+                console.log(`🔄 Zkouším metodu ${i + 1}/${extractionMethods.length}...`);
+                const result = await extractionMethods[i]();
+                
+                if (result && result.length > 50) {
+                    console.log(`✅ ÚSPĚCH! Metoda ${i + 1} extrahovala ${result.length} znaků`);
+                    console.log(`📝 Ukázka: "${result.substring(0, 200)}..."`);
+                    return result;
+                }
+            } catch (error) {
+                console.log(`❌ Metoda ${i + 1} selhala:`, error.message);
+                continue;
+            }
+        }
+        
+        // Pokud všechny metody selhaly
+        if (forceExtraction) {
+            throw new Error("❌ KRITICKÁ CHYBA: Všech 5 metod extrakce selhalo pro OCR dokument!");
+        } else {
+            return "❌ PDF neobsahuje čitelný text nebo vyžaduje OCR zpracování.";
+    },
+
+    // METODA 1: Rozšířený PDF.js s agresivními nastaveními
+    async tryAdvancedPdfJs(fileData: Blob, forceExtraction: boolean): Promise<string> {
+        const arrayBuffer = await fileData.arrayBuffer();
+        console.log("📦 PDF načten, velikost:", Math.round(arrayBuffer.byteLength / 1024), "KB");
+        
+        // Různé konfigurace PDF.js pro OCR PDF
+        const configs = [
+            { 
+                useSystemFonts: true, 
+                disableFontFace: false, 
+                disableRange: false, 
+                disableStream: false,
+                verbosity: forceExtraction ? 1 : 0
+            },
+            { 
+                useSystemFonts: false, 
+                disableFontFace: true, 
+                disableRange: true, 
+                disableStream: true,
+                verbosity: 1
+            },
+            {
+                cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+                cMapPacked: true,
+                standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
+                useSystemFonts: true
+            }
+        ];
+        
+        for (const config of configs) {
+            try {
+                // Pokus 1: Standardní načtení
+                const loadingTask = pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    useSystemFonts: true,
+                    disableFontFace: false,
+                    verbosity: forceExtraction ? 1 : 0
+                });
+                pdf = await loadingTask.promise;
+            } catch (error) {
+                if (forceExtraction) {
+                    console.log("🔄 Standardní načtení selhalo, zkouším alternativní konfiguraci...");
+                    try {
+                        // Pokus 2: S vypnutými fonty
+                        const loadingTask2 = pdfjsLib.getDocument({
+                            data: arrayBuffer,
+                            useSystemFonts: false,
+                            disableFontFace: true,
+                            verbosity: 1
+                        });
+                        pdf = await loadingTask2.promise;
+                    } catch (error2) {
+                        console.log("🔄 Alternativní konfigurace selhala, zkouším základní...");
+                        // Pokus 3: Pouze základní konfigurace
+                        const loadingTask3 = pdfjsLib.getDocument(arrayBuffer);
+                        pdf = await loadingTask3.promise;
+                    }
+                } else {
+                    throw error;
+                }
+            }
             
             console.log(`📄 PDF úspěšně načten - ${pdf.numPages} stránek`);
             
@@ -668,36 +755,204 @@ const api = {
             
             let allText = "";
             let totalChars = 0;
+            let pagesWithText = 0;
+            let totalPagesProcessed = 0;
             
             console.log(`🔄 Začínám extrakci textu z ${pagesToProcess} stránek...`);
             
             // Projdeme všechny stránky a extrahujeme text
             for (let pageNum = 1; pageNum <= pagesToProcess; pageNum++) {
+                totalPagesProcessed++;
                 try {
                     const page = await pdf.getPage(pageNum);
-                    const textContent = await page.getTextContent();
                     
-                    // Extrahujeme všechny textové položky
+                    // Zkusíme různé přístupy k getTextContent
+                    let textContent;
+                    try {
+                        // Pokus 1: Standardní getTextContent
+                        textContent = await page.getTextContent();
+                    } catch (textError) {
+                        if (forceExtraction) {
+                            console.log(`🔄 Stránka ${pageNum}: Standardní getTextContent selhalo, zkouším s parametry...`);
+                            try {
+                                // Pokus 2: S normalizací
+                                textContent = await page.getTextContent({
+                                    normalizeWhitespace: true,
+                                    disableCombineTextItems: false
+                                });
+                            } catch (textError2) {
+                                console.log(`🔄 Stránka ${pageNum}: getTextContent s parametry selhalo, zkouším bez kombinování...`);
+                                // Pokus 3: Bez kombinování textových položek
+                                textContent = await page.getTextContent({
+                                    normalizeWhitespace: false,
+                                    disableCombineTextItems: true
+                                });
+                            }
+                        } else {
+                            throw textError;
+                        }
+                    }
+                    
+                    // ROZŠÍŘENÉ AGRESIVNÍ EXTRAKCE - více přístupů
+                    let pageText = "";
+                    
+                    // DEBUGGING: Zobrazíme informace o textContent
+                    if (forceExtraction && pageNum <= 3) {
+                        console.log(`🔍 DEBUG stránka ${pageNum}:`, {
+                            itemsCount: textContent.items.length,
+                            firstItems: textContent.items.slice(0, 5).map(item => ({
+                                str: (item as any).str,
+                                hasEOL: (item as any).hasEOL,
+                                transform: (item as any).transform,
+                                width: (item as any).width,
+                                height: (item as any).height
+                            }))
+                        });
+                    }
+                    
+                    // Přístup 1: Standardní extrakce s filtrováním
                     const pageTextItems = textContent.items
                         .filter(item => 'str' in item && item.str.trim().length > 0)
                         .map(item => (item as any).str);
                     
-                    const pageText = pageTextItems.join(' ').trim();
+                    pageText = pageTextItems.join(' ').trim();
+                    
+                    // Přístup 2: Pokud nic nenajdeme, zkusíme bez filtrování
+                    if (pageText.length === 0) {
+                        console.log(`🔄 Stránka ${pageNum}: Zkouším extrakci bez filtrování...`);
+                        const allItems = textContent.items.map(item => (item as any).str || '');
+                        pageText = allItems.join('').trim();
+                    }
+                    
+                    // Přístup 3: Zkusíme s mezerami mezi položkami
+                    if (pageText.length === 0) {
+                        console.log(`🔄 Stránka ${pageNum}: Zkouším extrakci s mezerami...`);
+                        const spacedItems = textContent.items
+                            .map(item => (item as any).str || '')
+                            .filter(str => str.length > 0)
+                            .join(' ');
+                        pageText = spacedItems.trim();
+                    }
+                    
+                    // Přístup 4: Zkusíme získat i skryté znaky a EOL
+                    if (pageText.length === 0) {
+                        console.log(`🔄 Stránka ${pageNum}: Zkouším extrakci včetně skrytých znaků...`);
+                        const rawText = textContent.items
+                            .map(item => {
+                                const str = (item as any).str || '';
+                                const hasEOL = (item as any).hasEOL;
+                                return str + (hasEOL ? '\n' : '');
+                            })
+                            .join('');
+                        pageText = rawText.trim();
+                    }
+                    
+                    // Přístup 5: Zkusíme extrakci na základě pozice textu
+                    if (pageText.length === 0 && forceExtraction) {
+                        console.log(`🔄 Stránka ${pageNum}: Zkouším pozičně orientovanou extrakci...`);
+                        const sortedItems = textContent.items
+                            .filter(item => 'str' in item && (item as any).str)
+                            .sort((a: any, b: any) => {
+                                const aY = a.transform ? a.transform[5] : 0;
+                                const bY = b.transform ? b.transform[5] : 0;
+                                const aX = a.transform ? a.transform[4] : 0;
+                                const bX = b.transform ? b.transform[4] : 0;
+                                // Seřadíme podle Y pozice (shora dolů) a pak podle X (zleva doprava)
+                                return bY - aY || aX - bX;
+                            })
+                            .map(item => (item as any).str);
+                        pageText = sortedItems.join(' ').trim();
+                    }
+                    
+                    // Přístup 6: Zkusíme extrakci všech možných vlastností
+                    if (pageText.length === 0 && forceExtraction) {
+                        console.log(`🔄 Stránka ${pageNum}: Zkouším extrakci všech vlastností...`);
+                        const allProps = textContent.items
+                            .map(item => {
+                                const anyItem = item as any;
+                                return [
+                                    anyItem.str,
+                                    anyItem.unicode,
+                                    anyItem.chars,
+                                    anyItem.textContent
+                                ].filter(Boolean).join('');
+                            })
+                            .filter(text => text && text.length > 0);
+                        pageText = allProps.join(' ').trim();
+                    }
+                    
+                    // Přístup 7: Pokud stále nic, zkusíme renderování a OCR simulaci
+                    if (pageText.length === 0 && forceExtraction) {
+                        console.log(`🔄 Stránka ${pageNum}: Zkouším alternativní PDF API...`);
+                        try {
+                            // Zkusíme získat viewport a render informace
+                            const viewport = page.getViewport({ scale: 1.0 });
+                            console.log(`📐 Stránka ${pageNum} viewport:`, {
+                                width: viewport.width,
+                                height: viewport.height
+                            });
+                            
+                            // Zkusíme získat obsah jiným způsobem
+                            const operatorList = await page.getOperatorList();
+                            if (operatorList.fnArray.length > 0) {
+                                console.log(`🔧 Stránka ${pageNum}: Nalezeno ${operatorList.fnArray.length} operací`);
+                                
+                                // Projdeme operace a hledáme textové operace
+                                for (let i = 0; i < operatorList.fnArray.length; i++) {
+                                    const fn = operatorList.fnArray[i];
+                                    const args = operatorList.argsArray[i];
+                                    
+                                    // Hledáme textové operace (TJ, Tj, ', ")
+                                    if ([84, 85, 39, 34].includes(fn) && args && args.length > 0) {
+                                        const textArg = args[0];
+                                        if (typeof textArg === 'string' && textArg.trim().length > 0) {
+                                            pageText += textArg + ' ';
+                                        }
+                                    }
+                                }
+                                pageText = pageText.trim();
+                                
+                                if (pageText.length > 0) {
+                                    console.log(`✅ Alternativní API nalezlo text: "${pageText.substring(0, 100)}..."`);
+                                }
+                            }
+                        } catch (altError) {
+                            console.log(`❌ Alternativní API selhalo:`, altError);
+                        }
+                    }
                     
                     if (pageText.length > 0) {
                         allText += `\n\n=== STRÁNKA ${pageNum} ===\n${pageText}`;
                         totalChars += pageText.length;
+                        pagesWithText++;
                         
                         console.log(`📃 Stránka ${pageNum}: ${pageText.length} znaků (celkem: ${totalChars})`);
                         
-                        // Omezení na maximální počet znaků
-                        if (totalChars > MAX_CHARS) {
-                            allText = allText.substring(0, MAX_CHARS) + "\n\n... [TEXT ZKRÁCEN] ...";
-                            console.log(`✂️ Text zkrácen na ${MAX_CHARS} znaků na stránce ${pageNum}`);
-                            break;
+                        // Ukážeme první text, který najdeme (pro debugging)
+                        if (pagesWithText === 1) {
+                            console.log(`📝 První nalezený text: "${pageText.substring(0, 100)}${pageText.length > 100 ? '...' : ''}"`);
                         }
+                        
+                        // NEZKRACUJEME během extrakce - chceme zpracovat všech 50 stránek
+                        // Zkrácení provedeme až na konci, abychom měli reprezentativní vzorek ze všech stránek
                     } else {
                         console.log(`📃 Stránka ${pageNum}: prázdná nebo bez textu`);
+                        
+                        // Pro OCR dokumenty zkusíme ještě alternativní přístup
+                        if (forceExtraction) {
+                            console.log(`🔍 Stránka ${pageNum}: Hledám alternativní obsah...`);
+                            try {
+                                // Zkusíme získat informace o fontech a objektech
+                                const ops = await page.getOperatorList();
+                                const annotations = await page.getAnnotations();
+                                
+                                if (ops.fnArray.length > 0) {
+                                    console.log(`📄 Stránka ${pageNum}: Nalezeno ${ops.fnArray.length} operací, ${annotations.length} anotací`);
+                                }
+                            } catch (detailError) {
+                                console.log(`📄 Stránka ${pageNum}: Nelze získat detailní info:`, detailError);
+                            }
+                        }
                     }
                     
                 } catch (pageError) {
@@ -706,21 +961,121 @@ const api = {
                 }
             }
             
-            // Vyhodnotíme výsledek
-            const finalText = allText.trim();
+            // Inteligentní zkrácení - zachováme reprezentativní vzorek ze všech stránek
+            let finalText = allText.trim();
             
-            if (finalText.length > 50) { // Velmi nízký práh - pokud máme alespoň 50 znaků
+            console.log(`📊 STATISTIKY EXTRAKCE (před zkrácením):`);
+            console.log(`   • Zpracováno stránek: ${totalPagesProcessed}/${pdf.numPages}`);
+            console.log(`   • Stránky s textem: ${pagesWithText}`);
+            console.log(`   • Celkem znaků: ${finalText.length}`);
+            console.log(`   • Force extraction: ${forceExtraction}`);
+            
+            // Pokud je text příliš dlouhý, zkrátíme ho inteligentně
+            if (finalText.length > MAX_CHARS) {
+                console.log(`📝 Text je příliš dlouhý (${finalText.length} znaků), zkracuji na ${MAX_CHARS} znaků...`);
+                
+                // Rozdělíme text na stránky
+                const pages = finalText.split('=== STRÁNKA');
+                if (pages.length > 1) {
+                    // Máme strukturované stránky - vezmeme reprezentativní vzorek
+                    const charsPerPage = Math.floor(MAX_CHARS / Math.min(pagesWithText, 50));
+                    let truncatedText = "";
+                    let usedChars = 0;
+                    
+                    console.log(`📄 Zkracuji ${pages.length-1} stránek na ~${charsPerPage} znaků každou...`);
+                    
+                    for (let i = 1; i < pages.length && usedChars < MAX_CHARS; i++) {
+                        const pageContent = pages[i];
+                        const pageHeader = pageContent.split('\n')[0]; // "1 ==="
+                        const pageText = pageContent.substring(pageHeader.length).trim();
+                        
+                        if (pageText.length > 0) {
+                            const availableChars = MAX_CHARS - usedChars;
+                            const pageCharsToUse = Math.min(pageText.length, Math.min(charsPerPage, availableChars));
+                            
+                            truncatedText += `\n\n=== STRÁNKA${pageHeader}\n${pageText.substring(0, pageCharsToUse)}`;
+                            if (pageText.length > pageCharsToUse) {
+                                truncatedText += "...";
+                            }
+                            
+                            usedChars += pageCharsToUse;
+                        }
+                    }
+                    
+                    finalText = truncatedText.trim() + `\n\n... [ZKRÁCENO Z ${allText.length} NA ${finalText.length} ZNAKŮ - REPREZENTATIVNÍ VZOREK Z ${pagesWithText} STRÁNEK] ...`;
+                } else {
+                    // Nemáme strukturované stránky - prostě zkrátíme
+                    finalText = finalText.substring(0, MAX_CHARS) + `\n\n... [ZKRÁCENO Z ${allText.length} ZNAKŮ] ...`;
+                }
+                
+                console.log(`✂️ Text úspěšně zkrácen na ${finalText.length} znaků se zachováním obsahu ze všech stránek`);
+            }
+            
+            console.log(`📊 FINÁLNÍ STATISTIKY:`);
+            console.log(`   • Zpracováno stránek: ${totalPagesProcessed}/${pdf.numPages}`);
+            console.log(`   • Stránky s textem: ${pagesWithText}`);
+            console.log(`   • Finální délka: ${finalText.length} znaků`);
+            console.log(`   • Force extraction: ${forceExtraction}`);
+            
+            // Pro force extraction (OCR dokumenty) je práh mnohem nižší
+            const minChars = forceExtraction ? 10 : 50;
+            
+            if (finalText.length >= minChars) {
                 console.log(`✅ ÚSPĚCH! Extrahováno ${finalText.length} znaků z ${pagesToProcess} stránek`);
-                console.log(`📊 První 200 znaků: "${finalText.substring(0, 200)}..."`);
+                if (finalText.length > 0) {
+                    console.log(`📊 První 200 znaků: "${finalText.substring(0, 200)}..."`);
+                }
                 return finalText;
             } else {
-                console.log(`❌ NEÚSPĚCH! Extrahováno pouze ${finalText.length} znaků`);
-                return this.createNoTextResponse(pdf, finalText.length);
+                if (forceExtraction) {
+                    // Pro OCR dokumenty: pokud nenajdeme text, je to KRITICKÁ CHYBA
+                    const errorMsg = `❌ KRITICKÁ CHYBA: OCR dokument neobsahuje text!
+                    
+📊 Detaily extrakce:
+• Zpracováno stránek: ${totalPagesProcessed}/${pdf.numPages}
+• Stránky s textem: ${pagesWithText}
+• Celkem nalezeno znaků: ${finalText.length}
+• Požadováno minimálně: ${minChars} znaků
+
+🔧 POUŽITÉ METODY EXTRAKCE:
+1. ✅ Standardní getTextContent s filtrováním
+2. ✅ Extrakce bez filtrování
+3. ✅ Extrakce s mezerami mezi položkami
+4. ✅ Extrakce včetně skrytých znaků a EOL
+5. ✅ Pozičně orientovaná extrakce
+6. ✅ Extrakce všech vlastností (str, unicode, chars)
+7. ✅ Alternativní PDF API s operátory
+
+🔍 MOŽNÉ PŘÍČINY SELHÁNÍ:
+1. PDF obsahuje text jako obrázky (naskenovaný dokument)
+2. Text je zakódován v nestandardním formátu
+3. PDF používá proprietární font encoding
+4. PDF je chráněný proti extrakci textu
+5. Chyba v OCR detekci - dokument skutečně nemá textovou vrstvu
+
+⚠️ VŠECHNY POKROČILÉ METODY EXTRAKCE SELHALY!
+ZKONTROLUJTE OCR STATUS TOHOTO DOKUMENTU.`;
+                    
+                    console.error(errorMsg);
+                    return errorMsg;
+                } else {
+                    console.log(`❌ NEÚSPĚCH! Extrahováno pouze ${finalText.length} znaků`);
+                    return this.createNoTextResponse(pdf, finalText.length);
+                }
             }
             
         } catch (error) {
-            console.error("💥 KRITICKÁ CHYBA při OCR:", error);
-            return `CHYBA při zpracování PDF: ${error instanceof Error ? error.message : String(error)}`;
+            console.error("💥 KRITICKÁ CHYBA při extrakci textu:", error);
+            const errorMsg = `CHYBA při zpracování PDF: ${error instanceof Error ? error.message : String(error)}`;
+            
+            if (forceExtraction) {
+                return `❌ KRITICKÁ CHYBA PRI EXTRAKCI OCR DOKUMENTU: ${errorMsg}
+                
+⚠️ Tento dokument má být označen jako OCR, ale nepodařilo se z něj extrahovat text.
+Zkontrolujte prosím OCR status tohoto dokumentu.`;
+            }
+            
+            return errorMsg;
         }
     },
     
@@ -1011,28 +1366,60 @@ const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<st
     console.log("🔍 Načítám obsah dokumentu pro AI analýzu...");
     console.log("📁 FilePath:", book.filePath);
     console.log("📖 Kniha:", book.title, "od", book.author);
+    console.log("🔍 OCR Status:", book.hasOCR ? "✅ Má OCR" : "❌ Nemá OCR");
     
     // KLÍČOVÁ ZMĚNA: Načteme skutečný obsah dokumentu
     let documentContent = "";
+    let hasValidContent = false;
+    
     try {
         if (book.filePath) {
             console.log("⬇️ Stahuju PDF soubor z databáze...");
-            documentContent = await api.getFileContent(book.filePath);
+            
+            // Pro OCR dokumenty použijeme rovnou forceovanou extrakci
+            if (book.hasOCR && book.filePath.toLowerCase().endsWith('.pdf')) {
+                console.log("🔄 OCR dokument - používám FORCEOVANOU extrakci...");
+                const { data: fileData, error } = await supabaseClient.storage.from("Books").download(book.filePath);
+                if (!error && fileData) {
+                    documentContent = await api.extractPdfTextContent(fileData, true); // FORCE!
+                } else {
+                    throw new Error(`Nepodařilo se stáhnout OCR soubor: ${error?.message}`);
+                }
+            } else {
+                documentContent = await api.getFileContent(book.filePath);
+            }
+            
             console.log("✅ Obsah dokumentu načten:", documentContent.length, "znaků");
             
-            // Zkontrolujeme, jestli obsahuje OCR text nebo strukturální info
-            if (documentContent.includes("NEOBSAHUJE DOSTATEČNÝ TEXT PRO AI ANALÝZU") || 
+            // Zkontrolujeme, jestli obsahuje validní text
+            if (documentContent.includes("KRITICKÁ CHYBA") || 
+                documentContent.includes("NEOBSAHUJE DOSTATEČNÝ TEXT PRO AI ANALÝZU") || 
                 documentContent.includes("PDF dokument neobsahuje dostatečný čitelný text") ||
                 documentContent.includes("CHYBA při zpracování PDF")) {
-                console.log("❌ PDF NEOBSAHUJE OCR TEXT - AI dostane chybovou zprávu");
+                console.log("❌ EXTRAKCE SELHALA - obsah není použitelný");
                 console.log("📄 Obsah:", documentContent.substring(0, 300) + "...");
-            } else if (documentContent.includes("=== STRÁNKA") && documentContent.length > 100) {
-                console.log("✅ PDF OBSAHUJE OCR TEXT - AI dostane skutečný obsah");
+                hasValidContent = false;
+            } else if (documentContent.includes("=== STRÁNKA") && documentContent.length > 50) {
+                console.log("✅ PDF OBSAHUJE STRUKTUROVANÝ TEXT - AI dostane skutečný obsah");
                 console.log("📊 Nalezeno stránek s textem:", (documentContent.match(/=== STRÁNKA/g) || []).length);
-            } else {
-                console.log("⚠️ NEOČEKÁVANÝ FORMÁT - kontroluji obsah");
+                hasValidContent = true;
+            } else if (documentContent.length > 50) {
+                console.log("✅ DOKUMENT OBSAHUJE TEXT - použiji pro AI");
                 console.log("📄 Začátek obsahu:", documentContent.substring(0, 200) + "...");
+                hasValidContent = true;
+            } else if (book.hasOCR && documentContent.length > 10) {
+                // Pro OCR dokumenty je práh nižší (10 znaků místo 50)
+                console.log("✅ OCR DOKUMENT OBSAHUJE ALESPOŇ NĚJAKÝ TEXT - použiji pro AI");
+                console.log("📄 Začátek obsahu:", documentContent.substring(0, 200) + "...");
+                hasValidContent = true;
+            } else {
+                console.log("❌ NEDOSTATEČNÝ OBSAH");
+                console.log("📄 Začátek obsahu:", documentContent.substring(0, 200) + "...");
+                hasValidContent = false;
             }
+            
+            // Pro OCR dokumenty už jsme použili forceovanou extrakci na začátku,
+            // takže pokud stále nemáme validní obsah, je to skutečně problém
             
             // Omezíme obsah na prvních 50 stránek (přibližně 25 000 slov/150 000 znaků)
             const maxChars = 150000; // Přibližně 25 000 slov = 50 stránek
@@ -1043,57 +1430,314 @@ const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<st
         } else {
             console.warn("⚠️ Kniha nemá filePath - použiji pouze název");
             documentContent = `Název souboru: ${book.title}`;
+            hasValidContent = false;
         }
     } catch (error) {
         console.error("❌ Chyba při načítání obsahu dokumentu:", error);
         documentContent = `Název souboru: ${book.title}`;
+        hasValidContent = false;
+    }
+    
+    // Pro dokumenty s OCR=true: pokud stále nemáme validní obsah, je to KRITICKÁ CHYBA
+    if (book.hasOCR && !hasValidContent) {
+        const criticalErrorMsg = `❌ KRITICKÁ CHYBA: Dokument má OCR=true, ale NEPODAŘILO SE EXTRAHOVAT TEXT!
+
+📊 Detaily problému:
+• Dokument ID: ${book.id}
+• Název: ${book.title}
+• Soubor: ${book.filePath}
+• OCR Status: ${book.hasOCR ? 'TRUE' : 'FALSE'}
+• Obsah délka: ${documentContent.length} znaků
+
+🔍 PROVEDENÉ POKUSY:
+1. ✅ Standardní extrakce textu z PDF
+2. ✅ Forceovaná extrakce s agresivními metodami
+3. ❌ Všechny pokusy selhaly
+
+⚠️ TENTO DOKUMENT MÁ ZELENOU OCR IKONKU, ALE NEOBSAHUJE ČITELNÝ TEXT!
+BUĎTO JE CHYBA V OCR DETEKCI, NEBO JE PDF SKUTEČNĚ BEZ TEXTU.
+
+🛠️ ŘEŠENÍ:
+1. Zkontrolujte OCR status tlačítkem "Detekovat OCR"
+2. Pokud je PDF skutečně bez textu, označte hasOCR=false
+3. Pokud má PDF obsahovat text, zkontrolujte soubor
+
+❌ AI GENEROVÁNÍ METADAT NELZE PROVÉST BEZ TEXTU Z OCR DOKUMENTU!`;
+        
+        console.error(criticalErrorMsg);
+        return criticalErrorMsg;
     }
     
     const bookInfo = `kniha "${book.title}" od ${book.author || "neznámého autora"}`;
     let prompt = "";
     
-    // Přidáme obsah dokumentu do každého promptu
-    const contentContext = documentContent.length > 50 
+    // Přidáme obsah dokumentu do každého promptu - pokud máme validní obsah
+    const contentContext = hasValidContent && documentContent.length > 50 
         ? `\n\nObsah dokumentu (prvních 50 stránek):\n${documentContent}\n\n` 
         : "\n\n";
     
+    // Pro dokumenty bez validního obsahu použijeme fallback přístup s existujícími metadaty
+    const fallbackContext = !hasValidContent 
+        ? `\n\nInformace o knize:\n- Název souboru: ${book.title}\n- Autor: ${book.author || 'Neznámý'}\n- Nakladatel: ${book.publisher || 'Neznámý'}\n- Rok vydání: ${book.publicationYear || 'Neznámý'}\n- Jazyk: ${book.language || 'Neznámý'}\n\n`
+        : "";
+    
+    const contextToUse = hasValidContent ? contentContext : fallbackContext;
+    
     switch (field) {
         case "title":
-            prompt = `Na základě obsahu dokumentu najdi správný název publikace "${book.title}". Odpověz pouze názvem bez uvozovek.${contentContext}`;
+            if (hasValidContent) {
+                prompt = `Na základě obsahu dokumentu najdi správný název publikace "${book.title}". Odpověz pouze názvem bez uvozovek.${contextToUse}`;
+            } else {
+                prompt = `Na základě názvu souboru "${book.title}" navrhni lepší nebo opravený název knihy. Odpověz pouze názvem bez uvozovek.${contextToUse}`;
+            }
             break;
         case "author":
-            prompt = `Na základě obsahu dokumentu urči, kdo je autor této knihy. Pokud je více autorů, odděl je čárkou. Odpověz pouze jménem/jmény.${contentContext}`;
+            if (hasValidContent) {
+                prompt = `Na základě obsahu dokumentu urči, kdo je autor této knihy. Pokud je více autorů, odděl je čárkou. Odpověz pouze jménem/jmény.${contextToUse}`;
+            } else {
+                prompt = `Na základě názvu knihy "${book.title}" a dostupných informací zkus určit možného autora. Pokud si nejsi jistý, odpověz "Neznámý".${contextToUse}`;
+            }
             break;
         case "publicationYear":
-            prompt = `Na základě obsahu dokumentu urči, v jakém roce byla tato kniha poprvé vydána. Odpověz pouze číslem roku.${contentContext}`;
+            if (hasValidContent) {
+                prompt = `Na základě obsahu dokumentu urči, v jakém roce byla tato kniha poprvé vydána. Odpověz pouze číslem roku.${contextToUse}`;
+            } else {
+                prompt = `Na základě názvu knihy "${book.title}" a dostupných informací zkus odhadnout rok vydání. Pokud si nejsi jistý, odpověz současným rokem.${contextToUse}`;
+            }
             break;
         case "publisher":
-            prompt = `Na základě obsahu dokumentu urči, které nakladatelství vydalo tuto knihu. Odpověz pouze názvem nakladatelství, Popřípadě názvem instituce, která ${contentContext}`;
+            if (hasValidContent) {
+                prompt = `Na základě obsahu dokumentu urči, které nakladatelství vydalo tuto knihu. Odpověz pouze názvem nakladatelství nebo instituce.${contextToUse}`;
+            } else {
+                prompt = `Na základě názvu knihy "${book.title}" a dostupných informací zkus určit možné nakladatelství. Pokud si nejsi jistý, odpověz "Neznámý".${contextToUse}`;
+            }
             break;
         case "summary":
-            prompt = `Na základě obsahu dokumentu napiš krátkou, výstižnou sumarizaci v češtině. Sumarizace by měla být konkrétní a informativní - po přečtení musí být jasné, o čem kniha je a co se v ní čtenář dozví. 
-            Musí obsahovat jasnou sumarizaci obsahu. Nezminuj zde ze sumarizace je delana z prvnich 50 stran ${contentContext}`;
+            if (hasValidContent) {
+                prompt = `Na základě obsahu dokumentu napiš krátkou, výstižnou sumarizaci v češtině. Sumarizace by měla být konkrétní a informativní - po přečtení musí být jasné, o čem kniha je a co se v ní čtenář dozví. 
+                Musí obsahovat jasnou sumarizaci obsahu. Nezmiňuj zde že sumarizace je dělaná z prvních 50 stran.${contextToUse}`;
+            } else {
+                prompt = `Na základě názvu knihy "${book.title}" a dostupných informací napiš obecnou sumarizaci o čem by tato kniha mohla být. Začni slovy "Na základě názvu se zdá, že tato kniha..."${contextToUse}`;
+            }
             break;
         case "keywords":
-            prompt = `Na základě obsahu dokumentu vygeneruj 5-7 relevantních klíčových slov v češtině. Klíčová slova musí být zaměřena na obsah knihy Vrať je jako seznam oddělený čárkami.${contentContext}`;
+            if (hasValidContent) {
+                prompt = `Na základě obsahu dokumentu vygeneruj 5-7 relevantních klíčových slov v češtině. Klíčová slova musí být zaměřena na obsah knihy. Vrať je jako seznam oddělený čárkami.${contextToUse}`;
+            } else {
+                prompt = `Na základě názvu knihy "${book.title}" vygeneruj 5-7 relevantních klíčových slov v češtině. Vrať je jako seznam oddělený čárkami.${contextToUse}`;
+            }
             break;
         case "language":
-            prompt = `Na základě obsahu dokumentu urči, v jakém jazyce je tato kniha napsána. Odpověz pouze názvem jazyka v češtině.${contentContext}`;
+            if (hasValidContent) {
+                prompt = `Na základě obsahu dokumentu urči, v jakém jazyce je tato kniha napsána. Odpověz pouze názvem jazyka v češtině.${contextToUse}`;
+            } else {
+                prompt = `Na základě názvu knihy "${book.title}" zkus určit jazyk publikace. Pokud název obsahuje česká písmena nebo slova, odpověz "Čeština". Jinak odpověz "Neznámý".${contextToUse}`;
+            }
             break;
         default:
             return "Toto pole není podporováno pro AI generování.";
     }
     
     try {
-        console.log("🤖 Odesílám prompt s obsahem dokumentu do AI...");
+        console.log("🤖 Odesílám prompt do AI...");
+        console.log("📊 Typ obsahu:", hasValidContent ? "✅ Validní text z dokumentu" : "⚠️ Fallback přístup");
+        console.log("📝 Délka promptu:", prompt.length, "znaků");
+        
         const result = await geminiClient.generateText(prompt);
-        console.log("✅ AI odpověď na základě obsahu dokumentu:", result);
+        console.log("✅ AI odpověď:", result);
+        
+        // Pro dokumenty s OCR=true zalogujeme úspěch
+        if (book.hasOCR && hasValidContent) {
+            console.log("🎉 ÚSPĚCH: AI generování pro dokument s OCR dokončeno!");
+        } else if (book.hasOCR && !hasValidContent) {
+            console.log("⚠️ FALLBACK: AI generování pro dokument s OCR pomocí fallback přístupu dokončeno.");
+        }
+        
         return result || "Nepodařilo se vygenerovat odpověď.";
     } catch (error) {
-        console.error(`Chyba při generování ${field}:`, error);
+        console.error(`❌ Chyba při generování ${field}:`, error);
+        console.error("📊 Kontext chyby:", {
+            hasOCR: book.hasOCR,
+            hasValidContent,
+            documentLength: documentContent.length,
+            filePath: book.filePath
+        });
         return "Nepodařilo se vygenerovat data.";
     }
 };
+
+// NOVÁ FUNKCE PRO GENEROVÁNÍ VŠECH METADAT V JEDNOM POŽADAVKU
+const generateAllMetadataWithAI = async (fields: (keyof Book)[], book: Book): Promise<any[]> => {
+    if (!geminiClient) {
+        throw new Error("Gemini API není dostupné - chybí API klíč.");
+    }
+    
+    console.log("🔍 Načítám obsah dokumentu pro hromadné AI generování...");
+    console.log("📁 FilePath:", book.filePath);
+    console.log("📖 Kniha:", book.title, "od", book.author);
+    console.log("🔍 OCR Status:", book.hasOCR ? "✅ Má OCR" : "❌ Nemá OCR");
+    console.log("📋 Pole k vygenerování:", fields.join(', '));
+    
+    // Načteme obsah dokumentu (stejná logika jako v generateMetadataWithAI)
+    let documentContent = "";
+    let hasValidContent = false;
+    
+    try {
+        if (book.filePath) {
+            console.log("⬇️ Stahuju PDF soubor z databáze...");
+            
+            // Pro OCR dokumenty použijeme rovnou forceovanou extrakci
+            if (book.hasOCR && book.filePath.toLowerCase().endsWith('.pdf')) {
+                console.log("🔄 OCR dokument - používám FORCEOVANOU extrakci...");
+                const { data: fileData, error } = await supabaseClient.storage.from("Books").download(book.filePath);
+                if (!error && fileData) {
+                    documentContent = await api.extractPdfTextContent(fileData, true); // FORCE!
+                } else {
+                    throw new Error(`Nepodařilo se stáhnout OCR soubor: ${error?.message}`);
+                }
+            } else {
+                documentContent = await api.getFileContent(book.filePath);
+            }
+            
+            console.log("✅ Obsah dokumentu načten:", documentContent.length, "znaků");
+            
+            // Zkontrolujeme validitu obsahu (stejná logika)
+            if (documentContent.includes("KRITICKÁ CHYBA") || 
+                documentContent.includes("NEOBSAHUJE DOSTATEČNÝ TEXT PRO AI ANALÝZU") || 
+                documentContent.includes("PDF dokument neobsahuje dostatečný čitelný text") ||
+                documentContent.includes("CHYBA při zpracování PDF")) {
+                console.log("❌ EXTRAKCE SELHALA - obsah není použitelný");
+                hasValidContent = false;
+            } else if (documentContent.includes("=== STRÁNKA") && documentContent.length > 50) {
+                console.log("✅ PDF OBSAHUJE STRUKTUROVANÝ TEXT - AI dostane skutečný obsah");
+                hasValidContent = true;
+            } else if (documentContent.length > 50) {
+                console.log("✅ DOKUMENT OBSAHUJE TEXT - použiji pro AI");
+                hasValidContent = true;
+            } else if (book.hasOCR && documentContent.length > 10) {
+                console.log("✅ OCR DOKUMENT OBSAHUJE ALESPOŇ NĚJAKÝ TEXT - použiji pro AI");
+                hasValidContent = true;
+            } else {
+                console.log("❌ NEDOSTATEČNÝ OBSAH");
+                hasValidContent = false;
+            }
+            
+            // Pro OCR dokumenty: pokud stále nemáme validní obsah, je to KRITICKÁ CHYBA
+            if (book.hasOCR && !hasValidContent) {
+                const criticalErrorMsg = `❌ KRITICKÁ CHYBA: Dokument má OCR=true, ale NEPODAŘILO SE EXTRAHOVAT TEXT!`;
+                console.error(criticalErrorMsg);
+                throw new Error(criticalErrorMsg);
+            }
+            
+            // Omezíme obsah na prvních 50 stránek
+            const maxChars = 150000;
+            if (documentContent.length > maxChars) {
+                documentContent = documentContent.substring(0, maxChars) + "...";
+                console.log("📝 Obsah zkrácen na prvních 50 stránek (150 000 znaků)");
+            }
+        } else {
+            console.warn("⚠️ Kniha nemá filePath - použiji pouze název");
+            documentContent = `Název souboru: ${book.title}`;
+            hasValidContent = false;
+        }
+    } catch (error) {
+        console.error("❌ Chyba při načítání obsahu dokumentu:", error);
+        documentContent = `Název souboru: ${book.title}`;
+        hasValidContent = false;
+    }
+    
+    // Vytvoříme jeden komplexní prompt pro všechna pole
+    const contentContext = hasValidContent && documentContent.length > 50 
+        ? `\n\nObsah dokumentu (prvních 50 stránek):\n${documentContent}\n\n` 
+        : "";
+    
+    const fallbackContext = !hasValidContent 
+        ? `\n\nInformace o knize:\n- Název souboru: ${book.title}\n- Autor: ${book.author || 'Neznámý'}\n- Nakladatel: ${book.publisher || 'Neznámý'}\n- Rok vydání: ${book.publicationYear || 'Neznámý'}\n- Jazyk: ${book.language || 'Neznámý'}\n\n`
+        : "";
+    
+    const contextToUse = hasValidContent ? contentContext : fallbackContext;
+    
+    // Vytvoříme instrukce pro každé pole
+    const fieldInstructions = fields.map(field => {
+        switch (field) {
+            case "title":
+                return hasValidContent 
+                    ? `NÁZEV: Na základě obsahu dokumentu najdi správný název publikace "${book.title}". Odpověz pouze názvem bez uvozovek.`
+                    : `NÁZEV: Na základě názvu souboru "${book.title}" navrhni lepší nebo opravený název knihy. Odpověz pouze názvem bez uvozovek.`;
+            case "author":
+                return hasValidContent
+                    ? `AUTOR: Na základě obsahu dokumentu urči, kdo je autor této knihy. Pokud je více autorů, odděl je čárkou. Odpověz pouze jménem/jmény.`
+                    : `AUTOR: Na základě názvu knihy "${book.title}" a dostupných informací zkus určit možného autora. Pokud si nejsi jistý, odpověz "Neznámý".`;
+            case "publicationYear":
+                return hasValidContent
+                    ? `ROK VYDÁNÍ: Na základě obsahu dokumentu urči, v jakém roce byla tato kniha poprvé vydána. Odpověz pouze číslem roku.`
+                    : `ROK VYDÁNÍ: Na základě názvu knihy "${book.title}" a dostupných informací zkus odhadnout rok vydání. Pokud si nejsi jistý, odpověz současným rokem.`;
+            case "publisher":
+                return hasValidContent
+                    ? `NAKLADATEL: Na základě obsahu dokumentu urči, které nakladatelství vydalo tuto knihu. Odpověz pouze názvem nakladatelství nebo instituce.`
+                    : `NAKLADATEL: Na základě názvu knihy "${book.title}" a dostupných informací zkus určit možné nakladatelství. Pokud si nejsi jistý, odpověz "Neznámý".`;
+            case "summary":
+                return hasValidContent
+                    ? `SUMARIZACE: Na základě obsahu dokumentu napiš krátkou, výstižnou sumarizaci v češtině. Sumarizace by měla být konkrétní a informativní - po přečtení musí být jasné, o čem kniha je a co se v ní čtenář dozví.`
+                    : `SUMARIZACE: Na základě názvu knihy "${book.title}" a dostupných informací napiš obecnou sumarizaci o čem by tato kniha mohla být. Začni slovy "Na základě názvu se zdá, že tato kniha..."`;
+            case "keywords":
+                return hasValidContent
+                    ? `KLÍČOVÁ SLOVA: Na základě obsahu dokumentu vygeneruj 5-7 relevantních klíčových slov v češtině. Klíčová slova musí být zaměřena na obsah knihy. Vrať je jako seznam oddělený čárkami.`
+                    : `KLÍČOVÁ SLOVA: Na základě názvu knihy "${book.title}" vygeneruj 5-7 relevantních klíčových slov v češtině. Vrať je jako seznam oddělený čárkami.`;
+            case "language":
+                return hasValidContent
+                    ? `JAZYK: Na základě obsahu dokumentu urči, v jakém jazyce je tato kniha napsána. Odpověz pouze názvem jazyka v češtině.`
+                    : `JAZYK: Na základě názvu knihy "${book.title}" zkus určit jazyk publikace. Pokud název obsahuje česká písmena nebo slova, odpověz "Čeština". Jinak odpověz "Neznámý".`;
+            default:
+                return `${field.toUpperCase()}: Toto pole není podporováno.`;
+        }
+    }).join('\n\n');
+    
+    const prompt = `Vygeneruj metadata pro knihu na základě poskytnutých informací. Pro každé pole odpověz přesně ve formátu "POLE: odpověď".
+
+${fieldInstructions}
+
+${contextToUse}
+
+DŮLEŽITÉ: Odpověz přesně ve formátu "POLE: odpověď" pro každé požadované pole. Nepiš nic navíc.`;
+    
+    try {
+        console.log("🤖 Odesílám JEDEN komplexní prompt do AI...");
+        console.log("📊 Typ obsahu:", hasValidContent ? "✅ Validní text z dokumentu" : "⚠️ Fallback přístup");
+        console.log("📝 Délka promptu:", prompt.length, "znaků");
+        console.log("📋 Počet polí:", fields.length);
+        
+        const result = await geminiClient.generateText(prompt);
+        console.log("✅ AI odpověď:", result);
+        
+        // Parsujeme odpověď
+        const parsedResults = [];
+        const lines = result.split('\n').filter(line => line.trim().length > 0);
+        
+        for (const field of fields) {
+            const fieldPattern = new RegExp(`^${field.toUpperCase()}:\\s*(.+)$`, 'i');
+            const matchingLine = lines.find(line => fieldPattern.test(line.trim()));
+            
+            if (matchingLine) {
+                const match = matchingLine.trim().match(fieldPattern);
+                const value = match ? match[1].trim() : '';
+                parsedResults.push({ field, status: 'fulfilled' as const, value });
+                console.log(`✅ ${field}: "${value}"`);
+            } else {
+                console.warn(`⚠️ Nenalezeno pole ${field} v odpovědi AI`);
+                parsedResults.push({ field, status: 'rejected' as const, reason: 'Pole nenalezeno v odpovědi' });
+            }
+        }
+        
+        console.log("🎉 ÚSPĚCH: Všechna metadata vygenerována v jednom požadavku!");
+        return parsedResults;
+        
+    } catch (error) {
+        console.error(`❌ Chyba při hromadném generování metadat:`, error);
+        throw error;
+    }
+};
+
 const downloadFile = (content: string, fileName: string, contentType: string) => {
     const a = document.createElement("a");
     const file = new Blob([content], { type: contentType });
@@ -1352,242 +1996,6 @@ const generateCoverFromPdf = async (fileData: ArrayBuffer): Promise<File | null>
     }
 };
 
-
-
-// Funkce pro získání textu z mezipaměti
-const getTextFromCache = (bookId: string): string | null => {
-    const cacheKey = `extracted_text_${bookId}`;
-    const timestampKey = `${cacheKey}_timestamp`;
-    
-    const cachedText = localStorage.getItem(cacheKey);
-    const timestamp = localStorage.getItem(timestampKey);
-    
-    if (cachedText && timestamp) {
-        const cacheAge = Date.now() - parseInt(timestamp);
-        const maxAge = 24 * 60 * 60 * 1000; // 24 hodin
-        
-        if (cacheAge < maxAge) {
-            console.log('💾 Text načten z mezipaměti (věk:', Math.round(cacheAge / 1000 / 60), 'minut)');
-            return cachedText;
-        } else {
-            console.log('⏰ Mezipaměť vypršela, mazání...');
-            localStorage.removeItem(cacheKey);
-            localStorage.removeItem(timestampKey);
-        }
-    }
-    
-    return null;
-};
-
-// Funkce pro kontrolu stavu mezipaměti
-const checkCacheStatus = (bookId: string): { hasCache: boolean; size: number; age: string } => {
-    const cacheKey = `extracted_text_${bookId}`;
-    const timestampKey = `${cacheKey}_timestamp`;
-    
-    const cachedText = localStorage.getItem(cacheKey);
-    const timestamp = localStorage.getItem(timestampKey);
-    
-    if (cachedText && timestamp) {
-        const cacheAge = Date.now() - parseInt(timestamp);
-        const maxAge = 24 * 60 * 60 * 1000; // 24 hodin
-        
-        if (cacheAge < maxAge) {
-            const ageMinutes = Math.round(cacheAge / 1000 / 60);
-            const ageText = ageMinutes < 60 ? `${ageMinutes} min` : `${Math.round(ageMinutes / 60)} hod`;
-            
-            return {
-                hasCache: true,
-                size: cachedText.length,
-                age: ageText
-            };
-        }
-    }
-    
-    return {
-        hasCache: false,
-        size: 0,
-        age: ''
-    };
-};
-
-// Funkce pro mazání mezipaměti
-const clearTextCache = (bookId: string): void => {
-    const cacheKey = `extracted_text_${bookId}`;
-    const timestampKey = `${cacheKey}_timestamp`;
-    
-    localStorage.removeItem(cacheKey);
-    localStorage.removeItem(timestampKey);
-    console.log('🗑️ Mezipaměť pro knihu', bookId, 'vyčištěna');
-};
-
-// Funkce pro zobrazení všech klíčů v mezipaměti (pro debug)
-(window as any).showTextCache = () => {
-    console.log('🔍 STAV MEZIPAMĚTI TEXTU:');
-    console.log('─'.repeat(50));
-    
-    const keys = Object.keys(localStorage);
-    const textCacheKeys = keys.filter(key => key.startsWith('extracted_text_'));
-    
-    if (textCacheKeys.length === 0) {
-        console.log('📭 Žádné texty v mezipaměti');
-        return;
-    }
-    
-    textCacheKeys.forEach(key => {
-        const bookId = key.replace('extracted_text_', '');
-        const timestampKey = `${key}_timestamp`;
-        const timestamp = localStorage.getItem(timestampKey);
-        
-        if (timestamp) {
-            const cacheAge = Date.now() - parseInt(timestamp);
-            const ageMinutes = Math.round(cacheAge / 1000 / 60);
-            const ageText = ageMinutes < 60 ? `${ageMinutes} min` : `${Math.round(ageMinutes / 60)} hod`;
-            
-            const text = localStorage.getItem(key);
-            const size = text ? text.length : 0;
-            
-            console.log(`📖 ${bookId}: ${size} znaků (věk: ${ageText})`);
-        }
-    });
-    
-    console.log('─'.repeat(50));
-};
-
-// NOVÁ FUNKCE PRO TEST KOMUNIKACE S WEBHOOKU
-const testWebhookConnection = async (): Promise<string> => {
-    const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/79522dec-53ac-4f64-9253-1c5759aa8b45';
-    
-    try {
-        console.log('📄 Odesílám binární soubor na webhook...');
-        
-        // Vytvoříme FormData s testovací zprávou
-        const formData = new FormData();
-        formData.append('test', 'ahoj');
-        formData.append('message', 'Test komunikace s n8n webhook');
-        formData.append('timestamp', new Date().toISOString());
-        
-        console.log('📤 Odesílám testovací zprávu "ahoj"...');
-        
-        // Odešleme testovací data na n8n webhook
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Webhook chyba:', errorText);
-            
-            if (response.status === 404) {
-                throw new Error(`Webhook není dostupný (404). Zkontrolujte, zda je n8n workflow aktivní a webhook zaregistrovaný. Chyba: ${errorText}`);
-            }
-            
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-        }
-        
-        const result = await response.text(); // Přijímáme jakoukoliv odpověď
-        console.log('✅ Webhook odpověď:', result);
-        
-        return result;
-        
-    } catch (error) {
-        console.error('❌ Chyba při extrakci textu přes webhook:', error);
-        throw error;
-    }
-};
-
-// NOVÁ FUNKCE PRO EXTRACTION TEXTU PŘES WEBHOOK
-const extractTextViaWebhook = async (book: Book): Promise<string> => {
-    const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/79522dec-53ac-4f64-9253-1c5759aa8b45';
-    
-    try {
-        console.log('🚀 Odesílám dokument na webhook pro extrakci textu...');
-        console.log('📖 Kniha:', book.title);
-        console.log('📁 FilePath:', book.filePath);
-        
-        // Stáhneme soubor z Supabase storage
-        const { data: fileData, error: downloadError } = await supabaseClient.storage
-            .from('Books')
-            .download(book.filePath);
-            
-        if (downloadError || !fileData) {
-            throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
-        }
-        
-        console.log('📤 Odesílám binární soubor na webhook...');
-        console.log('📊 Velikost souboru:', fileData.size, 'bajtů');
-        
-        // Vytvoříme FormData pro odeslání binárního souboru
-        const formData = new FormData();
-        formData.append('file', fileData, book.filePath.split('/').pop() || 'document.pdf');
-        formData.append('bookId', book.id);
-        formData.append('fileName', book.filePath.split('/').pop() || 'unknown.pdf');
-        formData.append('fileType', book.format.toLowerCase());
-        formData.append('metadata', JSON.stringify({
-            title: book.title,
-            author: book.author,
-            publicationYear: book.publicationYear,
-            language: book.language
-        }));
-        
-        // Odešleme binární soubor na n8n webhook
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData // FormData automaticky nastaví správný Content-Type s boundary
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Webhook chyba:', errorText);
-            
-            if (response.status === 404) {
-                throw new Error(`Webhook není dostupný (404). Zkontrolujte, zda je n8n workflow aktivní a webhook zaregistrovaný. Chyba: ${errorText}`);
-            }
-            
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-        }
-        
-        // Nejdříve zkusíme JSON, pokud to selže, vezmeme to jako čistý text
-        let extractedText;
-        const responseText = await response.text();
-        
-        try {
-            // Pokusíme se parsovat jako JSON
-            const result = JSON.parse(responseText);
-            console.log('✅ Webhook JSON odpověď:', result);
-            
-            if (result.success && result.extractedText) {
-                extractedText = result.extractedText;
-            } else if (result.extractedText) {
-                extractedText = result.extractedText;
-            } else {
-                // JSON neobsahuje extractedText, použijeme celý text
-                extractedText = responseText;
-            }
-        } catch (jsonError) {
-            // Není to JSON, použijeme jako čistý text
-            console.log('✅ Webhook vrátil čistý text (ne JSON):', responseText.substring(0, 200) + '...');
-            extractedText = responseText;
-        }
-        
-        if (!extractedText || extractedText.trim().length === 0) {
-            throw new Error('Webhook vrátil prázdný text');
-        }
-        
-        // Uložíme extrahovaný text do mezipaměti
-        const cacheKey = `extracted_text_${book.id}`;
-        localStorage.setItem(cacheKey, extractedText);
-        localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
-        
-        console.log('💾 Text uložen do mezipaměti:', extractedText.length, 'znaků');
-        
-        return extractedText;
-        
-    } catch (error) {
-        console.error('❌ Chyba při extrakci textu přes webhook:', error);
-        throw error;
-    }
-};
 
 // --- COMPONENTS ---
 
@@ -3167,49 +3575,18 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
 
     const handleAIGenerate = useCallback(async (field: keyof Book) => {
         setIsGenerating(prev => ({ ...prev, [field]: true }));
+        const result = await generateMetadataWithAI(field, localBook);
         
-        try {
-            // AUTOMATICKÁ EXTRACTION TEXTU DO MEZIPAMĚTI PŘED AI GENEROVÁNÍM
-            console.log('🤖 AI generování spuštěno pro pole:', field);
-            
-            // Kontrola, jestli už není text v mezipaměti
-            const cacheStatus = checkCacheStatus(localBook.id);
-            if (!cacheStatus.hasCache) {
-                console.log('📥 Text není v mezipaměti, spouštím automatickou extrakci...');
-                
-                try {
-                    const extractedText = await extractTextViaWebhook(localBook);
-                    console.log('✅ Text automaticky extrahován do mezipaměti:', extractedText.length, 'znaků');
-                    
-                    // Aktualizace UI pro zobrazení nového stavu mezipaměti
-                    updateLocalBook(prev => ({...prev}));
-                    
-                } catch (extractError) {
-                    console.warn('⚠️ Automatická extrakce textu selhala, pokračuji s AI generováním:', extractError);
-                }
-            } else {
-                console.log('💾 Text už je v mezipaměti:', cacheStatus.size, 'znaků,', cacheStatus.age, 'starý');
-            }
-            
-            // Pokračování s AI generováním
-            const result = await generateMetadataWithAI(field, localBook);
-            
-            let updatedValue: any = result;
-            if (field === 'keywords') {
-                updatedValue = result.split(',').map(k => k.trim());
-            } else if (field === 'publicationYear') {
-                updatedValue = parseInt(result, 10) || localBook.publicationYear;
-            }
-
-            updateLocalBook(prev => ({...prev, [field]: updatedValue}));
-            
-        } catch (error) {
-            console.error('❌ Chyba při AI generování:', error);
-            alert(`Chyba při generování ${field}: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsGenerating(prev => ({ ...prev, [field]: false }));
+        let updatedValue: any = result;
+        if (field === 'keywords') {
+            updatedValue = result.split(',').map(k => k.trim());
+        } else if (field === 'publicationYear') {
+            updatedValue = parseInt(result, 10) || localBook.publicationYear;
         }
-    }, [updateLocalBook, localBook.id, checkCacheStatus, extractTextViaWebhook]); // Přidány nové závislosti
+
+        updateLocalBook(prev => ({...prev, [field]: updatedValue}));
+        setIsGenerating(prev => ({ ...prev, [field]: false }));
+    }, [updateLocalBook]); // Odstranil jsem localBook z dependencies
 
     const handleBulkAIGenerate = async () => {
         setIsBulkGenerating(true);
@@ -3231,13 +3608,24 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
             return;
         }
 
-        const generationPromises = fieldsToFill.map(field =>
-            generateMetadataWithAI(field, localBook)
-                .then(result => ({ field, status: 'fulfilled' as const, value: result }))
-                .catch(error => ({ field, status: 'rejected' as const, reason: error }))
-        );
-
-        const results = await Promise.all(generationPromises);
+        // NOVÝ PŘÍSTUP: Jeden request do Gemini pro všechna metadata najednou
+        console.log(`🤖 Generuji všechna metadata v jednom požadavku pro pole: ${fieldsToFill.join(', ')}`);
+        
+        let results;
+        try {
+            results = await generateAllMetadataWithAI(fieldsToFill, localBook);
+            console.log("✅ Všechna metadata vygenerována v jednom požadavku:", results);
+        } catch (error) {
+            console.error("❌ Chyba při hromadném generování:", error);
+            // Fallback na původní přístup po jednom
+            console.log("🔄 Zkouším fallback přístup - generování po jednotlivých polích...");
+            const generationPromises = fieldsToFill.map(field =>
+                generateMetadataWithAI(field, localBook)
+                    .then(result => ({ field, status: 'fulfilled' as const, value: result }))
+                    .catch(error => ({ field, status: 'rejected' as const, reason: error }))
+            );
+            results = await Promise.all(generationPromises);
+        }
 
         updateLocalBook(prevBook => {
             const newBookData = { ...prevBook };
@@ -3324,135 +3712,6 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                     >
                         🔍 Zkontrolovat
                     </button>
-                </div>
-            ))}
-            {renderStaticField("Extrakce textu", (
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                    <span style={{color: checkCacheStatus(localBook.id).hasCache ? '#22c55e' : '#6b7280'}}>
-                        {checkCacheStatus(localBook.id).hasCache 
-                            ? `Text v mezipaměti (${checkCacheStatus(localBook.id).size} znaků, ${checkCacheStatus(localBook.id).age} starý)`
-                            : 'Text není v mezipaměti'
-                        }
-                    </span>
-
-                    <button 
-                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', marginLeft: '8px', background: 'var(--accent-primary)', color: 'white'}}
-                        onClick={async () => {
-                            try {
-                                // Upozornění pro test webhook
-                                const shouldProceed = confirm(`📄 ODESLÁNÍ BINÁRNÍHO SOUBORU\n\n⚠️ DŮLEŽITÉ: Před kliknutím na OK:\n1. Přejděte do n8n workflow\n2. Klikněte "Execute workflow" nebo "Listen for test event"\n3. Hned poté klikněte OK\n\nOdešle se binární soubor knihy na webhook\n\nPokračovat?`);
-                                if (!shouldProceed) {
-                                    return;
-                                }
-                                
-                                console.log('📄 Odesílám binární soubor na webhook...');
-                                
-                                // Kontrola, jestli už není text v mezipaměti
-                                const cacheStatus = checkCacheStatus(localBook.id);
-                                if (cacheStatus.hasCache) {
-                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat přes webhook?`);
-                                    if (!shouldOverwrite) {
-                                        console.log('❌ Uživatel zrušil přepsání mezipaměti');
-                                        return;
-                                    }
-                                }
-                                
-                                // Spuštění extrakce přes webhook
-                                const extractedText = await extractTextViaWebhook(localBook);
-                                
-                                // Zobrazení úspěchu
-                                alert(`✅ Text úspěšně extrahován přes webhook a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
-                                
-                                // Aktualizace UI
-                                updateLocalBook({...localBook});
-                                
-                            } catch (error) {
-                                console.error('❌ Chyba při extrakci textu přes webhook:', error);
-                                alert(`❌ Chyba při extrakci textu přes webhook: ${error instanceof Error ? error.message : String(error)}`);
-                            }
-                        }}
-                        title="Extrahovat text přes n8n webhook (binární soubor) - POZOR: Nejdříve spusťte listening v n8n!"
-                    >
-                        🌐 Webhook OCR
-                    </button>
-                    {checkCacheStatus(localBook.id).hasCache && (
-                        <>
-                            <button 
-                                style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: 'var(--accent-primary)', color: 'white'}}
-                                onClick={() => {
-                                    const cachedText = getTextFromCache(localBook.id);
-                                    if (cachedText) {
-                                        // Vytvoření modalu s textem
-                                        const modal = document.createElement('div');
-                                        modal.style.cssText = `
-                                            position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-                                            background: rgba(0,0,0,0.8); z-index: 10000; 
-                                            display: flex; justify-content: center; align-items: center; padding: 20px;
-                                        `;
-                                        
-                                        const content = document.createElement('div');
-                                        content.style.cssText = `
-                                            background: white; border-radius: 8px; padding: 20px; 
-                                            max-width: 80%; max-height: 80%; overflow: auto;
-                                            position: relative;
-                                        `;
-                                        
-                                        const closeBtn = document.createElement('button');
-                                        closeBtn.innerHTML = '✕';
-                                        closeBtn.style.cssText = `
-                                            position: absolute; top: 10px; right: 10px; 
-                                            background: #ef4444; color: white; border: none; 
-                                            border-radius: 50%; width: 30px; height: 30px; 
-                                            cursor: pointer; font-size: 16px;
-                                        `;
-                                        closeBtn.onclick = () => document.body.removeChild(modal);
-                                        
-                                        const title = document.createElement('h3');
-                                        title.textContent = `Extrahovaný text z: ${localBook.title}`;
-                                        title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
-                                        
-                                        const text = document.createElement('div');
-                                        text.style.cssText = 'white-space: pre-wrap; font-family: monospace; font-size: 12px; line-height: 1.4; color: #333;';
-                                        text.textContent = cachedText;
-                                        
-                                        const info = document.createElement('div');
-                                        info.style.cssText = 'margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px; font-size: 12px; color: #666;';
-                                        info.innerHTML = `📊 Velikost: ${cachedText.length} znaků | 📅 Staženo: ${new Date().toLocaleString('cs-CZ')}`;
-                                        
-                                        content.appendChild(closeBtn);
-                                        content.appendChild(title);
-                                        content.appendChild(text);
-                                        content.appendChild(info);
-                                        modal.appendChild(content);
-                                        document.body.appendChild(modal);
-                                        
-                                        // Zavření modalu kliknutím mimo obsah
-                                        modal.onclick = (e) => {
-                                            if (e.target === modal) {
-                                                document.body.removeChild(modal);
-                                            }
-                                        };
-                                    }
-                                }}
-                                title="Zobrazit text z mezipaměti"
-                            >
-                                👁️ Zobrazit text
-                            </button>
-                            <button 
-                                style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: 'var(--danger-color)', color: 'white'}}
-                                onClick={() => {
-                                    if (confirm('Opravdu chcete smazat text z mezipaměti?')) {
-                                        clearTextCache(localBook.id);
-                                        updateLocalBook({...localBook});
-                                        alert('🗑️ Text z mezipaměti smazán');
-                                    }
-                                }}
-                                title="Smazat text z mezipaměti"
-                            >
-                                🗑️ Smazat
-                            </button>
-                        </>
-                    )}
                 </div>
             ))}
         </>
@@ -3588,138 +3847,8 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
                     </select>
                 </div>
             </div>
-            <div style={styles.fieldGroup}>
-                <label style={styles.label}>Extrakce textu</label>
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                    <span style={{color: checkCacheStatus(localBook.id).hasCache ? '#22c55e' : '#6b7280', fontSize: '0.9em'}}>
-                        {checkCacheStatus(localBook.id).hasCache 
-                            ? `Text v mezipaměti (${checkCacheStatus(localBook.id).size} znaků, ${checkCacheStatus(localBook.id).age} starý)`
-                            : 'Text není v mezipaměti'
-                        }
-                    </span>
-
-                    <button 
-                        style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: 'var(--accent-primary)', color: 'white'}}
-                        onClick={async () => {
-                            try {
-                                // Upozornění pro test webhook
-                                const shouldProceed = confirm(`📄 ODESLÁNÍ BINÁRNÍHO SOUBORU\n\n⚠️ DŮLEŽITÉ: Před kliknutím na OK:\n1. Přejděte do n8n workflow\n2. Klikněte "Execute workflow" nebo "Listen for test event"\n3. Hned poté klikněte OK\n\nOdešle se binární soubor knihy na webhook\n\nPokračovat?`);
-                                if (!shouldProceed) {
-                                    return;
-                                }
-                                
-                                console.log('📄 Odesílám binární soubor na webhook...');
-                                
-                                // Kontrola, jestli už není text v mezipaměti
-                                const cacheStatus = checkCacheStatus(localBook.id);
-                                if (cacheStatus.hasCache) {
-                                    const shouldOverwrite = confirm(`Text už je v mezipaměti (${cacheStatus.size} znaků, ${cacheStatus.age} starý). Chcete ho přepsat přes webhook?`);
-                                    if (!shouldOverwrite) {
-                                        console.log('❌ Uživatel zrušil přepsání mezipaměti');
-                                        return;
-                                    }
-                                }
-                                
-                                // Spuštění extrakce přes webhook
-                                const extractedText = await extractTextViaWebhook(localBook);
-                                
-                                // Zobrazení úspěchu
-                                alert(`✅ Text úspěšně extrahován přes webhook a uložen do mezipaměti!\n\nVelikost: ${extractedText.length} znaků\n\nPrvních 100 znaků:\n${extractedText.substring(0, 100)}...`);
-                                
-                                // Aktualizace UI
-                                updateLocalBook({...localBook});
-                                
-                            } catch (error) {
-                                console.error('❌ Chyba při extrakci textu přes webhook:', error);
-                                alert(`❌ Chyba při extrakci textu přes webhook: ${error instanceof Error ? error.message : String(error)}`);
-                            }
-                        }}
-                        title="Extrahovat text přes n8n webhook (binární soubor) - POZOR: Nejdříve spusťte listening v n8n!"
-                    >
-                        🌐 Webhook OCR
-                    </button>
-                    {checkCacheStatus(localBook.id).hasCache && (
-                        <>
-                            <button 
-                                style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: 'var(--accent-primary)', color: 'white'}}
-                                onClick={() => {
-                                    const cachedText = getTextFromCache(localBook.id);
-                                    if (cachedText) {
-                                        // Vytvoření modalu s textem
-                                        const modal = document.createElement('div');
-                                        modal.style.cssText = `
-                                            position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-                                            background: rgba(0,0,0,0.8); z-index: 10000; 
-                                            display: flex; justify-content: center; align-items: center; padding: 20px;
-                                        `;
-                                        
-                                        const content = document.createElement('div');
-                                        content.style.cssText = `
-                                            background: white; border-radius: 8px; padding: 20px; 
-                                            max-width: 80%; max-height: 80%; overflow: auto;
-                                            position: relative;
-                                        `;
-                                        
-                                        const closeBtn = document.createElement('button');
-                                        closeBtn.innerHTML = '✕';
-                                        closeBtn.style.cssText = `
-                                            position: absolute; top: 10px; right: 10px; 
-                                            background: #ef4444; color: white; border: none; 
-                                            border-radius: 50%; width: 30px; height: 30px; 
-                                            cursor: pointer; font-size: 16px;
-                                        `;
-                                        closeBtn.onclick = () => document.body.removeChild(modal);
-                                        
-                                        const title = document.createElement('h3');
-                                        title.textContent = `Extrahovaný text z: ${localBook.title}`;
-                                        title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
-                                        
-                                        const text = document.createElement('div');
-                                        text.style.cssText = 'white-space: pre-wrap; font-family: monospace; font-size: 12px; line-height: 1.4; color: #333;';
-                                        text.textContent = cachedText;
-                                        
-                                        const info = document.createElement('div');
-                                        info.style.cssText = 'margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px; font-size: 12px; color: #666;';
-                                        info.innerHTML = `📊 Velikost: ${cachedText.length} znaků | 📅 Staženo: ${new Date().toLocaleString('cs-CZ')}`;
-                                        
-                                        content.appendChild(closeBtn);
-                                        content.appendChild(title);
-                                        content.appendChild(text);
-                                        content.appendChild(info);
-                                        modal.appendChild(content);
-                                        document.body.appendChild(modal);
-                                        
-                                        // Zavření modalu kliknutím mimo obsah
-                                        modal.onclick = (e) => {
-                                            if (e.target === modal) {
-                                                document.body.removeChild(modal);
-                                            }
-                                        };
-                                    }
-                                }}
-                                title="Zobrazit text z mezipaměti"
-                            >
-                                👁️ Zobrazit text
-                            </button>
-                            <button 
-                                style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: 'var(--danger-color)', color: 'white'}}
-                                onClick={() => {
-                                    if (confirm('Opravdu chcete smazat text z mezipaměti?')) {
-                                        clearTextCache(localBook.id);
-                                        updateLocalBook({...localBook});
-                                        alert('🗑️ Text z mezipaměti smazán');
-                                    }
-                                }}
-                                title="Smazat text z mezipaměti"
-                            >
-                                🗑️ Smazat
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
         </>
-    ), [localBook, updateLocalBook, handleAIGenerate, isGenerating, allCategories, onAddNewCategory, onDeleteCategory, allLabels, onAddNewLabel, onDeleteLabel, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, checkCacheStatus, clearTextCache, getTextFromCache, extractTextViaWebhook]);
+    ), [localBook, updateLocalBook, handleAIGenerate, isGenerating, allCategories, onAddNewCategory, onDeleteCategory, allLabels, onAddNewLabel, onDeleteLabel, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType]);
 
     return (
         <div style={styles.detailContent}>
