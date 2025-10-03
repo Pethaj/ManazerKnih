@@ -55,6 +55,7 @@ const IconList = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="non
 const IconUpload = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>;
 const IconDownload = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
 const IconDelete = ({size = 16}: {size?:number}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
+const IconTestWebhook = ({size = 16}: {size?:number}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line><circle cx="18" cy="18" r="3" fill="#3b82f6"></circle><path d="M16.5 18l1 1 2-2" stroke="white" strokeWidth="1.5" fill="none"></path></svg>;
 const IconEdit = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
 const IconSave = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2 2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>;
 const IconMoreVertical = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>;
@@ -498,6 +499,118 @@ const api = {
         if (error) { console.error('Error fetching books:', error.message, error); throw error; }
         return data ? data.map(mapSupabaseToBook) : [];
     },
+
+    // Funkce pro volání N8N webhooků při mazání knih
+    async callDeleteWebhook(bookId: string): Promise<{success: boolean, message: string}> {
+        const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/ae6f98d7-53a8-40b2-9d24-ca2ddf7c82de';
+        
+        try {
+            console.log(`🔗 Volám N8N webhook pro smazání knihy: ${bookId}`);
+            
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: bookId,
+                    action: 'delete',
+                    timestamp: new Date().toISOString()
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const responseData = await response.text();
+            console.log('✅ N8N webhook úspěšně zavolán:', responseData);
+            
+            return {
+                success: true,
+                message: 'N8N webhook úspěšně zavolán'
+            };
+            
+        } catch (error) {
+            console.error('❌ Chyba při volání N8N webhooků:', error);
+            return {
+                success: false,
+                message: `Chyba při volání N8N webhooků: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
+            };
+        }
+    },
+
+    // Funkce pro hromadné volání N8N webhooků při mazání více knih
+    async callBulkDeleteWebhooks(bookIds: string[]): Promise<{success: boolean, message: string, successCount: number, failureCount: number}> {
+        const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/ae6f98d7-53a8-40b2-9d24-ca2ddf7c82de';
+        
+        console.log(`🔗 Volám N8N webhooky pro hromadné smazání ${bookIds.length} knih`);
+        
+        const webhookPromises = bookIds.map(async (bookId) => {
+            try {
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: bookId,
+                        action: 'delete',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                console.log(`✅ N8N webhook úspěšně zavolán pro knihu: ${bookId}`);
+                return { bookId, success: true, error: null };
+                
+            } catch (error) {
+                console.error(`❌ Chyba při volání N8N webhooků pro knihu ${bookId}:`, error);
+                return { 
+                    bookId, 
+                    success: false, 
+                    error: error instanceof Error ? error.message : 'Neznámá chyba' 
+                };
+            }
+        });
+
+        try {
+            const results = await Promise.allSettled(webhookPromises);
+            
+            let successCount = 0;
+            let failureCount = 0;
+            
+            results.forEach((result) => {
+                if (result.status === 'fulfilled' && result.value.success) {
+                    successCount++;
+                } else {
+                    failureCount++;
+                }
+            });
+
+            const message = `Hromadné volání webhooků dokončeno: ${successCount} úspěšných, ${failureCount} neúspěšných`;
+            console.log(`🔗 ${message}`);
+            
+            return {
+                success: failureCount === 0,
+                message,
+                successCount,
+                failureCount
+            };
+            
+        } catch (error) {
+            console.error('❌ Neočekávaná chyba při hromadném volání webhooků:', error);
+            return {
+                success: false,
+                message: `Neočekávaná chyba při hromadném volání webhooků: ${error instanceof Error ? error.message : 'Neznámá chyba'}`,
+                successCount: 0,
+                failureCount: bookIds.length
+            };
+        }
+    },
     async updateBook(book: Book): Promise<Book> {
         const updateData: Database['public']['Tables']['books']['Update'] = {
             title: book.title, author: book.author, publication_year: book.publicationYear,
@@ -515,51 +628,29 @@ const api = {
         if (!data) { throw new Error("Book not found after update."); }
         return mapSupabaseToBook(data);
     },
-    async deleteBook(bookId: string, filePath: string, coverImageUrl: string): Promise<void> {
+    async deleteBook(bookId: string, filePath: string, coverImageUrl: string, bookTitle?: string): Promise<void> {
         const errors: string[] = [];
         
-        // Step 1: Delete cover image from Storage (if it's not a placeholder)
-        if (coverImageUrl && !coverImageUrl.includes('placehold.co')) {
+        // Step 1: Delete cover image from Books/covers/covers/ (podle požadavků)
+        if (filePath) {
             try {
-                // Extract the actual file path from the coverImageUrl
-                // URLs look like: https://[project].supabase.co/storage/v1/object/public/covers/book_123.jpg
-                // or: https://[project].supabase.co/storage/v1/object/public/Books/covers/book_123.jpg
-                const urlParts = coverImageUrl.split('/storage/v1/object/public/');
-                if (urlParts.length < 2) {
-                    console.warn('Cannot parse cover URL for deletion:', coverImageUrl);
-                    errors.push('Nelze zparsovat URL cover obrázku pro smazání');
+                console.log(`🖼️ Mazání cover obrázku pro knihu: ${bookId}`);
+                console.log(`File path: ${filePath}`);
+                
+                // Cover má stejný název jako soubor knihy, ale s .jpg příponou
+                // Např. book_1759489721872_axaum1w9k.pdf -> book_1759489721872_axaum1w9k.jpg
+                const fileNameWithoutExt = filePath.replace(/\.[^/.]+$/, ""); // odstraní příponu
+                const coverPath = `covers/covers/${fileNameWithoutExt}.jpg`;
+                
+                console.log(`Attempting to delete cover: ${coverPath} from Books bucket`);
+                
+                const { error: coverError } = await supabaseClient.storage.from('Books').remove([coverPath]);
+                
+                if (coverError) {
+                    console.error('COVER DELETE FAILED:', coverError);
+                    errors.push(`Nepodařilo se smazat cover obrázek: ${coverError.message}`);
                 } else {
-                
-                const fullPath = urlParts[1]; // e.g., "covers/book_123.jpg" or "Books/covers/book_123.jpg"
-                let bucket: string;
-                let filePath: string;
-                
-                if (fullPath.startsWith('covers/')) {
-                    // Cover is in covers bucket: covers/book_123.jpg
-                    bucket = 'covers';
-                    filePath = fullPath.substring('covers/'.length); // book_123.jpg
-                } else if (fullPath.startsWith('Books/covers/')) {
-                    // Cover is in Books bucket subfolder: Books/covers/book_123.jpg
-                    bucket = 'Books';
-                    filePath = fullPath.substring('Books/'.length); // covers/book_123.jpg
-                } else {
-                    console.warn('Unknown cover URL format:', coverImageUrl);
-                    errors.push('Neznámý formát URL cover obrázku');
-                    bucket = '';
-                    filePath = '';
-                }
-                
-                if (bucket && filePath) {
-                    console.log(`Attempting to delete cover: ${filePath} from ${bucket} bucket`);
-                    const { error: coverError } = await supabaseClient.storage.from(bucket).remove([filePath]);
-                    
-                    if (coverError) {
-                        console.error('COVER DELETE FAILED:', coverError);
-                        errors.push(`Nepodařilo se smazat cover obrázek: ${coverError.message}`);
-                    } else {
-                        console.log(`Cover deleted successfully from ${bucket} bucket: ${filePath}`);
-                    }
-                }
+                    console.log(`✅ Cover deleted successfully from Books bucket: ${coverPath}`);
                 }
             } catch (e) {
                 console.error("Could not delete cover image:", e);
@@ -581,23 +672,75 @@ const api = {
             }
         }
         
-        // Step 3: Delete from Vector Databases (Supabase documents + Qdrant)
+        // Step 3: Delete from Supabase vector database public.documents
         try {
-            console.log('🗑️ Mazání z vektorových databází pro knihu:', bookId);
-            const vectorDeleteResult = await api.deleteFromVectorDatabases(bookId);
+            console.log('🗑️ Mazání z Supabase vektorové databáze public.documents pro knihu:', bookId);
             
-            if (!vectorDeleteResult.success) {
-                console.warn('Mazání z vektorových databází se nepodařilo úplně:', vectorDeleteResult.message);
-                errors.push(`Varování - vektorové databáze: ${vectorDeleteResult.message}`);
+            // Použijeme raw SQL dotaz pro mazání z documents tabulky
+            const { error: documentsError } = await (supabaseClient as any).rpc('delete_documents_by_file_id', {
+                file_id: bookId
+            });
+            
+            if (documentsError) {
+                console.error('SUPABASE DOCUMENTS DELETE FAILED:', documentsError);
+                errors.push(`Nepodařilo se smazat z public.documents: ${documentsError.message}`);
             } else {
-                console.log('✅ Úspěšně smazáno z vektorových databází');
+                console.log('✅ Úspěšně smazáno z Supabase public.documents');
             }
         } catch (e) {
-            console.error('VECTOR DATABASE DELETE ERROR:', e);
-            errors.push(`Chyba při mazání z vektorových databází: ${e}`);
+            console.error('SUPABASE DOCUMENTS DELETE ERROR:', e);
+            errors.push(`Chyba při mazání z Supabase documents: ${e}`);
         }
         
-        // Step 4: Delete record from Database (ALWAYS attempt this, even if file deletion failed)
+        // Step 4: Delete images from images/main/production/[bookId]/ folder
+        try {
+            console.log(`🖼️ Mazání obrázků pro knihu: ${bookId}`);
+            
+            // Složka má název podle UUID knihy
+            const imageFolderPath = `main/production/${bookId}`;
+            console.log(`🗂️ Attempting to delete image folder: ${imageFolderPath} from images bucket`);
+            
+            try {
+                // Nejdříve získáme seznam všech souborů ve složce
+                const { data: imageFiles, error: listError } = await supabaseClient.storage
+                    .from('images')
+                    .list(imageFolderPath, { limit: 1000 });
+                
+                console.log(`📋 List result - Error: ${listError?.message || 'none'}, Files found: ${imageFiles?.length || 0}`);
+                
+                if (!listError && imageFiles && imageFiles.length > 0) {
+                    // Smažeme všechny soubory ve složce
+                    const filesToDelete = imageFiles.map(file => `${imageFolderPath}/${file.name}`);
+                    
+                    console.log(`🗑️ Found ${filesToDelete.length} files to delete:`, filesToDelete);
+                    
+                    const { error: deleteError } = await supabaseClient.storage
+                        .from('images')
+                        .remove(filesToDelete);
+                    
+                    if (!deleteError) {
+                        console.log(`✅ Successfully deleted ${filesToDelete.length} images from ${imageFolderPath}`);
+                    } else {
+                        console.error('❌ IMAGE FILES DELETE FAILED:', deleteError);
+                        errors.push(`Nepodařilo se smazat obrázky: ${deleteError.message}`);
+                    }
+                } else if (listError) {
+                    console.log(`📁 Folder not found or error: ${imageFolderPath} - ${listError.message}`);
+                    // Nebudeme to považovat za chybu, složka prostě neexistuje
+                } else {
+                    console.log(`📁 No images found in folder: ${imageFolderPath}`);
+                }
+            } catch (folderError) {
+                console.error(`📁 Error accessing folder ${imageFolderPath}:`, folderError);
+                errors.push(`Chyba při přístupu ke složce obrázků: ${folderError}`);
+            }
+        } catch (e) {
+            console.error("Could not delete image folder:", e);
+            errors.push(`Chyba při mazání složky obrázků: ${e}`);
+        }
+        
+        // Step 5: Delete record from Database (ALWAYS attempt this, even if file deletion failed)
+        let databaseDeleteSuccessful = false;
         try {
             const { error: dbError } = await supabaseClient.from('books').delete().eq('id', bookId);
             if (dbError) {
@@ -605,10 +748,27 @@ const api = {
                 errors.push(`Nepodařilo se smazat záznam z databáze: ${dbError.message}`);
             } else {
                 console.log('Book record deleted successfully from database');
+                databaseDeleteSuccessful = true;
             }
         } catch (e) {
             console.error('DATABASE DELETE ERROR:', e);
             errors.push(`Chyba při mazání záznamu z databáze: ${e}`);
+        }
+        
+        // Step 6: Call N8N webhook if database deletion was successful
+        if (databaseDeleteSuccessful) {
+            try {
+                const webhookResult = await api.callDeleteWebhook(bookId);
+                if (!webhookResult.success) {
+                    console.warn('N8N webhook se nepodařilo zavolat:', webhookResult.message);
+                    errors.push(`Varování - N8N webhook: ${webhookResult.message}`);
+                } else {
+                    console.log('✅ N8N webhook úspěšně zavolán');
+                }
+            } catch (e) {
+                console.error('N8N WEBHOOK ERROR:', e);
+                errors.push(`Chyba při volání N8N webhooků: ${e}`);
+            }
         }
         
         // If there were any errors, log them but don't throw - the UI should still update
@@ -1083,8 +1243,39 @@ const api = {
                         message = result.message || (result.success ? 'Úspěšně nahráno do vektorové databáze' : 'Chyba při nahrávání do vektorové databáze');
                     }
                     
-                    // Aktualizujeme pouze vectorStatus
-                    const updatedBook = {...book, vectorStatus: newStatus};
+                    // Aktualizujeme vectorStatus a při úspěchu vytvoříme snapshot metadat
+                    let updatedBook = {...book, vectorStatus: newStatus};
+                    
+                    // Pokud bylo nahrání úspěšné, vytvoříme snapshot metadat
+                    if (newStatus === 'success') {
+                        const snapshotData = {
+                            title: book.title,
+                            author: book.author,
+                            publicationYear: book.publicationYear,
+                            publisher: book.publisher,
+                            summary: book.summary,
+                            keywords: book.keywords,
+                            language: book.language,
+                            format: book.format,
+                            fileSize: book.fileSize,
+                            coverImageUrl: book.coverImageUrl,
+                            publicationTypes: book.publicationTypes,
+                            labels: book.labels,
+                            categories: book.categories,
+                            releaseVersion: book.releaseVersion
+                        };
+                        
+                        const metadataSnapshot = JSON.stringify(snapshotData);
+                        
+                        updatedBook = {
+                            ...updatedBook,
+                            vectorAddedAt: new Date().toISOString(),
+                            metadataSnapshot: metadataSnapshot
+                        };
+                        
+                        console.log('📸 Vytvořen snapshot metadat pro detekci změn:', snapshotData);
+                        console.log('📸 Snapshot JSON:', metadataSnapshot);
+                    }
                     
                     try {
                         await api.updateBook(updatedBook);
@@ -1444,6 +1635,89 @@ const api = {
             return false;
         }
         return true;
+    },
+
+    // Funkce pro aktualizaci metadata v Qdrant přes n8n webhook
+    async updateQdrantMetadata(bookId: string, categories: string[], labels: string[], publicationTypes: string[]): Promise<{success: boolean, message: string}> {
+        // Použijeme n8n webhook pro aktualizaci metadata
+        const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/822e584e-0836-4d1d-aef1-5c4dce6573c0';
+
+        try {
+            console.log('🔄 Odesílám požadavek na aktualizaci Qdrant metadata přes n8n webhook');
+            console.log('📂 Kniha ID:', bookId);
+            console.log('📂 Nové categories:', categories);
+            console.log('📂 Nové labels:', labels);
+            console.log('📂 Nové publicationTypes:', publicationTypes);
+
+            // Vytvoříme payload pro n8n webhook s indikátorem, že jde o aktualizaci metadata
+            const payload = {
+                action: 'update_metadata', // Nový parametr pro rozlišení typu operace
+                bookId: bookId,
+                metadata: {
+                    categories: categories,
+                    labels: labels,
+                    publicationTypes: publicationTypes
+                }
+            };
+
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Chyba při volání n8n webhook:', response.status, errorText);
+                return {
+                    success: false,
+                    message: `Chyba při volání webhook: ${response.status} ${errorText}`
+                };
+            }
+
+            const result = await response.json();
+            console.log('✅ Odpověď z n8n webhook:', result);
+            
+            // Zpracujeme odpověď - pokud má status 'ok', považujeme za úspěch
+            if (result.status === 'ok') {
+                return {
+                    success: true,
+                    message: '✅ Metadata úspěšně aktualizována v databázi'
+                };
+            } else if (Array.isArray(result)) {
+                const qdrantResult = result.find(item => item.hasOwnProperty('qdrant_ok'));
+                if (qdrantResult?.qdrant_ok === true) {
+                    return {
+                        success: true,
+                        message: '✅ Metadata v Qdrant úspěšně aktualizována'
+                    };
+                } else {
+                    return {
+                        success: false,
+                        message: `❌ Chyba při aktualizaci Qdrant: ${qdrantResult?.qdrant_error || 'Neznámá chyba'}`
+                    };
+                }
+            } else if (result.success) {
+                return {
+                    success: true,
+                    message: result.message || '✅ Metadata v Qdrant úspěšně aktualizována'
+                };
+            } else {
+                return {
+                    success: false,
+                    message: result.message || '❌ Chyba při aktualizaci metadata'
+                };
+            }
+
+        } catch (error) {
+            console.error('❌ Neočekávaná chyba při volání n8n webhook:', error);
+            return {
+                success: false,
+                message: `Neočekávaná chyba při aktualizaci metadata: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
+            };
+        }
     },
 };
 
@@ -3294,7 +3568,7 @@ const App = () => {
         const bookToDelete = deleteConfirmation.book;
 
         try {
-            await api.deleteBook(bookToDelete.id, bookToDelete.filePath, bookToDelete.coverImageUrl);
+            await api.deleteBook(bookToDelete.id, bookToDelete.filePath, bookToDelete.coverImageUrl, bookToDelete.title);
 
             // Always update UI - the book should be removed from the list even if there were storage errors
             const originalBookIndex = books.findIndex(b => b.id === bookToDelete.id);
@@ -3323,6 +3597,118 @@ const App = () => {
             alert(`Smazání knihy se nezdařilo: ${error.message}`);
         } finally {
             setDeleteConfirmation({ isOpen: false, book: null });
+        }
+    };
+
+    // Diagnostická funkce pro kontrolu storage bucketů
+    const debugStoragePaths = async (bookId: string, bookTitle: string) => {
+        console.log(`🔍 DIAGNOSTIKA STORAGE pro knihu: ${bookTitle} (ID: ${bookId})`);
+        
+        // Najdeme filePath pro tuto knihu
+        const book = books.find(b => b.id === bookId);
+        const filePath = book?.filePath;
+        
+        console.log(`📄 File path: ${filePath}`);
+        
+        if (!filePath) {
+            console.error('❌ Nelze najít filePath pro knihu');
+            return;
+        }
+        
+        try {
+            // Zkontrolujeme Books bucket - covers
+            console.log('📁 Kontrola Books/covers/covers/...');
+            const { data: coversData } = await supabaseClient.storage.from('Books').list('covers/covers', { limit: 100 });
+            console.log('Books/covers/covers/ obsahuje:', coversData?.map(f => f.name) || []);
+            
+            // Zkontrolujeme konkrétní cover pro tuto knihu
+            const fileNameWithoutExt = filePath.replace(/\.[^/.]+$/, "");
+            const expectedCoverName = `${fileNameWithoutExt}.jpg`;
+            console.log(`🖼️ Hledám cover: ${expectedCoverName}`);
+            const coverExists = coversData?.some(f => f.name === expectedCoverName);
+            console.log(`Cover existuje: ${coverExists ? '✅' : '❌'}`);
+            
+            // Zkontrolujeme images bucket - main/production
+            console.log('📁 Kontrola images/main/production/...');
+            const { data: productionData } = await supabaseClient.storage.from('images').list('main/production', { limit: 100 });
+            console.log('images/main/production/ obsahuje složky:', productionData?.map(f => f.name) || []);
+            
+            // Zkontrolujeme konkrétní složku pro tuto knihu - složka má název podle UUID knihy
+            console.log(`📁 Hledám složku podle UUID: ${bookId}`);
+            
+            const folderExists = productionData?.some(f => f.name === bookId);
+            console.log(`Složka existuje: ${folderExists ? '✅' : '❌'}`);
+            
+            if (folderExists) {
+                const { data: bookImagesData } = await supabaseClient.storage.from('images').list(`main/production/${bookId}`, { limit: 100 });
+                console.log(`📁 images/main/production/${bookId}/ obsahuje:`, bookImagesData?.map(f => f.name) || []);
+            }
+        } catch (error) {
+            console.error('Chyba při diagnostice storage:', error);
+        }
+    };
+
+    // Testovací funkce pro mazání pouze images složky
+    const testDeleteImages = async (bookId: string) => {
+        const book = books.find(b => b.id === bookId);
+        if (!book) {
+            alert('❌ Kniha nenalezena');
+            return;
+        }
+        
+        console.log(`🧪 TESTOVÁNÍ MAZÁNÍ IMAGES pro knihu: ${book.title} (ID: ${bookId})`);
+        
+        try {
+            // Složka má název podle UUID knihy
+            const imageFolderPath = `main/production/${bookId}`;
+            
+            console.log(`🗂️ Pokus o smazání: ${imageFolderPath}`);
+            
+            // Získáme seznam souborů
+            const { data: imageFiles, error: listError } = await supabaseClient.storage
+                .from('images')
+                .list(imageFolderPath, { limit: 1000 });
+            
+            console.log(`📋 Seznam souborů:`, { imageFiles, listError });
+            
+            if (!listError && imageFiles && imageFiles.length > 0) {
+                const filesToDelete = imageFiles.map(file => `${imageFolderPath}/${file.name}`);
+                console.log(`🗑️ Soubory k smazání:`, filesToDelete);
+                
+                // Skutečné smazání
+                const { error: deleteError } = await supabaseClient.storage
+                    .from('images')
+                    .remove(filesToDelete);
+                
+                if (!deleteError) {
+                    alert(`✅ Test úspěšný! Smazáno ${filesToDelete.length} souborů ze složky ${imageFolderPath}`);
+                } else {
+                    alert(`❌ Test neúspěšný! Chyba: ${deleteError.message}`);
+                    console.error('Delete error:', deleteError);
+                }
+            } else {
+                alert(`⚠️ Složka ${imageFolderPath} neexistuje nebo je prázdná`);
+            }
+        } catch (error) {
+            console.error('Test error:', error);
+            alert(`❌ Chyba při testu: ${error}`);
+        }
+    };
+
+    // Testovací funkce pro volání webhooků bez mazání knihy
+    const testWebhook = async (bookId: string) => {
+        try {
+            console.log(`🧪 Testování webhook pro knihu: ${bookId}`);
+            const webhookResult = await api.callDeleteWebhook(bookId);
+            
+            if (webhookResult.success) {
+                alert(`✅ Webhook test úspěšný!\n\nZavolán webhook pro knihu ID: ${bookId}\nOdpověď: ${webhookResult.message}`);
+            } else {
+                alert(`❌ Webhook test neúspěšný!\n\nChyba: ${webhookResult.message}`);
+            }
+        } catch (error: any) {
+            console.error("Chyba při testování webhooků:", error);
+            alert(`❌ Chyba při testování webhooků: ${error.message}`);
         }
     };
 
@@ -3435,6 +3821,8 @@ const App = () => {
 
         try {
             const snapshotData = JSON.parse(book.metadataSnapshot);
+            console.log('📸 Snapshot data:', snapshotData);
+            
             const currentData = {
                 title: book.title,
                 author: book.author,
@@ -3451,6 +3839,8 @@ const App = () => {
                 categories: book.categories,
                 releaseVersion: book.releaseVersion
             };
+            
+            console.log('📊 Current data:', currentData);
 
             const changedData: any = { id: book.id }; // ID vždy potřebujeme
             let hasChanges = false;
@@ -3460,9 +3850,18 @@ const App = () => {
                 const currentValue = (currentData as any)[key];
                 const snapshotValue = snapshotData[key];
                 
+                // Debug informace pro každé pole
+                console.log(`🔍 Porovnávám pole '${key}':`);
+                console.log(`  - Snapshot:`, snapshotValue);
+                console.log(`  - Current:`, currentValue);
+                
                 // Pro pole porovnáváme jako JSON stringy
                 const currentStr = Array.isArray(currentValue) ? JSON.stringify(currentValue.sort()) : String(currentValue || '');
                 const snapshotStr = Array.isArray(snapshotValue) ? JSON.stringify(snapshotValue.sort()) : String(snapshotValue || '');
+                
+                console.log(`  - Snapshot str:`, snapshotStr);
+                console.log(`  - Current str:`, currentStr);
+                console.log(`  - Jsou stejné:`, currentStr === snapshotStr);
                 
                 if (currentStr !== snapshotStr) {
                     changedData[key] = currentValue;
@@ -3516,12 +3915,24 @@ const App = () => {
             
             console.log('📤 Odesílám pouze změněná metadata:', changedData);
 
-            const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook/822e584e-0836-4d1d-aef1-5c4dce6573c0', {
+            // Formátuj data podle očekávaného formátu webhook
+            const webhookPayload = {
+                action: "update_metadata",
+                bookId: book.id,
+                metadata: {
+                    // Odstraň ID z metadat a pošli zbytek
+                    ...Object.fromEntries(Object.entries(changedData).filter(([key]) => key !== 'id'))
+                }
+            };
+
+            console.log('📤 Webhook payload:', webhookPayload);
+
+            const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook-test/822e584e-0836-4d1d-aef1-5c4dce6573c0', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(changedData)
+                body: JSON.stringify(webhookPayload)
             });
 
             if (response.ok) {
@@ -3547,7 +3958,7 @@ const App = () => {
         if (selectedBookIds.size === 0) return;
         
         const booksToDelete = books.filter(b => selectedBookIds.has(b.id));
-        const deletePromises = booksToDelete.map(book => api.deleteBook(book.id, book.filePath, book.coverImageUrl));
+        const deletePromises = booksToDelete.map(book => api.deleteBook(book.id, book.filePath, book.coverImageUrl, book.title));
 
         try {
             // Use Promise.allSettled to continue even if some deletions fail
@@ -3849,6 +4260,7 @@ const App = () => {
                                 onSelectAll={handleSelectAll}
                                 onDeleteBook={handleDeleteBook}
                                 onDownloadBook={handleDownloadBook}
+                                onTestWebhook={testWebhook}
                                 onVectorDatabaseAction={handleVectorDatabaseAction}
                                 vectorProcessingBooks={vectorProcessingBooks}
                             /> :
@@ -3861,6 +4273,9 @@ const App = () => {
                             book={selectedBook} 
                             onUpdate={handleUpdateBook} 
                             onDelete={handleDeleteBook}
+                            onTestWebhook={testWebhook}
+                            onDebugStorage={debugStoragePaths}
+                            onTestDeleteImages={testDeleteImages}
                             onReadClick={() => handleReadBook(selectedBook)}
                             allLabels={allLabels}
                             onAddNewLabel={handleAddNewLabel}
@@ -4709,10 +5124,11 @@ interface BookListViewProps {
     onSelectAll: (checked: boolean) => void;
     onDeleteBook: (id: string) => void;
     onDownloadBook: (id: string) => void;
+    onTestWebhook: (id: string) => void;
     onVectorDatabaseAction: (book: Book) => void;
     vectorProcessingBooks: Set<string>;
 }
-const BookListView = ({ books, selectedBookId, selectedBookIds, onSelectBook, onToggleSelection, onSelectAll, onDeleteBook, onDownloadBook, onVectorDatabaseAction, vectorProcessingBooks }: BookListViewProps) => {
+const BookListView = ({ books, selectedBookId, selectedBookIds, onSelectBook, onToggleSelection, onSelectAll, onDeleteBook, onDownloadBook, onTestWebhook, onVectorDatabaseAction, vectorProcessingBooks }: BookListViewProps) => {
     const isAllSelected = books.length > 0 && selectedBookIds.size === books.length;
     return (
         <div style={styles.bookTableWrapper}>
@@ -4774,6 +5190,7 @@ const BookListView = ({ books, selectedBookId, selectedBookIds, onSelectBook, on
                             <td style={styles.td} onClick={() => onSelectBook(book.id)}>{formatDate(book.dateAdded)}</td>
                             <td style={{...styles.td, ...styles.tdActions}} onClick={e => e.stopPropagation()}>
                                 <button style={styles.iconButton} onClick={() => onDownloadBook(book.id)} aria-label="Stáhnout knihu"><IconDownload/></button>
+                                <button style={{...styles.iconButton, color: '#3b82f6'}} onClick={() => onTestWebhook(book.id)} aria-label="Testovat webhook" title="Testovat webhook (pouze zavolá webhook bez mazání knihy)"><IconTestWebhook/></button>
                                 <button style={{...styles.iconButton, color: 'var(--danger-color)'}} onClick={() => onDeleteBook(book.id)} aria-label="Smazat knihu"><IconDelete/></button>
                             </td>
                         </tr>
@@ -4805,6 +5222,9 @@ interface BookDetailPanelProps {
     book: Book;
     onUpdate: (book: Book) => void;
     onDelete: (id: string) => void;
+    onTestWebhook: (id: string) => void;
+    onDebugStorage: (id: string, title: string) => void;
+    onTestDeleteImages: (id: string) => void;
     onReadClick: () => void;
     allLabels: string[];
     onAddNewLabel: (labelName: string) => void;
@@ -4817,7 +5237,7 @@ interface BookDetailPanelProps {
     onDeletePublicationType: (typeName: string) => void;
     allAvailableLanguages: string[]; // Všechny jazyky z databáze pro dropdown
 }
-const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onAddNewLabel, onDeleteLabel, allCategories, onAddNewCategory, onDeleteCategory, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, allAvailableLanguages }: BookDetailPanelProps) => {
+const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStorage, onTestDeleteImages, onReadClick, allLabels, onAddNewLabel, onDeleteLabel, allCategories, onAddNewCategory, onDeleteCategory, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, allAvailableLanguages }: BookDetailPanelProps) => {
     const [isEditing, setIsEditing] = useState(false);
     const [localBook, setLocalBook] = useState(book);
     const [isGenerating, setIsGenerating] = useState<Partial<Record<keyof Book, boolean>>>({});
@@ -5148,6 +5568,32 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
     const handleCancel = () => {
         updateLocalBook(book);
         setIsEditing(false);
+    };
+
+    const handleUpdateQdrantMetadata = async () => {
+        try {
+            console.log('🔄 Aktualizuji Qdrant metadata pro knihu:', book.id);
+            console.log('📂 Aktuální categories:', localBook.categories);
+            console.log('📂 Aktuální labels:', localBook.labels);
+            console.log('📂 Aktuální publicationTypes:', localBook.publicationTypes);
+            
+            // Nejdříve uložíme změny do Supabase (stejně jako handleSave)
+            onUpdate(localBook);
+            
+            // Pak odešleme metadata do webhooku
+            const result = await api.updateQdrantMetadata(book.id, localBook.categories, localBook.labels, localBook.publicationTypes);
+            
+            if (result.success) {
+                alert(result.message);
+                // Po úspěšné aktualizaci ukončíme editaci
+                setIsEditing(false);
+            } else {
+                alert(`❌ ${result.message}`);
+            }
+        } catch (error) {
+            console.error('❌ Chyba při aktualizaci Qdrant metadata:', error);
+            alert(`❌ Neočekávaná chyba při aktualizaci metadata: ${error instanceof Error ? error.message : 'Neznámá chyba'}`);
+        }
     };
 
     const handleCoverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -5637,34 +6083,52 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onReadClick, allLabels, onA
             
 
             
-            <div style={styles.detailActions}>
-                 <button style={styles.button} onClick={onReadClick}>Číst knihu</button>
+            <div style={{...styles.detailActions, flexDirection: 'column', gap: '0.5rem'}}>
                  {isEditing ? (
                     <>
-                        <button style={styles.button} onClick={handleBulkAIGenerate} disabled={isBulkGenerating}>
-                            {isBulkGenerating ? 'Generuji...' : <><IconMagic /> Vyplnit metadata</>}
-                        </button>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            id="cover-upload"
-                            style={{ display: 'none' }}
-                            onChange={handleCoverUpload}
-                        />
-                        <button 
-                            style={styles.button} 
-                            onClick={() => document.getElementById('cover-upload')?.click()}
-                            title="Nahrát nový cover obrázek"
-                        >
-                            Nahrát cover
-                        </button>
-                        <button style={{...styles.button, color: 'var(--danger-color)', background: 'transparent', border: '1px solid var(--danger-color)'}} onClick={handleCancel}>Zrušit</button>
-                        <button style={{...styles.button, background: 'transparent', border: '1px solid var(--accent-primary)'}} onClick={handleSave}><IconSave /></button>
+                        {/* První řada: Číst knihu, Nahrát cover */}
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button style={styles.button} onClick={onReadClick}>Číst knihu</button>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                id="cover-upload"
+                                style={{ display: 'none' }}
+                                onChange={handleCoverUpload}
+                            />
+                            <button 
+                                style={styles.button} 
+                                onClick={() => document.getElementById('cover-upload')?.click()}
+                                title="Nahrát nový cover obrázek"
+                            >
+                                Nahrát cover
+                            </button>
+                        </div>
+                        
+                        {/* Druhá řada: Aktualizovat metadata */}
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button style={{...styles.button, background: 'var(--accent-secondary)', color: 'var(--text-primary)', border: '1px solid var(--accent-secondary)'}} onClick={handleUpdateQdrantMetadata}>Aktualizovat metadata</button>
+                        </div>
+                        
+                        {/* Třetí řada: Vyplnit metadata, Zrušit, Uložit */}
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button style={styles.button} onClick={handleBulkAIGenerate} disabled={isBulkGenerating}>
+                                {isBulkGenerating ? 'Generuji...' : <><IconMagic /> Vyplnit metadata</>}
+                            </button>
+                            <button style={{...styles.button, color: 'var(--danger-color)', background: 'transparent', border: '1px solid var(--danger-color)'}} onClick={handleCancel}>Zrušit</button>
+                            <button style={{...styles.button, background: 'transparent', border: '1px solid var(--accent-primary)'}} onClick={handleSave}><IconSave /></button>
+                        </div>
                     </>
                  ) : (
                     <>
-                    <button style={styles.iconButton} onClick={() => setIsEditing(true)} aria-label="Upravit metadata"><IconEdit /></button>
-                    <button style={{...styles.iconButton, color: 'var(--danger-color)'}} onClick={() => onDelete(book.id)} aria-label="Smazat knihu"><IconDelete size={18}/></button>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button style={styles.button} onClick={onReadClick}>Číst knihu</button>
+                            <button style={styles.iconButton} onClick={() => setIsEditing(true)} aria-label="Upravit metadata"><IconEdit /></button>
+                            <button style={{...styles.iconButton, color: '#3b82f6'}} onClick={() => onTestWebhook(book.id)} aria-label="Testovat webhook" title="Testovat webhook (pouze zavolá webhook bez mazání knihy)"><IconTestWebhook size={18}/></button>
+                            <button style={{...styles.iconButton, color: '#10b981'}} onClick={() => onDebugStorage(book.id, book.title)} aria-label="Diagnostika storage" title="Zkontrolovat storage cesty (otevřete konzoli)">🔍</button>
+                            <button style={{...styles.iconButton, color: '#f59e0b'}} onClick={() => onTestDeleteImages(book.id)} aria-label="Test mazání images" title="Testovat mazání images složky (skutečné smazání!)">🧪</button>
+                            <button style={{...styles.iconButton, color: 'var(--danger-color)'}} onClick={() => onDelete(book.id)} aria-label="Smazat knihu"><IconDelete size={18}/></button>
+                        </div>
                     </>
                  )}
             </div>
