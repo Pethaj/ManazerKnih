@@ -65,7 +65,6 @@ const IconClose = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="no
 const IconExport = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
 const IconAdd = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
 const IconChatbot = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z"></path><circle cx="9" cy="10" r="1"></circle><circle cx="15" cy="10" r="1"></circle></svg>;
-const IconVideo = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>;
 const IconDatabase = ({status = 'pending', isLoading = false}: {status?: 'pending' | 'success' | 'error', isLoading?: boolean}) => {
     const getColor = () => {
         if (isLoading) return '#3b82f6'; // modrá pro loading
@@ -530,46 +529,43 @@ const mapSupabaseToBook = (data: Database['public']['Tables']['books']['Row']): 
 
 const api = {
     async getBooks(): Promise<Book[]> {
-        const callId = Math.random().toString(36).substring(7);
-        console.log(`📚 [${callId}] Načítám knihy z databáze...`);
+        console.log('📚 Načítám knihy z databáze...');
+        console.log('Supabase URL:', supabaseUrl);
         
         try {
-            console.log(`[${callId}] 🔍 Metoda 1: Zkouším Supabase client...`);
-            const startTime = Date.now();
+            console.log('🔍 Začínám dotaz na knihy...');
             
-            // Zkusíme nejdřív přímý REST API call
-            const response = await fetch(`${supabaseUrl}/rest/v1/books?select=*&order=created_at.desc`, {
-                headers: {
-                    'apikey': supabaseKey,
-                    'Authorization': `Bearer ${supabaseKey}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+        const { data, error } = await supabaseClient
+            .from('books')
+            .select('*')
+            .order('created_at', { ascending: false });
             
-            const endTime = Date.now();
-            console.log(`[${callId}] ✅ REST API odpověď za ${endTime - startTime}ms, status: ${response.status}`);
+            console.log('🔍 Dotaz dokončen. Data:', !!data, 'Error:', !!error);
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (error) {
+                console.error('❌ Chyba při načítání knih:', {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code
+                });
+                throw error;
             }
             
-            const data = await response.json();
-            console.log(`[${callId}] ✅ Načteno ${data.length} knih z databáze`);
-            
-            if (data.length > 0) {
-                console.log(`[${callId}] První kniha:`, { id: data[0].id, title: data[0].title });
+            console.log(`✅ Načteno ${data?.length || 0} knih z databáze`);
+            if (data && data.length > 0) {
+                console.log('První kniha:', { id: data[0].id, title: data[0].title });
             }
             
-            const mappedBooks = data.map(mapSupabaseToBook);
-            console.log(`[${callId}] 📋 Mapováno ${mappedBooks.length} knih`);
-            console.log(`[${callId}] 🎉 getBooks úspěšně dokončen`);
+            const mappedBooks = data ? data.map(mapSupabaseToBook) : [];
+            console.log(`📋 Mapováno ${mappedBooks.length} knih`);
             
             return mappedBooks;
         } catch (err: any) {
-            console.error(`[${callId}] ❌ Chyba při načítání knih:`, {
+            console.error('❌ Neočekávaná chyba při načítání knih:', {
                 name: err.name,
                 message: err.message,
-                stack: err.stack?.substring(0, 200)
+                stack: err.stack?.substring(0, 200) + '...'
             });
             throw err;
         }
@@ -1562,20 +1558,15 @@ const api = {
 
     // Štítky (Labels)
     async getLabels(): Promise<string[]> {
-        try {
-            const response = await fetch(`${supabaseUrl}/rest/v1/labels?select=name&order=name.asc`, {
-                headers: {
-                    'apikey': supabaseKey,
-                    'Authorization': `Bearer ${supabaseKey}`
-                }
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return data.map((item: any) => item.name);
-        } catch (error) {
-            console.error('Error fetching labels:', error);
-            return [];
+        const { data, error } = await supabaseClient
+            .from('labels')
+            .select('name')
+            .order('name', { ascending: true });
+        if (error) { 
+            console.error('Error fetching labels:', error.message, error); 
+            return []; // Vrátíme prázdné pole místo výjimky
         }
+        return data ? data.map(item => item.name) : [];
     },
 
     async addLabel(name: string): Promise<boolean> {
@@ -1605,20 +1596,15 @@ const api = {
 
     // Kategorie (Categories)
     async getCategories(): Promise<string[]> {
-        try {
-            const response = await fetch(`${supabaseUrl}/rest/v1/categories?select=name&order=name.asc`, {
-                headers: {
-                    'apikey': supabaseKey,
-                    'Authorization': `Bearer ${supabaseKey}`
-                }
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return data.map((item: any) => item.name);
-        } catch (error) {
-            console.error('Error fetching categories:', error);
+        const { data, error } = await supabaseClient
+            .from('categories')
+            .select('name')
+            .order('name', { ascending: true });
+        if (error) { 
+            console.error('Error fetching categories:', error.message, error); 
             return [];
         }
+        return data ? data.map(item => item.name) : [];
     },
 
     async addCategory(name: string): Promise<boolean> {
@@ -1648,20 +1634,15 @@ const api = {
 
     // Jazyky (Languages)  
     async getLanguages(): Promise<string[]> {
-        try {
-            const response = await fetch(`${supabaseUrl}/rest/v1/languages?select=name&order=name.asc`, {
-                headers: {
-                    'apikey': supabaseKey,
-                    'Authorization': `Bearer ${supabaseKey}`
-                }
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return data.map((item: any) => item.name);
-        } catch (error) {
-            console.error('Error fetching languages:', error);
+        const { data, error } = await supabaseClient
+            .from('languages')
+            .select('name')
+            .order('name', { ascending: true });
+        if (error) { 
+            console.error('Error fetching languages:', error.message, error); 
             return [];
         }
+        return data ? data.map(item => item.name) : [];
     },
 
     async addLanguage(name: string, code?: string): Promise<boolean> {
@@ -1691,20 +1672,15 @@ const api = {
 
     // Typy publikací (Publication Types)
     async getPublicationTypes(): Promise<string[]> {
-        try {
-            const response = await fetch(`${supabaseUrl}/rest/v1/publication_types?select=name&order=name.asc`, {
-                headers: {
-                    'apikey': supabaseKey,
-                    'Authorization': `Bearer ${supabaseKey}`
-                }
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return data.map((item: any) => item.name);
-        } catch (error) {
-            console.error('Error fetching publication types:', error);
+        const { data, error } = await supabaseClient
+            .from('publication_types')
+            .select('name')
+            .order('name', { ascending: true });
+        if (error) { 
+            console.error('Error fetching publication types:', error.message, error); 
             return [];
         }
+        return data ? data.map(item => item.name) : [];
     },
 
     async addPublicationType(name: string, description?: string): Promise<boolean> {
@@ -3098,9 +3074,6 @@ const App = () => {
     const [vectorProcessingBooks, setVectorProcessingBooks] = useState<Set<string>>(new Set()); // Sleduje, které knihy se právě zpracovávají
     const [isChatbotManagementOpen, setChatbotManagementOpen] = useState(false);
     const [activeChatbot, setActiveChatbot] = useState<{id: string, features: any} | null>(null);
-    const [isAddVideoModalOpen, setAddVideoModalOpen] = useState(false);
-    const [videoUrl, setVideoUrl] = useState('');
-    const [isVideoUploading, setIsVideoUploading] = useState(false);
     
     // Upload processing modal
     const [isUploadProcessingModalOpen, setUploadProcessingModalOpen] = useState(false);
@@ -3119,41 +3092,24 @@ const App = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        console.log('🚀 useEffect - Začínám načítání dat...');
-        let isMounted = true;
         setIsLoading(true);
         
-        // Načteme všechna data paralelně
-        Promise.all([
-            api.getBooks(),
-            api.getLabels(),
-            api.getCategories(),
-            api.getLanguages(),
-            api.getPublicationTypes()
-        ]).then(([books, labels, categories, allLanguagesFromDB, publicationTypes]) => {
-            console.log('✅ Promise.all dokončen!');
-            if (!isMounted) {
-                console.log('⚠️ Komponenta již není namountovaná, přeskakuji aktualizaci stavu');
-                return;
-            }
-            
-            console.log('📊 Načtená metadata z databáze:');
-            console.log('- Knihy:', books.length);
-            console.log('- Štítky:', labels.length);
-            console.log('- Kategorie:', categories.length);
-            console.log('- Všechny jazyky z DB:', allLanguagesFromDB.length);
-            console.log('- Typy publikací:', publicationTypes.length);
-            
+        // Nejdříve načteme knihy - to je nejdůležitější
+        api.getBooks().then(books => {
+            console.log('📚 Načteno knih:', books.length);
             setBooks(books);
-            setAllLabels(labels);
-            setAllCategories(categories);
-            setAllAvailableLanguages(allLanguagesFromDB); // Všechny jazyky z databáze pro dropdown
-            setAllPublicationTypes(publicationTypes);
             
-            // Pro filtraci zobrazíme pouze jazyky, které mají přiřazené nějaké knihy
+            // Extrahujeme základní metadata z knih (jako fallback)
+            const initialLabels = new Set<string>();
+            const initialCategories = new Set<string>(['Aromaterapie', 'Masáže', 'Akupunktura', 'Diagnostika']);
+            const initialPublicationTypes = new Set<string>(['public', 'students', 'internal_bewit']);
             const usedLanguages = new Set<string>();
             const usedVersions = new Set<string>();
+            
             books.forEach(book => {
+                book.labels.forEach(label => initialLabels.add(label));
+                book.categories.forEach(cat => initialCategories.add(cat));
+                book.publicationTypes.forEach(type => initialPublicationTypes.add(type));
                 if (book.language) {
                     usedLanguages.add(book.language);
                 }
@@ -3162,24 +3118,72 @@ const App = () => {
                 }
             });
             
-            // Odfiltrujeme duplicity a seřadíme
-            const uniqueUsedLanguages = Array.from(usedLanguages).sort();
-            const uniqueUsedVersions = Array.from(usedVersions).sort();
-            console.log('📝 Jazyky používané v knihách pro filtraci:', uniqueUsedLanguages);
-            console.log('📝 Verze vydání používané v knihách pro filtraci:', uniqueUsedVersions);
-            setAllLanguages(uniqueUsedLanguages);
-            setAllVersions(uniqueUsedVersions);
+            // Nastavíme základní metadata z knih
+            setAllLabels(Array.from(initialLabels).sort());
+            setAllCategories(Array.from(initialCategories).sort());
+            setAllPublicationTypes(Array.from(initialPublicationTypes).sort());
+            setAllLanguages(Array.from(usedLanguages).sort());
+            setAllVersions(Array.from(usedVersions).sort());
             
             if (books.length > 0 && !selectedBookId) {
                 setSelectedBookId(books[0].id);
             }
-        }).catch(err => {
-            if (!isMounted) {
-                console.log('⚠️ Chyba v odmountované komponentě, ignoruji');
-                return;
-            }
             
-            console.error("❌ KRITICKÁ CHYBA - Failed to fetch data:", err.message, err);
+            // Nyní se pokusíme načíst rozšířená metadata z databáze (neblokující)
+            Promise.allSettled([
+                api.getLabels(),
+                api.getCategories(),
+                api.getLanguages(),
+                api.getPublicationTypes()
+            ]).then(results => {
+                console.log('📊 Výsledky načítání rozšířených metadat:');
+                
+                // Zpracujeme štítky
+                if (results[0].status === 'fulfilled') {
+                    const dbLabels = results[0].value;
+                    console.log('- Štítky z DB:', dbLabels.length);
+                    // Sloučíme štítky z DB s těmi z knih
+                    const allLabelsSet = new Set([...Array.from(initialLabels), ...dbLabels]);
+                    setAllLabels(Array.from(allLabelsSet).sort());
+                } else {
+                    console.warn('❌ Nepodařilo se načíst štítky z DB:', results[0].reason);
+                }
+                
+                // Zpracujeme kategorie
+                if (results[1].status === 'fulfilled') {
+                    const dbCategories = results[1].value;
+                    console.log('- Kategorie z DB:', dbCategories.length);
+                    const allCategoriesSet = new Set([...Array.from(initialCategories), ...dbCategories]);
+                    setAllCategories(Array.from(allCategoriesSet).sort());
+                } else {
+                    console.warn('❌ Nepodařilo se načíst kategorie z DB:', results[1].reason);
+                }
+                
+                // Zpracujeme jazyky
+                if (results[2].status === 'fulfilled') {
+                    const dbLanguages = results[2].value;
+                    console.log('- Všechny jazyky z DB:', dbLanguages.length);
+                    setAllAvailableLanguages(dbLanguages); // Všechny jazyky z databáze pro dropdown
+                } else {
+                    console.warn('❌ Nepodařilo se načíst jazyky z DB:', results[2].reason);
+                    setAllAvailableLanguages(Array.from(usedLanguages).sort()); // Fallback na jazyky z knih
+                }
+                
+                // Zpracujeme typy publikací
+                if (results[3].status === 'fulfilled') {
+                    const dbPublicationTypes = results[3].value;
+                    console.log('- Typy publikací z DB:', dbPublicationTypes.length);
+                    const allTypesSet = new Set([...Array.from(initialPublicationTypes), ...dbPublicationTypes]);
+                    setAllPublicationTypes(Array.from(allTypesSet).sort());
+                } else {
+                    console.warn('❌ Nepodařilo se načíst typy publikací z DB:', results[3].reason);
+                }
+                
+                console.log('✅ Rozšířená metadata zpracována');
+            });
+            
+        }).catch(err => {
+            console.error("❌ KRITICKÁ CHYBA - Failed to fetch books:", err.message, err);
             console.error("🔍 Detaily chyby:", {
                 name: err.name,
                 message: err.message,
@@ -3196,18 +3200,10 @@ const App = () => {
                 console.error('❌ Test připojení selhal:', testErr);
             });
             
-            alert(`Nepodařilo se načíst data z databáze: ${err.message}\n\nZkontrolujte konzoli pro více detailů.`);
+            alert(`Nepodařilo se načíst knihy z databáze: ${err.message}\n\nZkontrolujte konzoli pro více detailů.`);
         }).finally(() => {
-            if (isMounted) {
-                console.log('🏁 Načítání dokončeno, nastavuji isLoading na false');
-                setIsLoading(false);
-            }
+            setIsLoading(false);
         });
-        
-        return () => {
-            console.log('🧹 useEffect cleanup - komponenta se odpojuje');
-            isMounted = false;
-        };
     }, []);
     
     const availableMonths = useMemo(() => {
@@ -4205,44 +4201,6 @@ const App = () => {
         }
     };
     
-    const handleVideoSubmit = async () => {
-        if (!videoUrl.trim()) {
-            alert('Prosím, zadejte URL videa');
-            return;
-        }
-
-        setIsVideoUploading(true);
-        
-        try {
-            const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook-test/stt', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    videoUrl: videoUrl,
-                    timestamp: new Date().toISOString(),
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
-            console.log('Video úspěšně odesláno:', result);
-            
-            alert('Video bylo úspěšně odesláno ke zpracování!');
-            setVideoUrl('');
-            setAddVideoModalOpen(false);
-        } catch (error: any) {
-            console.error('Chyba při odesílání videa:', error);
-            alert(`Chyba při odesílání videa: ${error.message}`);
-        } finally {
-            setIsVideoUploading(false);
-        }
-    };
-    
     const handleBulkDelete = () => {
         if (selectedBookIds.size > 0) {
             setBulkDeleteModalOpen(true);
@@ -4528,7 +4486,6 @@ const App = () => {
                 onConvertClick={() => setConvertModalOpen(true)}
                 isAnyBookSelected={selectedBookIds.size > 0}
                 onChatbotManagementClick={() => setChatbotManagementOpen(true)}
-                onAddVideoClick={() => setAddVideoModalOpen(true)}
             />
 
             <div style={styles.mainContent}>
@@ -4885,56 +4842,6 @@ const App = () => {
                 />
             )}
 
-            {/* Modální okno pro přidání videa */}
-            <Modal isOpen={isAddVideoModalOpen} onClose={() => setAddVideoModalOpen(false)} title="Přidat video">
-                <div style={{ padding: '1rem 0' }}>
-                    <div style={styles.fieldGroup}>
-                        <label style={styles.label}>URL videa</label>
-                        <input
-                            type="text"
-                            value={videoUrl}
-                            onChange={(e) => setVideoUrl(e.target.value)}
-                            placeholder="https://example.com/video.mp4"
-                            style={{
-                                ...styles.input,
-                                width: '100%',
-                                padding: '0.75rem',
-                                fontSize: '1rem',
-                            }}
-                            disabled={isVideoUploading}
-                        />
-                        <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                            Vložte URL videa, které chcete odeslat ke zpracování
-                        </div>
-                    </div>
-
-                    <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                        <button
-                            style={{
-                                ...styles.button,
-                                backgroundColor: 'var(--background-tertiary)',
-                                color: 'var(--text-primary)',
-                            }}
-                            onClick={() => setAddVideoModalOpen(false)}
-                            disabled={isVideoUploading}
-                        >
-                            Zrušit
-                        </button>
-                        <button
-                            style={{
-                                ...styles.button,
-                                backgroundColor: 'var(--accent-primary)',
-                                color: 'white',
-                            }}
-                            onClick={handleVideoSubmit}
-                            disabled={isVideoUploading || !videoUrl.trim()}
-                        >
-                            {isVideoUploading ? 'Odesílám...' : 'Odeslat'}
-                        </button>
-                    </div>
-                </div>
-            </Modal>
-
             {/* Aktivní chat */}
             {activeChatbot && (
                 <div style={styles.chatOverlay}>
@@ -4968,9 +4875,8 @@ interface TopToolbarProps {
     onConvertClick: () => void;
     isAnyBookSelected: boolean;
     onChatbotManagementClick: () => void;
-    onAddVideoClick: () => void;
 }
-const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, onBulkDelete, onBulkDownload, onExportXml, onConvertClick, isAnyBookSelected, onChatbotManagementClick, onAddVideoClick }: TopToolbarProps) => {
+const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, onBulkDelete, onBulkDownload, onExportXml, onConvertClick, isAnyBookSelected, onChatbotManagementClick }: TopToolbarProps) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     return (
@@ -4987,7 +4893,6 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                 />
                 <div style={styles.headerActions}>
                     <button style={styles.button} onClick={onUploadClick}><IconUpload /> Přidat knihu</button>
-                    <button style={styles.button} onClick={onAddVideoClick}><IconVideo /> Přidat video</button>
                     <button style={styles.button} onClick={onConvertClick} disabled={!isAnyBookSelected}>Konvertovat knihu</button>
                     <button style={styles.button} onClick={onChatbotManagementClick}><IconChatbot /> Správa chatbotů</button>
                  {selectedCount > 0 && (

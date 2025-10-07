@@ -34,8 +34,8 @@ export class ILovePDFService {
     private static readonly DEFAULT_REGION = 'eu';
     private static readonly MAX_RETRIES = 3;
     private static readonly RETRY_DELAY = 2000; // 2 sekund
-    private static readonly PROCESSING_TIMEOUT = 3600000; // 60 minut (1 hodina)
-    private static readonly POLLING_INTERVAL = 30000; // 30 sekund
+    private static readonly PROCESSING_TIMEOUT = 300000; // 5 minut
+    private static readonly POLLING_INTERVAL = 5000; // 5 sekund
     
     // Cache pro JWT token
     private static jwtToken: string | null = null;
@@ -132,9 +132,7 @@ export class ILovePDFService {
         while (attempts < maxAttempts) {
             attempts++;
             const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
-            const elapsedMinutes = Math.floor(elapsedTime / 60);
-                const remainingMinutes = Math.floor((this.PROCESSING_TIMEOUT / 1000 - elapsedTime) / 60);
-                console.log(`🔍 Pokus ${attempts}/${maxAttempts} (${elapsedMinutes}min) - kontrola stavu zpracování... (zbývá ~${remainingMinutes}min)`);
+            console.log(`🔍 Pokus ${attempts}/${maxAttempts} (${elapsedTime}s) - kontrola stavu zpracování...`);
             
             try {
                 // Získáme fresh token pro každou kontrolu
@@ -204,25 +202,6 @@ export class ILovePDFService {
                 
                 if (error.message.includes('400') && !error.message.includes('500')) {
                     throw new Error(`Chyba v requestu pro ${operation}: ${error.message}`);
-                }
-                
-                // Speciální handling pro 500 server chyby
-                if (error.message.includes('500') || error.message.includes('ServerError')) {
-                    if (attempt === this.MAX_RETRIES) {
-                        throw new Error(
-                            `iLovePDF API má dočasné problémy (${operation})\n\n` +
-                            `🔧 Co můžete zkusit:\n` +
-                            `• Zkuste to za 5-10 minut\n` +
-                            `• iLovePDF servery jsou přetížené\n` +
-                            `• Zkuste později nebo použijte jiný nástroj\n\n` +
-                            `Technická chyba: ${error.message}`
-                        );
-                    }
-                    // Pro 500 chyby čekáme déle
-                    const serverErrorDelay = this.RETRY_DELAY * attempt * 2;
-                    console.log(`⏳ Čekám ${serverErrorDelay}ms před dalším pokusem kvůli server chybě...`);
-                    await new Promise(resolve => setTimeout(resolve, serverErrorDelay));
-                    continue;
                 }
                 
                 // Pro ostatní chyby čekáme před dalším pokusem
@@ -486,34 +465,7 @@ export class ILovePDFService {
             // Krok 1: Komprese
             onProgress?.('Komprese souboru...', 25);
             const compressedFile = await this.compressPDF(file, compressionLevel);
-            
-            const originalSizeMB = file.size / 1024 / 1024;
-            const compressedSizeMB = compressedFile.size / 1024 / 1024;
-            const savedPercent = ((originalSizeMB - compressedSizeMB) / originalSizeMB * 100);
-            
-            console.log(`✅ Komprese dokončena: ${originalSizeMB.toFixed(2)} MB → ${compressedSizeMB.toFixed(2)} MB (ušetřeno ${savedPercent.toFixed(1)}%)`);
-            
-            // Kontrola velikosti po kompresi - limit 50MB pro Supabase Free Tier
-            const MAX_SIZE_MB = 50;
-            if (compressedSizeMB > MAX_SIZE_MB) {
-                const compressionLevelText = {
-                    'low': 'Low (minimální)',
-                    'recommended': 'Recommended (optimální)', 
-                    'extreme': 'Extreme (maximální)'
-                }[compressionLevel] || compressionLevel;
-                
-                throw new Error(
-                    `Soubor je stále příliš velký pro OCR zpracování!\n\n` +
-                    `Původní velikost: ${originalSizeMB.toFixed(2)} MB\n` +
-                    `Po kompresi (${compressionLevelText}): ${compressedSizeMB.toFixed(2)} MB\n` +
-                    `Maximální povolená velikost: ${MAX_SIZE_MB} MB\n\n` +
-                    `💡 Doporučení:\n` +
-                    `${compressionLevel !== 'extreme' ? '• Zkuste silnější kompresi (Extreme)\n' : ''}` +
-                    `• Rozdělte dokument na menší části\n` +
-                    `• Použijte externí nástroj pro kompresi\n\n` +
-                    `Můžete pokračovat pouze s kompresí bez OCR.`
-                );
-            }
+            console.log(`✅ Komprese dokončena`);
             
             onProgress?.('Komprese dokončena, spouštím OCR...', 50);
             
@@ -588,22 +540,5 @@ export class ILovePDFService {
         
         // Výchozí jazyk
         return 'Angličtina';
-    }
-
-    /**
-     * Vrátí seznam dostupných jazyků pro OCR
-     */
-    public static getAvailableLanguages(): Array<{ label: string; code: string }> {
-        return Object.entries(this.LANGUAGE_MAPPING).map(([label, code]) => ({
-            label,
-            code
-        })).sort((a, b) => a.label.localeCompare(b.label, 'cs'));
-    }
-
-    /**
-     * Alias pro checkAPIStatus pro zpětnou kompatibilitu
-     */
-    public static async checkApiStatus(): Promise<{ available: boolean; message: string; credits?: number }> {
-        return await this.checkAPIStatus();
     }
 }

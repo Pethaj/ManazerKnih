@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Supabase Fetch</title>
+</head>
+<body>
+    <h1>Test načítání knih ze Supabase</h1>
+    <div id="results"></div>
+    <button onclick="test1()">Test 1: Základní fetch</button>
+    <button onclick="test2()">Test 2: Fetch s timeout</button>
+    <button onclick="test3()">Test 3: Supabase client</button>
+    
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.44.4';
+        
+        const supabaseUrl = 'https://modopafybeslbcqjxsve.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
+        
+        const results = document.getElementById('results');
+        
+        function log(msg) {
+            console.log(msg);
+            const p = document.createElement('p');
+            p.textContent = msg;
+            results.appendChild(p);
+        }
+        
+        // Test 1: Základní REST API fetch
+        window.test1 = async function() {
+            results.innerHTML = '';
+            log('🧪 Test 1: Základní REST API fetch...');
+            
+            try {
+                const response = await fetch(`${supabaseUrl}/rest/v1/books?select=*&order=created_at.desc`, {
+                    headers: {
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`
+                    }
+                });
+                
+                log(`Status: ${response.status}`);
+                const data = await response.json();
+                log(`✅ Načteno ${data.length} knih`);
+                log(`První kniha: ${JSON.stringify(data[0])}`);
+            } catch (err) {
+                log(`❌ Chyba: ${err.message}`);
+            }
+        };
+        
+        // Test 2: Fetch s timeoutem
+        window.test2 = async function() {
+            results.innerHTML = '';
+            log('🧪 Test 2: Fetch s timeout (5s)...');
+            
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            
+            try {
+                const response = await fetch(`${supabaseUrl}/rest/v1/books?select=*&order=created_at.desc`, {
+                    headers: {
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`
+                    },
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeout);
+                log(`Status: ${response.status}`);
+                const data = await response.json();
+                log(`✅ Načteno ${data.length} knih`);
+            } catch (err) {
+                clearTimeout(timeout);
+                if (err.name === 'AbortError') {
+                    log(`❌ Timeout!`);
+                } else {
+                    log(`❌ Chyba: ${err.message}`);
+                }
+            }
+        };
+        
+        // Test 3: Supabase client
+        window.test3 = async function() {
+            results.innerHTML = '';
+            log('🧪 Test 3: Supabase client...');
+            
+            const client = createClient(supabaseUrl, supabaseKey);
+            
+            try {
+                log('Vytvářím dotaz...');
+                const { data, error } = await client
+                    .from('books')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    log(`❌ Supabase error: ${error.message}`);
+                } else {
+                    log(`✅ Načteno ${data.length} knih`);
+                    log(`První kniha: ${JSON.stringify(data[0])}`);
+                }
+            } catch (err) {
+                log(`❌ Chyba: ${err.message}`);
+            }
+        };
+        
+        // Automaticky spustit Test 1
+        setTimeout(() => test1(), 1000);
+    </script>
+</body>
+</html>
+
