@@ -1,11 +1,12 @@
 /**
  * OpenAI Vision Service
  * Pro extrakci metadat z PDF obrázků pomocí vision modelů (GPT-4o mini)
- * Používá přímo OpenAI API místo OpenRouter
+ * Používá Supabase Edge Function jako bezpečnou proxy
  */
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+// Supabase Edge Function URL pro OpenAI proxy
+const OPENAI_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL || 'https://modopafybeslbcqjxsve.supabase.co'}/functions/v1/openai-proxy`;
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
 
 export interface VisionImageInput {
   page_number: number;
@@ -38,14 +39,6 @@ export async function extractMetadataFromImages(
 ): Promise<VisionResponse> {
   console.log(`🖼️ Extrahuji metadata z ${images.length} obrázků pomocí vision LLM...`);
   
-  if (!OPENAI_API_KEY) {
-    console.error('❌ OpenAI API klíč není nastaven');
-    return {
-      success: false,
-      error: 'OpenAI API klíč není nastaven'
-    };
-  }
-
   if (!images || images.length === 0) {
     return {
       success: false,
@@ -111,29 +104,31 @@ Vrať POUZE validní JSON objekt (bez jakéhokoliv dalšího textu) ve formátu:
     console.log('📦 Request na OpenAI Vision API:', {
       model: 'gpt-4o-mini',
       images: images.length,
-      fileName: originalFileName,
-      apiUrl: OPENAI_API_URL
+      fileName: originalFileName
     });
-
-    console.log('🔑 API Key:', OPENAI_API_KEY ? `${OPENAI_API_KEY.substring(0, 20)}...` : 'CHYBÍ!');
 
     let response;
     try {
-      console.log('📡 Odesílám fetch požadavek...');
-      response = await fetch(OPENAI_API_URL, {
+      console.log('📡 Odesílám fetch požadavek přes proxy...');
+      response = await fetch(OPENAI_PROXY_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: content }
-          ],
-          max_tokens: 2000,
-          temperature: 0.3,
+          endpoint: '/chat/completions',
+          method: 'POST',
+          body: {
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: content }
+            ],
+            max_tokens: 2000,
+            temperature: 0.3,
+          }
         }),
       });
       console.log('✅ Fetch dokončen, response obdržen');

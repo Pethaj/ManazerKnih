@@ -3,7 +3,9 @@
  * Pro generování odpovědí pouze s produktovým doporučením (bez databáze knih)
  */
 
-const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+// Supabase Edge Function URL pro OpenAI proxy
+const OPENAI_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL || 'https://modopafybeslbcqjxsve.supabase.co'}/functions/v1/openai-proxy`;
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
 
 export interface GPTChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -25,14 +27,6 @@ export async function generateProductResponse(
 ): Promise<GPTResponse> {
   console.log('🤖 Generuji odpověď pomocí GPT-4o mini pro produktové doporučení...');
   
-  if (!openaiApiKey) {
-    console.error('❌ OpenAI API klíč není nastaven');
-    return {
-      success: false,
-      error: 'OpenAI API klíč není nastaven'
-    };
-  }
-
   if (!userMessage || userMessage.trim().length === 0) {
     return {
       success: false,
@@ -72,19 +66,25 @@ Uživatel se ptá na produkty nebo zdravotní témata. Poskytni užitečnou odpo
       userMessage: userMessage.substring(0, 100) + '...'
     });
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Volání přes Supabase Edge Function proxy
+    const response = await fetch(OPENAI_PROXY_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        max_tokens: 500,
-        temperature: 0.7,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1
+        endpoint: '/chat/completions',
+        method: 'POST',
+        body: {
+          model: 'gpt-4o-mini',
+          messages: messages,
+          max_tokens: 500,
+          temperature: 0.7,
+          presence_penalty: 0.1,
+          frequency_penalty: 0.1
+        }
       }),
     });
 

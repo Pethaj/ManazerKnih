@@ -5,8 +5,9 @@
 
 import { supabase } from '../lib/supabase';
 
-// OpenAI API klíč
-const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+// Supabase Edge Function URL pro OpenAI proxy
+const OPENAI_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL || 'https://modopafybeslbcqjxsve.supabase.co'}/functions/v1/openai-proxy`;
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
 
 export interface PendingEmbedding {
   id: number;
@@ -61,14 +62,6 @@ export async function getPendingEmbeddings(batchSize: number = 10): Promise<Pend
 export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
   console.log('🤖 Generuji embedding pro text:', text.substring(0, 100) + '...');
   
-  if (!openaiApiKey) {
-    console.error('❌ OpenAI API klíč není nastaven');
-    return {
-      success: false,
-      error: 'OpenAI API klíč není nastaven'
-    };
-  }
-
   if (!text || text.trim().length === 0) {
     console.error('❌ Prázdný text pro embedding');
     return {
@@ -88,13 +81,19 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
     
     console.log('📦 Request body:', requestBody);
 
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
+    // Volání přes Supabase Edge Function proxy
+    const response = await fetch(OPENAI_PROXY_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        endpoint: '/embeddings',
+        method: 'POST',
+        body: requestBody
+      }),
     });
 
     console.log('📡 Response status:', response.status, response.statusText);

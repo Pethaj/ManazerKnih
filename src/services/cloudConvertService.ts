@@ -22,9 +22,39 @@ interface CloudConvertTask {
     message?: string;
 }
 
+import { supabase } from '../lib/supabase';
+
 export class CloudConvertService {
-    private static readonly API_BASE_URL = 'https://api.cloudconvert.com/v2';
-    private static readonly API_KEY = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiOTVmZDVmMGZmOTU1NWE4YmRiYjFjN2IxNjI3YWRiZDIzZTIyYmRmZGQ5MWQ1ZDFjMWY2NzBkYzIyZTZlNzUxMmMxMzhlZDZmMzQzZDJkYjgiLCJpYXQiOjE3NTg3OTQ4MDguMTEzMzkyLCJuYmYiOjE3NTg3OTQ4MDguMTEzMzkzLCJleHAiOjQ5MTQ0Njg0MDguMTA5NTU2LCJzdWIiOiI3MzAxMDk0NyIsInNjb3BlcyI6WyJ1c2VyLnJlYWQiLCJ1c2VyLndyaXRlIiwidGFzay5yZWFkIiwidGFzay53cml0ZSIsIndlYmhvb2sucmVhZCIsIndlYmhvb2sud3JpdGUiLCJwcmVzZXQucmVhZCIsInByZXNldC53cml0ZSJdfQ.OY3B-nZJmlyrqdj766A0GRr_qr_FNgIX1RrTEUl12jl4x52fuxMSny13MCLfp_GwAwMPLVO4v-6ZPJ97EC25A5tE4q-DEKVza_bvkzd98EhDNoUdCBhSdmc_KCmmXm2FGWJOBc8NOL8VJvDRcmTZsKyL53Hwxe1VPj_E5_lwpxB31pAQJldaVGpCrP89njTrfvaQv36lxIkPrj8i5pLpqdk7K90NQnmwEaUv9Z-eaoeUjMMz0fu6FTyny4GwcR5GmKH97Qv45IhqyMtVy9PpP4DGcJN5mSszS2EnfNFLBTCz9_iiKl3WmXs_d0qU01njF0VXYZXaF20DAwSHaMvzfW_yoNZo7qYGukz7q3kxiWlExUKxr55c9zrSSwENh8dVxuwjaHf7CXkQaOZ8nwsmYQ2e3ExvW_qmSAMiF9GRTQnG4Fxq-Yc_9g_-y4PTZPlvaGyV4lcrX-BfNg4CKSi1Z9d3Zxf7lnCSFqYrt-8hzC_0e47zD4xYd1iF3jRHe6gQzDW4MG3DeaVH5G2to2R8KG9bHlct_8w59P2TNep0wVhpS7XLCUK4Uf1bo8LWgKUdmEGH61uwwzApYccd77BLsMDKDNjGWOnvrsrgQynpThdeGF3Cw4738bDSbtwyRt-kUmPe3utEFt1pQrD75GTQbukK31qrmaGkDFRFw_RZcSQ';
+    // Supabase Edge Function URL pro proxy
+    private static readonly PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL || 'https://modopafybeslbcqjxsve.supabase.co'}/functions/v1/cloudconvert-proxy`;
+    private static readonly SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
+
+    /**
+     * Zavolá CloudConvert API přes bezpečnou Supabase Edge Function
+     */
+    private static async callProxy(endpoint: string, method: string = 'GET', body?: any, isFormData: boolean = false): Promise<any> {
+        const response = await fetch(this.PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
+                'apikey': this.SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({
+                endpoint,
+                method,
+                body,
+                isFormData
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            throw new Error(`Proxy error: ${response.status} - ${errorData?.error?.message || response.statusText}`);
+        }
+
+        return await response.json();
+    }
 
     /**
      * Hlavní funkce pro konverzi souboru do PDF
@@ -87,21 +117,7 @@ export class CloudConvertService {
         };
 
         console.log('📤 Vytváření job s definovaným workflow...');
-        const jobResponse = await fetch(`${this.API_BASE_URL}/jobs`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${this.API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(jobData)
-        });
-
-        if (!jobResponse.ok) {
-            const errorText = await jobResponse.text();
-            throw new Error(`Job creation failed: ${jobResponse.status} - ${errorText}`);
-        }
-
-        const job = await jobResponse.json();
+        const job = await this.callProxy('/jobs', 'POST', jobData);
         console.log('✅ Job vytvořen:', job.data.id);
 
         // Najdeme import task a nahrajeme soubor
@@ -156,18 +172,7 @@ export class CloudConvertService {
         const pollInterval = 3000; // 3 sekundy
 
         while (Date.now() - startTime < maxWaitTime) {
-            const response = await fetch(`${this.API_BASE_URL}/jobs/${jobId}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.API_KEY}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Job status check failed: ${response.status}`);
-            }
-
-            const jobData = await response.json();
+            const jobData = await this.callProxy(`/jobs/${jobId}`, 'GET');
             const job = jobData.data;
 
             console.log(`⏳ Job status: ${job.status}`);
@@ -270,24 +275,9 @@ export class CloudConvertService {
      */
     static async testAPI(): Promise<{ success: boolean; error?: string }> {
         try {
-            const response = await fetch(`${this.API_BASE_URL}/users/me`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.API_KEY}`
-                }
-            });
-
-            if (response.ok) {
-                const userData = await response.json();
-                console.log('✅ CloudConvert API test úspěšný:', userData.data);
-                return { success: true };
-            } else {
-                const errorText = await response.text();
-                return { 
-                    success: false, 
-                    error: `API test failed: ${response.status} - ${errorText}` 
-                };
-            }
+            const userData = await this.callProxy('/users/me', 'GET');
+            console.log('✅ CloudConvert API test úspěšný:', userData.data);
+            return { success: true };
         } catch (error) {
             return { 
                 success: false, 

@@ -28,9 +28,9 @@ interface ILovePDFProcessRequest {
 }
 
 export class ILovePDFService {
-    private static readonly SECRET_KEY = 'secret_key_f7f1f5202b3c109e82533ae8eb60325f_QlYDx414ba9d1382983d200382a941d1a2234';
-    private static readonly PUBLIC_KEY = 'project_public_472c5d1e6316410dfffa87227fa3455b_YPle4ab3f9d108e33d00f5e1644cf9b6fbc5a';
-    private static readonly BASE_URL = 'https://api.ilovepdf.com/v1';
+    // Supabase Edge Function URL pro proxy
+    private static readonly PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL || 'https://modopafybeslbcqjxsve.supabase.co'}/functions/v1/ilovepdf-proxy`;
+    private static readonly SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
     private static readonly DEFAULT_REGION = 'eu';
     private static readonly MAX_RETRIES = 3;
     private static readonly RETRY_DELAY = 2000; // 2 sekund
@@ -40,6 +40,43 @@ export class ILovePDFService {
     // Cache pro JWT token
     private static jwtToken: string | null = null;
     private static tokenExpiry: number = 0;
+
+    /**
+     * Zavolá iLovePDF API přes bezpečnou Supabase Edge Function
+     */
+    private static async callProxy(
+        endpoint: string, 
+        method: string = 'GET', 
+        body?: any, 
+        options?: {
+            server?: string;
+            isFormData?: boolean;
+            authToken?: string;
+            usePublicKey?: boolean;
+        }
+    ): Promise<any> {
+        const response = await fetch(this.PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
+                'apikey': this.SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({
+                endpoint,
+                method,
+                body,
+                ...options
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            throw new Error(`Proxy error: ${response.status} - ${errorData?.error?.message || response.statusText}`);
+        }
+
+        return await response.json();
+    }
 
     // Mapování jazyků z aplikace na iLovePDF kódy (podle oficiální dokumentace)
     private static readonly LANGUAGE_MAPPING: Record<string, string> = {
@@ -89,22 +126,7 @@ export class ILovePDFService {
         try {
             console.log('🔑 Získávám nový JWT token z iLovePDF...');
             
-            const response = await fetch(`${this.BASE_URL}/auth`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    public_key: this.PUBLIC_KEY
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Auth failed: ${response.status} - ${errorText}`);
-            }
-
-            const authData = await response.json();
+            const authData = await this.callProxy('/auth', 'POST', {}, { usePublicKey: true });
             this.jwtToken = authData.token;
             
             // Token expiruje za 2 hodiny, nastavíme expiry na 1.5h pro bezpečnost
@@ -140,13 +162,12 @@ export class ILovePDFService {
                 // Získáme fresh token pro každou kontrolu
                 const token = await this.getAuthToken();
                 
-                const response = await fetch(`https://${server}/v1/download/${task}`, {
-                    method: 'HEAD', // Používáme HEAD místo GET pro kontrolu
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                const response = await this.callProxy(`/v1/download/${task}`, 'HEAD', undefined, {
+                    server: server,
+                    authToken: token
                 });
                 
+                // Proxy vrací status v response
                 if (response.status === 200) {
                     console.log(`✅ Zpracování dokončeno po ${elapsedTime} sekundách!`);
                     return;
@@ -243,20 +264,9 @@ export class ILovePDFService {
     private static async startTask(tool: 'pdfocr' | 'compress'): Promise<ILovePDFStartResponse> {
         return await this.retryRequest(async () => {
             const token = await this.getAuthToken();
-            const response = await fetch(`${this.BASE_URL}/start/${tool}/${this.DEFAULT_REGION}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
+            return await this.callProxy(`/start/${tool}/${this.DEFAULT_REGION}`, 'GET', undefined, {
+                authToken: token
             });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Start task failed: ${response.status} - ${errorText}`);
-            }
-
-            return await response.json();
         }, 'startTask');
     }
 
@@ -264,26 +274,32 @@ export class ILovePDFService {
      * Nahraje soubor na iLovePDF server
      */
     private static async uploadFile(server: string, task: string, file: File): Promise<ILovePDFUploadResponse> {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('task', task);
-
         return await this.retryRequest(async () => {
             const token = await this.getAuthToken();
-            const response = await fetch(`https://${server}/v1/upload`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                body: formData
+            
+            // Převedeme File na base64 pro přenos přes proxy
+            const fileData = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = (reader.result as string).split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Upload failed: ${response.status} - ${errorText}`);
-            }
-
-            return await response.json();
+            return await this.callProxy('/v1/upload', 'POST', {
+                file: {
+                    data: fileData,
+                    name: file.name,
+                    type: file.type
+                },
+                task: task
+            }, {
+                server: server,
+                authToken: token,
+                isFormData: true
+            });
         }, 'uploadFile');
     }
 
@@ -310,22 +326,10 @@ export class ILovePDFService {
                 ...options
             };
 
-            const response = await fetch(`https://${server}/v1/process`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
+            return await this.callProxy('/v1/process', 'POST', requestData, {
+                server: server,
+                authToken: token
             });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Process failed (${tool}): ${response.status} - ${errorText}`);
-            }
-
-            // Pouze spustíme zpracování, nečekáme na dokončení zde
-            return await response.json();
         }, `processFiles(${tool})`);
     }
 
@@ -335,20 +339,23 @@ export class ILovePDFService {
     private static async downloadFile(server: string, task: string): Promise<File> {
         return await this.retryRequest(async () => {
             const token = await this.getAuthToken();
-            const response = await fetch(`https://${server}/v1/download/${task}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+            const response = await this.callProxy(`/v1/download/${task}`, 'GET', undefined, {
+                server: server,
+                authToken: token
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Download failed: ${response.status} - ${errorText}`);
+            // Proxy vrací file jako base64
+            if (response.success && response.file) {
+                const binaryString = atob(response.file);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: 'application/pdf' });
+                return new File([blob], 'processed.pdf', { type: 'application/pdf' });
             }
 
-            const blob = await response.blob();
-            return new File([blob], 'processed.pdf', { type: 'application/pdf' });
+            throw new Error('Download failed: No file data received');
         }, 'downloadFile');
     }
 
@@ -358,11 +365,9 @@ export class ILovePDFService {
     private static async deleteTask(server: string, task: string): Promise<void> {
         try {
             const token = await this.getAuthToken();
-            await fetch(`https://${server}/v1/task/${task}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+            await this.callProxy(`/v1/task/${task}`, 'DELETE', undefined, {
+                server: server,
+                authToken: token
             });
             console.log(`✅ Task ${task} byl úspěšně smazán z iLovePDF serveru`);
         } catch (error) {

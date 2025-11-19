@@ -1,0 +1,379 @@
+{
+  "name": "GroupDocs Conversion Proxy",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "groupdocs-conversion",
+        "options": {}
+      },
+      "id": "f2c2c2e2-7f7f-4f4f-8f8f-9f9f0f0f0f0f",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Zpracování nahraného souboru a příprava pro GroupDocs API\nconst items = $input.all();\n\nfor (const item of items) {\n  const { file, targetFormat, clientId, clientSecret } = item.json;\n  \n  if (!file || !targetFormat) {\n    throw new Error('Chybí povinné parametry: file a targetFormat');\n  }\n  \n  // Připravíme data pro autentifikaci\n  item.json.groupdocs = {\n    clientId: clientId || '022eaad9-af7c-446a-b94e-a3a75f6cc35e',\n    clientSecret: clientSecret || '7cd5e2e58337595bffff974a29c0ecc6',\n    targetFormat: targetFormat,\n    fileName: `temp_${Date.now()}_${file.filename}`,\n    originalFile: file\n  };\n  \n  console.log('📄 Zpracovávám soubor:', file.filename);\n  console.log('🎯 Cílový formát:', targetFormat);\n}\n\nreturn items;"
+      },
+      "id": "a1a1a1a1-2b2b-3c3c-4d4d-5e5e6f6f7g7g",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.groupdocs.cloud/connect/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $json.groupdocs.clientId }}"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $json.groupdocs.clientSecret }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2b2b2b2-3c3c-4d4d-5e5e-6f6f7g7g8h8h",
+      "name": "Get Access Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Spojení token s původními daty\nconst items = $input.all();\nconst tokenResponse = items[0].json;\nconst originalData = $('Prepare Data').all()[0].json;\n\nif (!tokenResponse.access_token) {\n  throw new Error('Nepodařilo se získat access token');\n}\n\nreturn [{\n  json: {\n    ...originalData,\n    accessToken: tokenResponse.access_token,\n    expiresIn: tokenResponse.expires_in\n  }\n}];"
+      },
+      "id": "c3c3c3c3-4d4d-5e5e-6f6f-7g7g8h8h9i9i",
+      "name": "Merge Token Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.groupdocs.cloud/v2.0/storage/file/{{ encodeURIComponent($json.groupdocs.fileName) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.accessToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "={{ $json.groupdocs.originalFile.mimetype || 'application/octet-stream' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "binaryData",
+        "bodyContentCustom": "={{ $json.groupdocs.originalFile.data }}",
+        "options": {}
+      },
+      "id": "d4d4d4d4-5e5e-6f6f-7g7g-8h8h9i9i0j0j",
+      "name": "Upload File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.groupdocs.cloud/v2.0/conversion",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.accessToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParametersJson": "={\n  \"FilePath\": \"{{ $json.groupdocs.fileName }}\",\n  \"Format\": \"{{ $json.groupdocs.targetFormat }}\",\n  \"OutputPath\": \"converted\"\n}",
+        "options": {}
+      },
+      "id": "e5e5e5e5-6f6f-7g7g-8h8h-9i9i0j0j1k1k",
+      "name": "Convert File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Zpracování odpovědi konverze\nconst items = $input.all();\nconst conversionResponse = items[0].json;\nconst originalData = $('Merge Token Data').all()[0].json;\n\nif (!conversionResponse || !Array.isArray(conversionResponse) || !conversionResponse[0] || !conversionResponse[0].path) {\n  throw new Error('Konverze selhala - neplatná odpověď od API');\n}\n\nconst convertedFilePath = conversionResponse[0].path;\nconsole.log('✅ Konverze dokončena:', convertedFilePath);\n\nreturn [{\n  json: {\n    ...originalData,\n    convertedFilePath: convertedFilePath\n  }\n}];"
+      },
+      "id": "f6f6f6f6-7g7g-8h8h-9i9i-0j0j1k1k2l2l",
+      "name": "Process Conversion Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.groupdocs.cloud/v2.0/storage/file/{{ encodeURIComponent($json.convertedFilePath) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.accessToken }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "g7g7g7g7-8h8h-9i9i-0j0j-1k1k2l2l3m3m",
+      "name": "Download Converted File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Cleanup - vymazání dočasných souborů\nconst items = $input.all();\nconst data = items[0].json;\n\n// Připravíme cleanup úkoly\nconst cleanupFiles = [\n  data.groupdocs.fileName,\n  data.convertedFilePath\n];\n\nconsole.log('🗑️ Čistím dočasné soubory:', cleanupFiles);\n\nreturn cleanupFiles.map(filePath => ({\n  json: {\n    accessToken: data.accessToken,\n    filePath: filePath\n  }\n}));"
+      },
+      "id": "h8h8h8h8-9i9i-0j0j-1k1k-2l2l3m3m4n4n",
+      "name": "Prepare Cleanup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.groupdocs.cloud/v2.0/storage/file/{{ encodeURIComponent($json.filePath) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.accessToken }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "ignore"
+            }
+          }
+        }
+      },
+      "id": "i9i9i9i9-0j0j-1k1k-2l2l-3m3m4n4n5o5o",
+      "name": "Delete Temp Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "file",
+        "binaryData": true,
+        "options": {
+          "responseHeaders": {
+            "responseHeaders": [
+              {
+                "name": "Content-Type",
+                "value": "application/pdf"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "=attachment; filename=\"{{ $('Download Converted File').first().json.originalFile.filename.replace(/\\.[^.]+$/, '.pdf') }}\""
+              }
+            ]
+          }
+        }
+      },
+      "id": "j0j0j0j0-1k1k-2l2l-3m3m-4n4n5o5o6p6p",
+      "name": "Return PDF",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        480
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Get Access Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Access Token": {
+      "main": [
+        [
+          {
+            "node": "Merge Token Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Token Data": {
+      "main": [
+        [
+          {
+            "node": "Upload File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload File": {
+      "main": [
+        [
+          {
+            "node": "Convert File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert File": {
+      "main": [
+        [
+          {
+            "node": "Process Conversion Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Conversion Response": {
+      "main": [
+        [
+          {
+            "node": "Download Converted File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Converted File": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cleanup",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Return PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cleanup": {
+      "main": [
+        [
+          {
+            "node": "Delete Temp Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "12345678-1234-1234-1234-123456789012",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "87654321",
+  "tags": []
+}
