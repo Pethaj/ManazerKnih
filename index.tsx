@@ -2,21 +2,36 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { createRoot } from 'react-dom/client';
 // Removed GoogleGenAI import - using direct fetch API calls instead
 import { createClient } from '@supabase/supabase-js';
-import * as pdfjsLib from 'pdfjs-dist';
+// PDF.js je načten globálně z HTML (legacy build) - není třeba importovat
 import ChatWidget from './src/components/SanaChat/ChatWidget';
 import ChatbotManagement from './src/components/ChatbotManagement';
 import { FilteredSanaChat } from './src/components/SanaChat/SanaChat';
 import { ILovePDFService } from './src/services/ilovepdfService';
+// Vision Metadata Services - pro extrakci metadat z prvních 10 stránek PDF pomocí vision LLM
+import * as pdfToImageService from './src/services/pdfToImageService';
+import * as openRouterVisionService from './src/services/openRouterVisionService';
+// OpenRouter Intelligent Metadata Service - inteligentní extrakce metadat (auto-detekce OCR)
+import * as openRouterMetadataService from './src/services/openRouterMetadataService';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
+// PDF.js worker je již nastaven v index.html - neměníme ho zde
 
-// Declare PDFLib from CDN
+// Declare PDFLib and pdfjsLib from CDN
 declare global {
     interface Window {
         PDFLib?: {
             PDFDocument: any;
         };
+        pdfjsLib?: any; // PDF.js library loaded from HTML
     }
+}
+
+// Helper funkce pro získání pdfjsLib - počká až bude dostupný
+function getPdfjsLib(): any {
+    if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+        return (window as any).pdfjsLib;
+    }
+    console.warn('⚠️ pdfjsLib ještě není dostupný na window');
+    return null;
 }
 
 // --- TYPES AND MOCK DATA ---
@@ -1211,6 +1226,8 @@ const api = {
             // Nejdříve aktualizujeme status na pending
             await api.updateBook({...book, vectorStatus: 'pending'});
             
+            console.log('📤 Stahuji soubor z Supabase storage...');
+            
             // Stáhneme soubor z Supabase storage
             const { data: fileData, error: downloadError } = await supabaseClient.storage
                 .from('Books')
@@ -1220,39 +1237,64 @@ const api = {
                 throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
             }
             
-            console.log('📤 Odesílám binární soubor na webhook pro vektorovou databázi...');
-            console.log('📊 Velikost souboru:', fileData.size, 'bajtů');
+            console.log('✅ Soubor stažen, velikost:', fileData.size, 'bytes');
             
-            // Získáme veřejný link pro stažení souboru
-            const { data: publicUrl } = supabaseClient.storage
-                .from('Books')
-                .getPublicUrl(book.filePath);
-            
-            // Vytvoříme FormData pro odeslání binárního souboru a všech metadat zvlášť
+            // Vytvoříme FormData s binárním souborem a strukturovanými metadaty
             const formData = new FormData();
-            formData.append('file', fileData, book.filePath.split('/').pop() || 'document.pdf');
+            formData.append('file', fileData, book.filePath.split('/').pop() || 'unknown.pdf');
             formData.append('bookId', book.id);
             formData.append('fileName', book.filePath.split('/').pop() || 'unknown.pdf');
             formData.append('fileType', book.format.toLowerCase());
-            formData.append('downloadUrl', publicUrl.publicUrl);
             
-            // Přidáme každé metadata jako samostatné pole
+            // Metadata jako samostatná pole - každé pole zvlášť pro správnou strukturu v n8n
             formData.append('id', book.id);
             formData.append('title', book.title);
             formData.append('author', book.author);
             formData.append('publicationYear', book.publicationYear?.toString() || '');
-            formData.append('publisher', book.publisher);
-            formData.append('summary', book.summary);
-            formData.append('language', book.language);
+            formData.append('publisher', book.publisher || '');
+            formData.append('summary', book.summary || '');
+            formData.append('language', book.language || '');
             formData.append('releaseVersion', book.releaseVersion || '');
             formData.append('format', book.format);
-            formData.append('fileSize', book.fileSize.toString());
+            formData.append('fileSize', book.fileSize?.toString() || '0');
             
-            // Pro pole (arrays) převedeme na string s hodnotami oddělenými čárkou
-            formData.append('keywords', book.keywords.join(','));
-            formData.append('categories', book.categories.join(','));
-            formData.append('labels', book.labels.join(','));
-            formData.append('publicationTypes', book.publicationTypes.join(','));
+            // Pole (arrays) - každý prvek zvlášť aby n8n viděl strukturu pole
+            if (book.keywords && book.keywords.length > 0) {
+                book.keywords.forEach(keyword => {
+                    formData.append('keywords[]', keyword);
+                });
+            }
+            
+            if (book.categories && book.categories.length > 0) {
+                book.categories.forEach(category => {
+                    formData.append('categories[]', category);
+                });
+            }
+            
+            if (book.labels && book.labels.length > 0) {
+                book.labels.forEach(label => {
+                    formData.append('labels[]', label);
+                });
+            }
+            
+            if (book.publicationTypes && book.publicationTypes.length > 0) {
+                book.publicationTypes.forEach(type => {
+                    formData.append('publicationTypes[]', type);
+                });
+            }
+            
+            console.log('📦 FormData připraven s binárním souborem a strukturovanými metadaty:', {
+                bookId: book.id,
+                fileName: book.filePath.split('/').pop(),
+                fileType: book.format.toLowerCase(),
+                fileSize: fileData.size,
+                title: book.title,
+                author: book.author,
+                'keywords[]': book.keywords,
+                'categories[]': book.categories,
+                'labels[]': book.labels,
+                'publicationTypes[]': book.publicationTypes
+            });
             
             if (waitForResponse) {
                 // Režim s čekáním na odpověď - s timeoutem 5 minut
@@ -1267,25 +1309,45 @@ const api = {
                 try {
                     const response = await fetch(webhookUrl, {
                         method: 'POST',
-                        body: formData, // FormData automaticky nastaví správný Content-Type s boundary
+                        // Neposíláme Content-Type header - browser ho nastaví automaticky s boundary pro FormData
+                        body: formData,
                         signal: controller.signal
                     });
                     
                     clearTimeout(timeoutId);
                     
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        const errorText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
                     }
                     
-                    const result = await response.json();
-                    console.log('✅ Webhook odpověď:', result);
-                    console.log('📊 Typ odpovědi:', typeof result, 'Array?', Array.isArray(result), 'Délka:', result?.length);
+                    // Zkusíme parsovat odpověď jako JSON
+                    let result: any = null;
+                    const responseText = await response.text();
+                    console.log('📥 Webhook raw odpověď:', responseText);
+                    
+                    if (responseText && responseText.trim().length > 0) {
+                        try {
+                            result = JSON.parse(responseText);
+                            console.log('✅ Webhook odpověď parsována:', result);
+                            console.log('📊 Typ odpovědi:', typeof result, 'Array?', Array.isArray(result), 'Délka:', result?.length);
+                        } catch (parseError) {
+                            console.warn('⚠️ Nepodařilo se parsovat JSON odpověď:', parseError);
+                            console.warn('⚠️ Raw text:', responseText);
+                        }
+                    } else {
+                        console.log('⚠️ Webhook vrátil prázdnou odpověď');
+                    }
                     
                     // Zpracujeme formát odpovědi - pole objektů
                     let newStatus: 'success' | 'error' | 'pending' = 'error';
                     let message = '';
                     
-                    if (Array.isArray(result) && result.length >= 2) {
+                    // Pokud webhook vrátil prázdnou odpověď, je to chyba (očekáváme validní JSON)
+                    if (!result || responseText.trim().length === 0) {
+                        newStatus = 'error';
+                        message = '❌ Webhook vrátil prázdnou odpověď. Zkontrolujte n8n workflow a ujistěte se, že vrací validní JSON odpověď.';
+                    } else if (Array.isArray(result) && result.length >= 2) {
                         console.log('🔍 Hledám objekty v poli...');
                         const qdrantResult = result.find(item => item.hasOwnProperty('qdrant_ok'));
                         const supabaseResult = result.find(item => item.hasOwnProperty('supabase_ok'));
@@ -1375,6 +1437,22 @@ const api = {
                     throw fetchError;
                 }
                 
+            } else {
+                // Režim fire-and-forget (bez čekání na odpověď)
+                console.log('🚀 Odesílám webhook bez čekání na odpověď (fire-and-forget)...');
+                
+                fetch(webhookUrl, {
+                    method: 'POST',
+                    // Neposíláme Content-Type header - browser ho nastaví automaticky s boundary pro FormData
+                    body: formData
+                }).catch(err => {
+                    console.error('⚠️ Chyba při odesílání fire-and-forget webhoku (ignorováno):', err);
+                });
+                
+                return {
+                    success: true,
+                    message: 'Požadavek odeslán do fronty na zpracování'
+                };
             }
             
         } catch (error) {
@@ -1819,7 +1897,7 @@ const api = {
 // NOVÁ GEMINI AI IMPLEMENTACE - KOMPLETNĚ PŘEPSÁNA
 class GeminiAI {
     private apiKey: string;
-    private baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    private baseUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
     private lastRequestTime = 0;
     private requestCount = 0;
     private dailyLimit = 50; // Free tier limit
@@ -2067,6 +2145,238 @@ const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<st
         return "Nepodařilo se vygenerovat data.";
     }
 };
+
+// NOVÁ FUNKCE: Generování metadat pomocí vision LLM z prvních 10 stránek PDF
+const generateMetadataWithVision = async (book: Book): Promise<Partial<Book>> => {
+    console.log("🖼️ Generuji metadata pomocí vision LLM z prvních 10 stránek PDF...");
+    console.log("📁 FilePath:", book.filePath);
+    console.log("📖 Kniha:", book.title, "od", book.author);
+    
+    try {
+        // Ověříme, že je to PDF soubor
+        if (book.format.toLowerCase() !== 'pdf') {
+            throw new Error('Vision metadata lze generovat pouze z PDF souborů');
+        }
+        
+        // Stáhneme PDF soubor ze storage pomocí createSignedUrl (spolehlivější než public URL)
+        console.log('📥 Stahuji PDF soubor z databáze...');
+        
+        // Vytvoříme signed URL (platnost 60 sekund)
+        const { data: signedUrlData, error: urlError } = await supabaseClient.storage
+            .from("Books")
+            .createSignedUrl(book.filePath, 60);
+        
+        if (urlError || !signedUrlData || !signedUrlData.signedUrl) {
+            console.error('❌ Chyba při vytváření signed URL:', urlError);
+            throw new Error(`Nepodařilo se získat signed URL: ${urlError?.message || 'Neznámá chyba'}`);
+        }
+        
+        console.log('📡 Signed URL vytvořena, stahuji soubor...');
+        
+        // Stáhneme soubor přes fetch
+        let response;
+        try {
+            response = await fetch(signedUrlData.signedUrl, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache'
+            });
+        } catch (fetchError) {
+            console.error('❌ Fetch selhal při stahování PDF:', fetchError);
+            throw new Error(`Nepodařilo se stáhnout PDF: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+        }
+        
+        if (!response.ok) {
+            throw new Error(`Nepodařilo se stáhnout soubor: ${response.status} ${response.statusText}`);
+        }
+        
+        const fileData = await response.blob();
+        console.log(`✅ PDF staženo (${Math.round(fileData.size / 1024)} KB)`);
+        
+        // Převedeme prvních 10 stránek na obrázky
+        console.log('🔄 Převádím prvních 10 stránek PDF na obrázky...');
+        let images;
+        try {
+            images = await pdfToImageService.convertPdfPagesToImages(fileData, 10, 2.0);
+            console.log('✅ Konverze PDF na obrázky dokončena');
+        } catch (conversionError) {
+            console.error('❌ Chyba při konverzi PDF na obrázky:', conversionError);
+            throw new Error(`Nepodařilo se převést PDF na obrázky: ${conversionError instanceof Error ? conversionError.message : String(conversionError)}`);
+        }
+        
+        if (!images || images.length === 0) {
+            throw new Error('Nepodařilo se převést žádnou stránku PDF na obrázek');
+        }
+        
+        console.log(`✅ Převedeno ${images.length} stránek na obrázky`);
+        
+        // Připravíme data pro vision API
+        console.log('📦 Připravuji data pro vision API...');
+        const visionImages = images.map(img => ({
+            page_number: img.page_number,
+            base64_png: img.base64_png
+        }));
+        console.log(`✅ Připraveno ${visionImages.length} obrázků pro API`);
+        
+        // Zavoláme vision LLM
+        console.log('🤖 Odesílám obrázky do vision LLM pro extrakci metadat...');
+        let result;
+        try {
+            result = await openRouterVisionService.extractMetadataFromImages(
+                visionImages, 
+                book.title || 'dokument.pdf'
+            );
+            console.log('✅ Vision API odpovědělo');
+        } catch (apiError) {
+            console.error('❌ Chyba při volání vision API:', apiError);
+            throw new Error(`Nepodařilo se volat vision API: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
+        }
+        
+        if (!result) {
+            throw new Error('Vision API nevrátilo žádnou odpověď');
+        }
+        
+        if (!result.success) {
+            throw new Error(result.error || 'Vision LLM vrátil chybu bez zprávy');
+        }
+        
+        if (!result.metadata) {
+            throw new Error('Vision LLM nevrátil metadata');
+        }
+        
+        console.log('✅ Vision LLM úspěšně extrahoval metadata:', result.metadata);
+        
+        // Převedeme metadata na formát Book
+        const extractedMetadata: Partial<Book> = {};
+        
+        if (result.metadata.title) {
+            extractedMetadata.title = result.metadata.title;
+        }
+        if (result.metadata.author) {
+            extractedMetadata.author = result.metadata.author;
+        }
+        if (result.metadata.publicationYear) {
+            extractedMetadata.publicationYear = result.metadata.publicationYear;
+        }
+        if (result.metadata.publisher) {
+            extractedMetadata.publisher = result.metadata.publisher;
+        }
+        if (result.metadata.language) {
+            extractedMetadata.language = result.metadata.language;
+        }
+        if (result.metadata.summary) {
+            extractedMetadata.summary = result.metadata.summary;
+        }
+        if (result.metadata.keywords && result.metadata.keywords.length > 0) {
+            extractedMetadata.keywords = result.metadata.keywords;
+        }
+        if (result.metadata.releaseVersion) {
+            extractedMetadata.releaseVersion = result.metadata.releaseVersion;
+        }
+        
+        console.log('✅ Metadata připravena k naplnění polí:', extractedMetadata);
+        
+        return extractedMetadata;
+        
+    } catch (error) {
+        console.error('❌ Chyba při generování metadat pomocí vision LLM:', error);
+        console.error('❌ Error type:', typeof error);
+        console.error('❌ Error details:', {
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : 'N/A',
+            error: error
+        });
+        throw error;
+    }
+};
+
+// NOVÁ FUNKCE: Inteligentní generování metadat (auto-detekce OCR)
+const generateMetadataIntelligent = async (book: Book): Promise<Partial<Book>> => {
+    console.log("🤖 Generuji metadata pomocí inteligentní extrakce (auto-detekce OCR)...");
+    console.log("📁 FilePath:", book.filePath);
+    console.log("📖 Kniha:", book.title, "od", book.author);
+    
+    try {
+        // Ověříme, že je to PDF soubor
+        if (book.format.toLowerCase() !== 'pdf') {
+            throw new Error('Inteligentní extrakce metadat je podporována pouze pro PDF soubory');
+        }
+        
+        // Vytvoříme signed URL pro PDF
+        console.log('📥 Vytvářím signed URL pro PDF...');
+        const { data: signedUrlData, error: urlError } = await supabaseClient.storage
+            .from("Books")
+            .createSignedUrl(book.filePath, 60);
+        
+        if (urlError || !signedUrlData || !signedUrlData.signedUrl) {
+            console.error('❌ Chyba při vytváření signed URL:', urlError);
+            throw new Error(`Nepodařilo se získat signed URL: ${urlError?.message || 'Neznámá chyba'}`);
+        }
+        
+        console.log('✅ Signed URL vytvořena:', signedUrlData.signedUrl);
+        
+        // Zavoláme inteligentní extrakční službu
+        console.log('🤖 Volám inteligentní extrakční službu...');
+        const result = await openRouterMetadataService.extractMetadataIntelligent(
+            signedUrlData.signedUrl,
+            book.title || 'dokument.pdf',
+            supabaseUrl,
+            supabaseKey
+        );
+        
+        if (!result.success) {
+            throw new Error(result.error || 'Inteligentní extrakce selhala bez zprávy');
+        }
+        
+        if (!result.metadata) {
+            throw new Error('Inteligentní extrakce nevrátila metadata');
+        }
+        
+        console.log('✅ Metadata úspěšně extrahována:', result.metadata);
+        console.log(`📊 Použitý vstup: ${result.type} | Model: ${result.model}`);
+        
+        // Převedeme metadata na formát Book
+        const extractedMetadata: Partial<Book> = {};
+        
+        if (result.metadata.title) {
+            extractedMetadata.title = result.metadata.title;
+        }
+        if (result.metadata.author) {
+            extractedMetadata.author = result.metadata.author;
+        }
+        if (result.metadata.publicationYear) {
+            extractedMetadata.publicationYear = result.metadata.publicationYear;
+        }
+        if (result.metadata.publisher) {
+            extractedMetadata.publisher = result.metadata.publisher;
+        }
+        if (result.metadata.language) {
+            extractedMetadata.language = result.metadata.language;
+        }
+        if (result.metadata.summary) {
+            extractedMetadata.summary = result.metadata.summary;
+        }
+        if (result.metadata.keywords && result.metadata.keywords.length > 0) {
+            extractedMetadata.keywords = result.metadata.keywords;
+        }
+        if (result.metadata.releaseVersion) {
+            extractedMetadata.releaseVersion = result.metadata.releaseVersion;
+        }
+        
+        console.log('✅ Metadata připravena k naplnění polí:', extractedMetadata);
+        
+        return extractedMetadata;
+        
+    } catch (error) {
+        console.error('❌ Chyba při inteligentní extrakci metadat:', error);
+        console.error('❌ Error details:', {
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : 'N/A'
+        });
+        throw error;
+    }
+};
+
 const downloadFile = (content: string, fileName: string, contentType: string) => {
     const a = document.createElement("a");
     const file = new Blob([content], { type: contentType });
@@ -5903,6 +6213,129 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
         setIsBulkGenerating(false);
     };
 
+    // NOVÝ HANDLER: Hromadné generování metadat pomocí vision LLM z prvních 10 stránek
+    const handleBulkVisionGenerate = async () => {
+        setIsBulkGenerating(true);
+        
+        try {
+            // Ověříme, že je to PDF soubor
+            if (localBook.format.toLowerCase() !== 'pdf') {
+                alert('⚠️ Vision metadata lze generovat pouze z PDF souborů!');
+                setIsBulkGenerating(false);
+                return;
+            }
+            
+            // Potvrzení od uživatele
+            const shouldProceed = confirm(
+                `🖼️ METADATA Z VISION LLM\n\n` +
+                `Tato funkce:\n` +
+                `• Převede prvních 10 stránek PDF na obrázky\n` +
+                `• Pošle je do vision LLM (GPT-4o mini)\n` +
+                `• Automaticky vyplní všechna dostupná metadata\n\n` +
+                `Proces může trvat 1-2 minuty.\n\n` +
+                `Pokračovat?`
+            );
+            
+            if (!shouldProceed) {
+                setIsBulkGenerating(false);
+                return;
+            }
+            
+            console.log('🖼️ Spouštím vision metadata generování...');
+            
+            // Zavoláme vision funkci
+            const extractedMetadata = await generateMetadataWithVision(localBook);
+            
+            // Aktualizujeme localBook s extrahovanými daty
+            updateLocalBook(prevBook => ({
+                ...prevBook,
+                ...extractedMetadata
+            }));
+            
+            // Zobrazíme uživateli, co bylo vyplněno
+            const filledFields = Object.keys(extractedMetadata).join(', ');
+            alert(
+                `✅ Vision metadata úspěšně vygenerována!\n\n` +
+                `Vyplněná pole:\n${filledFields}\n\n` +
+                `Zkontrolujte prosím metadata a v případě potřeby je upravte.`
+            );
+            
+            console.log('✅ Vision metadata úspěšně aplikována na knihu');
+            
+        } catch (error) {
+            console.error('❌ Chyba při vision metadata generování:', error);
+            alert(
+                `❌ Chyba při generování vision metadata:\n\n` +
+                `${error instanceof Error ? error.message : String(error)}\n\n` +
+                `Zkuste to prosím znovu nebo použijte standardní "Vyplnit metadata".`
+            );
+        } finally {
+            setIsBulkGenerating(false);
+        }
+    };
+
+    // NOVÝ HANDLER: Inteligentní generování metadat (auto-detekce OCR)
+    const handleBulkIntelligentGenerate = async () => {
+        setIsBulkGenerating(true);
+        
+        try {
+            // Ověříme, že je to PDF soubor
+            if (localBook.format.toLowerCase() !== 'pdf') {
+                alert('⚠️ Inteligentní extrakce metadat je podporována pouze pro PDF soubory!');
+                setIsBulkGenerating(false);
+                return;
+            }
+            
+            // Potvrzení od uživatele
+            const shouldProceed = confirm(
+                `🤖 INTELIGENTNÍ EXTRAKCE METADAT\n\n` +
+                `Tato funkce:\n` +
+                `• Automaticky detekuje zda PDF má OCR text\n` +
+                `• S OCR: Extrahuje text a použije textový AI model (rychlejší, levnější)\n` +
+                `• Bez OCR: Převede na obrázky a použije vision AI model\n` +
+                `• Automaticky vyplní všechna dostupná metadata\n\n` +
+                `Proces může trvat 1-3 minuty.\n\n` +
+                `Pokračovat?`
+            );
+            
+            if (!shouldProceed) {
+                setIsBulkGenerating(false);
+                return;
+            }
+            
+            console.log('🤖 Spouštím inteligentní extrakci metadat...');
+            
+            // Zavoláme inteligentní funkci
+            const extractedMetadata = await generateMetadataIntelligent(localBook);
+            
+            // Aktualizujeme localBook s extrahovanými daty
+            updateLocalBook(prevBook => ({
+                ...prevBook,
+                ...extractedMetadata
+            }));
+            
+            // Zobrazíme uživateli, co bylo vyplněno
+            const filledFields = Object.keys(extractedMetadata).join(', ');
+            alert(
+                `✅ Metadata úspěšně extrahována!\n\n` +
+                `Vyplněná pole:\n${filledFields}\n\n` +
+                `Zkontrolujte prosím metadata a v případě potřeby je upravte.`
+            );
+            
+            console.log('✅ Inteligentní metadata úspěšně aplikována na knihu');
+            
+        } catch (error) {
+            console.error('❌ Chyba při inteligentní extrakci metadat:', error);
+            alert(
+                `❌ Chyba při inteligentní extrakci metadat:\n\n` +
+                `${error instanceof Error ? error.message : String(error)}\n\n` +
+                `Zkuste to prosím znovu nebo použijte jinou metodu.`
+            );
+        } finally {
+            setIsBulkGenerating(false);
+        }
+    };
+
     const handleSave = () => {
         onUpdate(localBook);
         setIsEditing(false);
@@ -6485,11 +6918,41 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                             </div>
                         )}
                         
-                        {/* Čtvrtá řada: Vyplnit metadata, Zrušit, Uložit */}
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                        {/* Čtvrtá řada: Vyplnit metadata, Metadata 2 (Vision), Metadata 3 (Intelligent) */}
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                             <button style={styles.button} onClick={handleBulkAIGenerate} disabled={isBulkGenerating}>
                                 {isBulkGenerating ? 'Generuji...' : <><IconMagic /> Vyplnit metadata</>}
                             </button>
+                            <button 
+                                style={{
+                                    ...styles.button,
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    color: 'white',
+                                    border: 'none'
+                                }} 
+                                onClick={handleBulkVisionGenerate} 
+                                disabled={isBulkGenerating || localBook.format.toLowerCase() !== 'pdf'}
+                                title="Generovat metadata pomocí vision LLM z prvních 10 stránek PDF"
+                            >
+                                {isBulkGenerating ? 'Generuji...' : <>🖼️ Metadata 2</>}
+                            </button>
+                            <button 
+                                style={{
+                                    ...styles.button,
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    color: 'white',
+                                    border: 'none'
+                                }} 
+                                onClick={handleBulkIntelligentGenerate} 
+                                disabled={isBulkGenerating || localBook.format.toLowerCase() !== 'pdf'}
+                                title="Inteligentní extrakce metadat - automaticky detekuje OCR a volá optimální AI model"
+                            >
+                                {isBulkGenerating ? 'Generuji...' : <>🤖 Metadata 3</>}
+                            </button>
+                        </div>
+                        
+                        {/* Pátá řada: Zrušit, Uložit */}
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                             <button style={{...styles.button, color: 'var(--danger-color)', background: 'transparent', border: '1px solid var(--danger-color)'}} onClick={handleCancel}>Zrušit</button>
                             <button style={{...styles.button, background: 'transparent', border: '1px solid var(--accent-primary)'}} onClick={handleSave}><IconSave /></button>
                         </div>

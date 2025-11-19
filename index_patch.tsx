@@ -35,3 +35,4 @@
                     finalFile = new File([finalFile], file.name, { type: file.type });
                     
                 } catch (ilovepdfError: any) {
+

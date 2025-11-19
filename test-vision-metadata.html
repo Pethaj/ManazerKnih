@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Vision Metadata</title>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .upload-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 6px;
+        }
+        input[type="file"] {
+            padding: 10px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .success {
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 6px;
+        }
+        .metadata-field {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .metadata-field strong {
+            display: inline-block;
+            width: 150px;
+            color: #555;
+        }
+        .preview-images {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .preview-images img {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ Test Vision Metadata Extrakce</h1>
+        
+        <div class="upload-section">
+            <h2>1. Nahrajte PDF soubor</h2>
+            <input type="file" id="pdfFile" accept="application/pdf" />
+            <button onclick="testConversion()">🔄 Test: Převést na obrázky</button>
+            <button onclick="testFullExtraction()">🤖 Test: Plná extrakce metadat</button>
+        </div>
+
+        <div id="status"></div>
+        <div id="results"></div>
+        <div id="preview"></div>
+    </div>
+
+    <script type="module">
+        // Nastavíme PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
+
+        // OpenAI API konfigurace
+        const OPENAI_API_KEY = prompt('Zadejte váš OpenAI API klíč:') || '';
+        const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = message;
+        }
+
+        function showResults(metadata) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.className = 'results';
+            
+            let html = '<h2>📊 Extrahovaná metadata:</h2>';
+            
+            for (const [key, value] of Object.entries(metadata)) {
+                if (value) {
+                    const displayValue = Array.isArray(value) ? value.join(', ') : value;
+                    html += `<div class="metadata-field">
+                        <strong>${key}:</strong> ${displayValue}
+                    </div>`;
+                }
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        async function convertPdfToImages(pdfFile, maxPages = 10) {
+            console.log('📄 Konvertuji PDF na obrázky...');
+            
+            const arrayBuffer = await pdfFile.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            
+            console.log(`📊 PDF má ${pdf.numPages} stránek`);
+            
+            const pagesToProcess = Math.min(maxPages, pdf.numPages);
+            const images = [];
+            
+            for (let pageNum = 1; pageNum <= pagesToProcess; pageNum++) {
+                showStatus(`🔄 Zpracovávám stránku ${pageNum}/${pagesToProcess}...`);
+                
+                const page = await pdf.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 2.0 });
+                
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                
+                const base64Data = canvas.toDataURL('image/png').split(',')[1];
+                
+                images.push({
+                    page_number: pageNum,
+                    base64_png: base64Data,
+                    dataUrl: canvas.toDataURL('image/png')
+                });
+                
+                console.log(`✅ Stránka ${pageNum} převedena (${Math.round(base64Data.length / 1024)} KB)`);
+            }
+            
+            return images;
+        }
+
+        async function extractMetadataWithVision(images, fileName) {
+            console.log('🤖 Odesílám do vision LLM...');
+            
+            const systemPrompt = `Jsi odborný asistent pro analýzu dokumentů. Dostaneš obrázky prvních stránek PDF dokumentu.
+
+TVŮJ ÚKOL:
+Analyzuj text a informace viditelné na obrázcích a extrahuj následující metadata:
+- title: Název publikace
+- author: Autor/autoři
+- publicationYear: Rok prvního vydání (pouze číslo)
+- publisher: Nakladatelství
+- language: Jazyk dokumentu (v češtině)
+- summary: Stručné shrnutí (2-3 věty)
+- keywords: 5-7 klíčových slov (v češtině)
+- releaseVersion: Verze vydání
+
+PRAVIDLA:
+1. Používej POUZE informace z obrázků
+2. Pokud něco nenajdeš, vynech to
+3. Pro summary: Buď konkrétní
+4. Pro language: Nikdy "neznámý"
+
+FORMÁT: Pouze validní JSON:
+{
+  "title": "...",
+  "author": "...",
+  "publicationYear": 2023,
+  "publisher": "...",
+  "language": "...",
+  "summary": "...",
+  "keywords": ["...", "..."],
+  "releaseVersion": "..."
+}`;
+
+            const content = [
+                { type: 'text', text: `Analyzuj prvních ${images.length} stránek dokumentu "${fileName}".` }
+            ];
+
+            for (const img of images) {
+                content.push({
+                    type: 'image_url',
+                    image_url: { url: `data:image/png;base64,${img.base64_png}` }
+                });
+            }
+
+            const response = await fetch(OPENAI_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: content }
+                    ],
+                    max_tokens: 2000,
+                    temperature: 0.3
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(`API error: ${error.error?.message || response.statusText}`);
+            }
+
+            const data = await response.json();
+            const responseText = data.choices[0].message.content.trim();
+            
+            console.log('📄 Vision LLM odpověď:', responseText);
+            
+            // Parsujeme JSON
+            let jsonText = responseText;
+            const jsonMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+            if (jsonMatch) {
+                jsonText = jsonMatch[1];
+            }
+            
+            return JSON.parse(jsonText);
+        }
+
+        window.testConversion = async function() {
+            const fileInput = document.getElementById('pdfFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Nejdříve vyberte PDF soubor!');
+                return;
+            }
+            
+            try {
+                showStatus('🔄 Převádím PDF na obrázky...', 'info');
+                
+                const images = await convertPdfToImages(file, 10);
+                
+                showStatus(`✅ Úspěšně převedeno ${images.length} stránek!`, 'success');
+                
+                // Zobrazíme preview
+                const previewDiv = document.getElementById('preview');
+                previewDiv.innerHTML = '<h2>🖼️ Preview prvních stránek:</h2><div class="preview-images">' +
+                    images.map(img => `<img src="${img.dataUrl}" alt="Stránka ${img.page_number}" />`).join('') +
+                    '</div>';
+                
+            } catch (error) {
+                console.error(error);
+                showStatus(`❌ Chyba: ${error.message}`, 'error');
+            }
+        };
+
+        window.testFullExtraction = async function() {
+            const fileInput = document.getElementById('pdfFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Nejdříve vyberte PDF soubor!');
+                return;
+            }
+            
+            try {
+                showStatus('🔄 Krok 1/2: Převádím PDF na obrázky...', 'info');
+                const images = await convertPdfToImages(file, 10);
+                
+                showStatus(`✅ Převedeno ${images.length} stránek<br/>🔄 Krok 2/2: Odesílám do vision LLM...`, 'info');
+                const metadata = await extractMetadataWithVision(images, file.name);
+                
+                showStatus('✅ Metadata úspěšně extrahována!', 'success');
+                showResults(metadata);
+                
+                // Zobrazíme i preview
+                const previewDiv = document.getElementById('preview');
+                previewDiv.innerHTML = '<h2>🖼️ Analyzované stránky:</h2><div class="preview-images">' +
+                    images.slice(0, 3).map(img => `<img src="${img.dataUrl}" alt="Stránka ${img.page_number}" />`).join('') +
+                    '</div>';
+                
+            } catch (error) {
+                console.error(error);
+                showStatus(`❌ Chyba: ${error.message}`, 'error');
+            }
+        };
+    </script>
+</body>
+</html>
+

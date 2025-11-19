@@ -9,25 +9,55 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- PDF.js pro konverzi PDF stránek na obrázky -->
+    <!-- Používáme Mozilla CDN místo cdnjs -->
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              bewit: {
-                blue: '#005b96',
-                lightBlue: '#e6f2f9',
-                dark: '#333333',
-                gray: '#f5f5f5',
+      // Inicializace PDF.js
+      (function initPdfJs() {
+        // Čekáme na načtení pdfjsLib
+        var checkInterval = setInterval(function() {
+          if (typeof pdfjsLib !== 'undefined') {
+            clearInterval(checkInterval);
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+            window.pdfjsLib = pdfjsLib;
+            console.log('✅ PDF.js inicializováno s worker:', pdfjsLib.GlobalWorkerOptions.workerSrc);
+          }
+        }, 50);
+        
+        // Timeout po 10 sekundách
+        setTimeout(function() {
+          clearInterval(checkInterval);
+          if (typeof pdfjsLib === 'undefined') {
+            console.error('❌ PDF.js se nenačetl ani po 10 sekundách!');
+          }
+        }, 10000);
+      })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Čekáme až se Tailwind načte
+      window.addEventListener('DOMContentLoaded', function() {
+        if (typeof tailwind !== 'undefined') {
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  bewit: {
+                    blue: '#005b96',
+                    lightBlue: '#e6f2f9',
+                    dark: '#333333',
+                    gray: '#f5f5f5',
+                  },
+                },
               },
             },
-          },
-        },
-      }
+          }
+        }
+      });
     </script>
     <style>
         :root {
@@ -166,8 +196,7 @@
     "@google/genai": "https://esm.sh/@google/genai@0.14.0",
     "react-dom/": "https://esm.sh/react-dom@18.2.0/",
     "react/": "https://esm.sh/react@18.2.0/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.44.4",
-    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.44.4"
   }
 }
 </script>

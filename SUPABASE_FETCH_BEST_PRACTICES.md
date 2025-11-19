@@ -264,3 +264,5 @@ async getBooks(): Promise<Book[]> {
 - [Supabase REST API dokumentace](https://supabase.com/docs/guides/api)
 - [PostgREST dokumentace](https://postgrest.org/en/stable/api.html)
 
+
+

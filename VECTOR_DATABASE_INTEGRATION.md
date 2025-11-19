@@ -51,11 +51,11 @@ WHERE vector_status IS NULL;
 - **BookDetailPanel**: Zobrazení a editace vector statusu
 
 ### 4. API funkce
-- `api.sendToVectorDatabase(book)`: Odesílá knihu do n8n webhook
-- Stahuje soubor z Supabase Storage
-- Převádí do base64 formátu
-- Odesílá metadata + binární data
-- Aktualizuje stav na základě odpovědi
+- `api.sendToVectorDatabase(book, waitForResponse)`: Odesílá knihu do n8n webhook
+- Stahuje soubor z Supabase Storage jako Blob
+- Vytváří FormData s binárním souborem (ne base64)
+- Odesílá FormData s metadaty + binárním PDF souborem
+- Aktualizuje stav na základě odpovědi (pokud waitForResponse = true)
 
 ## Použití
 
@@ -83,28 +83,39 @@ Před odesláním do vektorové databáze jsou kontrolována tato pole:
 4. Uložte změny
 
 ## Webhook payload
-FormData s následujícími poli:
-- **file**: Binární soubor (PDF) - stejný jako u OCR webhooku
+FormData s následujícími poli (strukturovaná metadata pro snadné mapování v n8n):
+
+### Soubor a základní identifikace:
+- **file**: Binární soubor (PDF)
 - **bookId**: UUID knihy
 - **fileName**: Název souboru (např. "kniha.pdf")
 - **fileType**: Typ souboru (např. "pdf")
-- **metadata**: JSON string s metadaty knihy:
-```json
-{
-  "id": "uuid-knihy",
-  "title": "Název knihy",
-  "author": "Autor",
-  "publicationYear": 2023,
-  "publisher": "Nakladatelství",
-  "summary": "Shrnutí",
-  "keywords": ["klíčové", "slova"],
-  "language": "čeština",
-  "format": "PDF",
-  "fileSize": 1024,
-  "categories": ["kategorie"],
-  "labels": ["štítky"]
-}
+
+### Metadata (každé pole samostatně):
+- **id**: UUID knihy
+- **title**: Název knihy
+- **author**: Autor
+- **publicationYear**: Rok vydání (číslo jako string)
+- **publisher**: Nakladatelství
+- **summary**: Shrnutí obsahu
+- **language**: Jazyk (např. "čeština")
+- **releaseVersion**: Verze vydání (např. "1. vydání")
+- **format**: Formát (např. "PDF")
+- **fileSize**: Velikost souboru v bytech (číslo jako string)
+
+### Pole (arrays) - každý prvek zvlášť:
+- **keywords[]**: Klíčová slova (každé slovo jako samostatný `keywords[]` záznam)
+- **categories[]**: Kategorie (každá kategorie jako samostatný `categories[]` záznam)
+- **labels[]**: Štítky (každý štítek jako samostatný `labels[]` záznam)
+- **publicationTypes[]**: Typy publikace (každý typ jako samostatný `publicationTypes[]` záznam)
+
+### Příklad struktury v n8n:
+Když pole obsahuje `["klíčové", "slova"]`, v n8n uvidíte:
 ```
+keywords[]: "klíčové"
+keywords[]: "slova"
+```
+Což můžete snadno namapovat pomocí Set node jako pole.
 
 ## Očekávaná odpověď z n8n
 Nový formát odpovědi - pole objektů:
