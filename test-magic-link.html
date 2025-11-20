@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Test Magic Link</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .section h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        input, button {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .log {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-top: 10px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .info {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+        .divider {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 30px 0;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Magic Link</h1>
+        <p class="subtitle">Diagnostika a testování Magic Link autentizace</p>
+
+        <!-- Test 1: Odeslání Magic Link -->
+        <div class="section">
+            <h2>1️⃣ Odeslat Magic Link</h2>
+            <div class="info">
+                ℹ️ Zadejte email pro odeslání magic link. Zkontrolujte konzoli pro detaily.
+            </div>
+            <input type="email" id="emailInput" placeholder="vas.email@example.com" value="">
+            <button onclick="sendMagicLink()" id="sendBtn">📧 Odeslat Magic Link</button>
+            <div class="log" id="sendLog">Čekám na akci...</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Test 2: Kontrola Session -->
+        <div class="section">
+            <h2>2️⃣ Kontrola Session</h2>
+            <div class="info">
+                ℹ️ Zkontroluje aktuální session. Po kliknutí na magic link by měla být aktivní.
+            </div>
+            <button onclick="checkSession()">🔍 Zkontrolovat Session</button>
+            <div class="log" id="sessionLog">Čekám na akci...</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Test 3: Konfigurace -->
+        <div class="section">
+            <h2>3️⃣ Konfigurace</h2>
+            <div class="info">
+                <strong>Supabase URL:</strong> <code id="supabaseUrl">-</code><br>
+                <strong>Current Origin:</strong> <code id="currentOrigin">-</code><br>
+                <strong>URL Hash:</strong> <code id="urlHash">-</code><br>
+                <strong>Detect Session:</strong> <span id="detectSession" class="status pending">-</span>
+            </div>
+            <button onclick="checkConfig()">⚙️ Zkontrolovat konfiguraci</button>
+            <div class="log" id="configLog">Čekám na akci...</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Test 4: Auth State Listener -->
+        <div class="section">
+            <h2>4️⃣ Auth Events</h2>
+            <div class="info">
+                ℹ️ Real-time log auth událostí (SIGNED_IN, TOKEN_REFRESHED, SIGNED_OUT...)
+            </div>
+            <div class="log" id="authEventsLog">Čekám na události...</div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase konfigurace
+        const SUPABASE_URL = 'https://modopafybeslbcqjxsve.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
+
+        // Inicializace Supabase klienta
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        });
+
+        // Helper: Log do elementu
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString('cs-CZ');
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            element.textContent += `[${timestamp}] ${icon} ${message}\n`;
+            element.scrollTop = element.scrollHeight;
+            console.log(`[${elementId}]`, message);
+        }
+
+        // Test 1: Odeslat Magic Link
+        async function sendMagicLink() {
+            const email = document.getElementById('emailInput').value;
+            const logId = 'sendLog';
+            
+            if (!email) {
+                log(logId, 'CHYBA: Zadejte email!', 'error');
+                return;
+            }
+
+            document.getElementById('sendBtn').disabled = true;
+            log(logId, `Odesílám magic link na: ${email}...`);
+
+            try {
+                const { error } = await supabase.auth.signInWithOtp({
+                    email: email.toLowerCase(),
+                    options: {
+                        shouldCreateUser: false,
+                        emailRedirectTo: window.location.origin
+                    }
+                });
+
+                if (error) {
+                    log(logId, `CHYBA: ${error.message}`, 'error');
+                    console.error('Supabase error:', error);
+                } else {
+                    log(logId, '✅ Magic link odeslán! Zkontrolujte email.', 'success');
+                    log(logId, `📍 Redirect URL: ${window.location.origin}`);
+                    log(logId, `⏰ Token platný: 1 hodina`);
+                    log(logId, '📧 Po kliknutí na link se vraťte na tuto stránku');
+                }
+            } catch (err) {
+                log(logId, `EXCEPTION: ${err.message}`, 'error');
+                console.error('Exception:', err);
+            } finally {
+                document.getElementById('sendBtn').disabled = false;
+            }
+        }
+
+        // Test 2: Zkontrolovat Session
+        async function checkSession() {
+            const logId = 'sessionLog';
+            log(logId, 'Kontroluji session...');
+
+            try {
+                const { data, error } = await supabase.auth.getSession();
+
+                if (error) {
+                    log(logId, `CHYBA: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (data.session) {
+                    log(logId, '✅ SESSION AKTIVNÍ!', 'success');
+                    log(logId, `👤 Email: ${data.session.user.email}`);
+                    log(logId, `🆔 User ID: ${data.session.user.id}`);
+                    log(logId, `🔑 Access Token: ${data.session.access_token.substring(0, 30)}...`);
+                    log(logId, `⏰ Expires: ${new Date(data.session.expires_at * 1000).toLocaleString('cs-CZ')}`);
+                    
+                    // Zkontrolovat user_profiles
+                    const { data: profile, error: profileError } = await supabase
+                        .from('user_profiles')
+                        .select('*')
+                        .eq('id', data.session.user.id)
+                        .single();
+                    
+                    if (profileError) {
+                        log(logId, `⚠️ VAROVÁNÍ: User profile nenalezen - ${profileError.message}`, 'error');
+                    } else {
+                        log(logId, `👔 Role: ${profile.role}`);
+                    }
+                } else {
+                    log(logId, '❌ Žádná aktivní session', 'error');
+                    log(logId, '💡 TIP: Klikněte na magic link v emailu');
+                }
+            } catch (err) {
+                log(logId, `EXCEPTION: ${err.message}`, 'error');
+                console.error('Exception:', err);
+            }
+        }
+
+        // Test 3: Zkontrolovat konfiguraci
+        async function checkConfig() {
+            const logId = 'configLog';
+            log(logId, 'Kontroluji konfiguraci...');
+
+            // Základní info
+            document.getElementById('supabaseUrl').textContent = SUPABASE_URL;
+            document.getElementById('currentOrigin').textContent = window.location.origin;
+            document.getElementById('urlHash').textContent = window.location.hash || '(prázdný)';
+
+            log(logId, `📍 Supabase URL: ${SUPABASE_URL}`);
+            log(logId, `🏠 Current Origin: ${window.location.origin}`);
+            log(logId, `#️⃣ URL Hash: ${window.location.hash || '(prázdný)'}`);
+
+            // Zkontrolovat localStorage
+            const storageKey = `sb-modopafybeslbcqjxsve-auth-token`;
+            const storedSession = localStorage.getItem(storageKey);
+            
+            if (storedSession) {
+                log(logId, '✅ Session v localStorage nalezena');
+                try {
+                    const parsed = JSON.parse(storedSession);
+                    log(logId, `⏰ Expires: ${new Date(parsed.expires_at * 1000).toLocaleString('cs-CZ')}`);
+                    document.getElementById('detectSession').textContent = '✅ Active';
+                    document.getElementById('detectSession').className = 'status success';
+                } catch (e) {
+                    log(logId, '⚠️ Nepodařilo se parsovat session', 'error');
+                }
+            } else {
+                log(logId, '❌ Žádná session v localStorage');
+                document.getElementById('detectSession').textContent = '❌ None';
+                document.getElementById('detectSession').className = 'status error';
+            }
+
+            // Zkontrolovat redirect URLs
+            log(logId, '');
+            log(logId, '⚠️ DŮLEŽITÉ: Ověřte Supabase Dashboard:');
+            log(logId, '1. Přejděte na: Dashboard → Auth → URL Configuration');
+            log(logId, '2. V "Redirect URLs" musí být:');
+            log(logId, `   - ${window.location.origin}`);
+            log(logId, '3. Pokud tam není, přidejte a uložte!');
+        }
+
+        // Test 4: Auth State Listener
+        supabase.auth.onAuthStateChange((event, session) => {
+            const logId = 'authEventsLog';
+            log(logId, `🔔 EVENT: ${event}`);
+            
+            if (session) {
+                log(logId, `   👤 User: ${session.user.email}`);
+            }
+
+            // Automaticky zkontrolovat session při SIGNED_IN
+            if (event === 'SIGNED_IN') {
+                log(logId, '   ✅ Přihlášení úspěšné!', 'success');
+                setTimeout(() => checkSession(), 1000);
+            }
+        });
+
+        // Inicializace při načtení stránky
+        window.addEventListener('DOMContentLoaded', () => {
+            log('authEventsLog', '👂 Naslouchám auth událostem...');
+            
+            // Automaticky zkontrolovat config
+            checkConfig();
+
+            // Pokud je v URL hash, automaticky zkontrolovat session
+            if (window.location.hash.includes('access_token')) {
+                log('authEventsLog', '🔍 Detekován access_token v URL!', 'success');
+                setTimeout(() => checkSession(), 2000);
+            }
+        });
+    </script>
+</body>
+</html>
+

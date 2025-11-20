@@ -200,3 +200,5 @@ Použijte **Execute node manually** a podívejte se na výstup Webhook node:
 2. Podívejte se na **Output** tab
 3. Měli byste vidět všechna pole včetně `keywords[]` s více záznamy
 
+
+

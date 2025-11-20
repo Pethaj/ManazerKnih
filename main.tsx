@@ -4075,5 +4075,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     addNewTagLink: { borderTop: '1px solid var(--border-color)', color: 'var(--accent-primary)', fontWeight: 500, },
 };
 
+// Export App pro použití v routeru
+export { App };
+
+// Import a použití routeru
+import AppRouter from './src/AppRouter';
+
 const root = createRoot(document.getElementById('root')!);
-root.render(<App />);
+root.render(<AppRouter MainApp={App} />);

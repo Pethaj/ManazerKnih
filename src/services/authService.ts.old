@@ -1,0 +1,630 @@
+import { supabase } from '../lib/supabase';
+
+export type UserRole = 'admin' | 'spravce';
+
+export interface UserProfile {
+    id: string;
+    email: string;
+    role: UserRole;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AuthUser {
+    id: string;
+    email: string;
+    role: UserRole;
+}
+
+/**
+ * Přihlášení uživatele pomocí emailu a hesla
+ */
+export async function login(email: string, password: string): Promise<{ user: AuthUser | null; error: string | null }> {
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) {
+            console.error('Chyba při přihlášení:', error);
+            return { user: null, error: error.message };
+        }
+
+        if (!data.user) {
+            return { user: null, error: 'Nepodařilo se přihlásit' };
+        }
+
+        // Získat roli uživatele z user_profiles
+        const { data: profileData, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+
+        if (profileError || !profileData) {
+            console.error('Chyba při načítání profilu:', profileError);
+            // Odhlásit uživatele, pokud nemá profil
+            await supabase.auth.signOut();
+            return { user: null, error: 'Uživatelský profil nebyl nalezen' };
+        }
+
+        return {
+            user: {
+                id: data.user.id,
+                email: data.user.email || '',
+                role: profileData.role as UserRole
+            },
+            error: null
+        };
+    } catch (err) {
+        console.error('Neočekávaná chyba při přihlášení:', err);
+        return { user: null, error: 'Neočekávaná chyba při přihlášení' };
+    }
+}
+
+/**
+ * Odhlášení aktuálního uživatele
+ */
+export async function logout(): Promise<{ error: string | null }> {
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            console.error('Chyba při odhlášení:', error);
+            return { error: error.message };
+        }
+        return { error: null };
+    } catch (err) {
+        console.error('Neočekávaná chyba při odhlášení:', err);
+        return { error: 'Neočekávaná chyba při odhlášení' };
+    }
+}
+
+/**
+ * NOVÝ SYSTÉM: Odeslání magic link pro přihlášení (místo reset hesla)
+ * Uživatel dostane magic link na email, kterým se může přímo přihlásit
+ * Explicitně nastavuje redirect URL na aktuální origin aplikace
+ */
+export async function sendMagicLink(email: string): Promise<{ error: string | null }> {
+    try {
+        const { error } = await supabase.auth.signInWithOtp({
+            email: email.toLowerCase(),
+            options: {
+                shouldCreateUser: false, // Nepovolíme vytvoření nového uživatele
+                emailRedirectTo: window.location.origin // Explicitní redirect na aplikaci
+            }
+        });
+
+        if (error) {
+            console.error('Chyba při odesílání magic link:', error);
+            return { error: error.message };
+        }
+
+        console.log('✅ Magic link odeslán na:', email);
+        console.log('📍 Redirect URL:', window.location.origin);
+        return { error: null };
+    } catch (err) {
+        console.error('Neočekávaná chyba při odesílání magic link:', err);
+        return { error: 'Neočekávaná chyba při odesílání emailu' };
+    }
+}
+
+/**
+ * DEPRECATED: Stará metoda pro reset hesla
+ * Ponecháno pro zpětnou kompatibilitu, ale doporučujeme použít sendMagicLink
+ */
+export async function resetPassword(email: string): Promise<{ error: string | null }> {
+    // Nyní používáme magic link místo reset hesla
+    return sendMagicLink(email);
+}
+
+/**
+ * Generování hesla ze jména a příjmení
+ * @param firstName Jméno uživatele
+ * @param surname Příjmení uživatele
+ * @returns Heslo ve formátu: 2 písmena ze jména + 2 písmena z příjmení + 4 náhodné číslice
+ */
+export function generatePasswordFromName(firstName: string, surname: string): string {
+    if (!firstName || firstName.length < 2) {
+        throw new Error('Jméno musí mít alespoň 2 znaky');
+    }
+    if (!surname || surname.length < 2) {
+        throw new Error('Příjmení musí mít alespoň 2 znaky');
+    }
+    
+    // Vezme první 2 písmena ze jména (převedená na malá písmena)
+    const firstNamePart = firstName.substring(0, 2).toLowerCase();
+    
+    // Vezme první 2 písmena z příjmení (převedená na malá písmena)
+    const surnamePart = surname.substring(0, 2).toLowerCase();
+    
+    // Vygeneruje 4 náhodné číslice
+    const randomDigits = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    return firstNamePart + surnamePart + randomDigits;
+}
+
+/**
+ * Vytvoření nového uživatele se jménem a příjmením a automaticky generovaným heslem
+ * @param email Email uživatele
+ * @param firstName Jméno uživatele
+ * @param surname Příjmení uživatele
+ * @param role Role uživatele
+ * @returns Informace o úspěchu, případná chyba a vygenerované heslo
+ */
+export async function createUserWithName(
+    email: string,
+    firstName: string,
+    surname: string,
+    role: UserRole
+): Promise<{ success: boolean; error: string | null; password?: string }> {
+    try {
+        // Zkontrolovat, zda je aktuální uživatel správce
+        const isAdmin = await isSpravce();
+        if (!isAdmin) {
+            return { success: false, error: 'Pouze správce může vytvářet uživatele' };
+        }
+
+        // Zkontrolovat, zda email již existuje
+        const { data: existingUsers } = await supabase
+            .from('user_profiles')
+            .select('email')
+            .eq('email', email)
+            .limit(1);
+
+        if (existingUsers && existingUsers.length > 0) {
+            return { success: false, error: 'Uživatel s tímto emailem již existuje' };
+        }
+
+        // Vygenerovat heslo ze jména a příjmení
+        const generatedPassword = generatePasswordFromName(firstName, surname);
+        
+        // Vytvořit uživatele
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: email,
+            password: generatedPassword,
+            options: {
+                emailRedirectTo: `${window.location.origin}`,
+                data: {
+                    firstName: firstName,
+                    surname: surname,
+                    created_by: 'admin'
+                }
+            }
+        });
+
+        if (signUpError) {
+            console.error('Chyba při vytváření uživatele:', signUpError);
+            return { success: false, error: signUpError.message };
+        }
+
+        if (!signUpData.user) {
+            return { success: false, error: 'Nepodařilo se vytvořit uživatele' };
+        }
+
+        // Vytvořit profil pro nového uživatele
+        const { error: profileError } = await supabase
+            .from('user_profiles')
+            .insert({
+                id: signUpData.user.id,
+                email: email,
+                role: role
+            });
+
+        if (profileError) {
+            console.error('Chyba při vytváření profilu:', profileError);
+            return { success: false, error: 'Uživatel byl vytvořen, ale profil se nepodařilo přidat' };
+        }
+
+        return { 
+            success: true, 
+            error: null,
+            password: generatedPassword
+        };
+    } catch (err) {
+        console.error('Neočekávaná chyba při vytváření uživatele:', err);
+        return { success: false, error: 'Neočekávaná chyba při vytváření uživatele' };
+    }
+}
+
+/**
+ * Pozvání nového uživatele - vytvoření dočasného účtu
+ * Uživatel si vytvoří heslo sám po přihlášení pomocí reset hesla
+ */
+export async function inviteUser(
+    email: string,
+    role: UserRole
+): Promise<{ success: boolean; error: string | null; tempPassword?: string }> {
+    try {
+        // Zkontrolovat, zda je aktuální uživatel správce
+        const isAdmin = await isSpravce();
+        if (!isAdmin) {
+            return { success: false, error: 'Pouze správce může zvát uživatele' };
+        }
+
+        // Zkontrolovat, zda email již existuje
+        const { data: existingUsers } = await supabase
+            .from('user_profiles')
+            .select('email')
+            .eq('email', email)
+            .limit(1);
+
+        if (existingUsers && existingUsers.length > 0) {
+            return { success: false, error: 'Uživatel s tímto emailem již existuje' };
+        }
+
+        // Vygenerovat náhodné dočasné heslo (min. 8 znaků)
+        const tempPassword = Math.random().toString(36).slice(-12) + 'A1!';
+        
+        // Vytvořit uživatele s dočasným heslem
+        // POZNÁMKA: Toto vyžaduje, aby v Supabase bylo vypnuto "Confirm email"
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: email,
+            password: tempPassword,
+            options: {
+                emailRedirectTo: `${window.location.origin}`,
+                data: {
+                    invited_by: 'admin',
+                    must_reset_password: true
+                }
+            }
+        });
+
+        if (signUpError) {
+            console.error('Chyba při vytváření uživatele:', signUpError);
+            return { success: false, error: signUpError.message };
+        }
+
+        if (!signUpData.user) {
+            return { success: false, error: 'Nepodařilo se vytvořit uživatele' };
+        }
+
+        // Vytvořit profil pro nového uživatele
+        const { error: profileError } = await supabase
+            .from('user_profiles')
+            .insert({
+                id: signUpData.user.id,
+                email: email,
+                role: role
+            });
+
+        if (profileError) {
+            console.error('Chyba při vytváření profilu:', profileError);
+            return { success: false, error: 'Uživatel byl vytvořen, ale profil se nepodařilo přidat' };
+        }
+
+        // Odeslat reset hesla email
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}`,
+        });
+
+        if (resetError) {
+            console.warn('Varování: Email pro reset hesla se nepodařilo odeslat:', resetError);
+            // Nebudeme vracet chybu, protože uživatel byl vytvořen
+        }
+
+        return { 
+            success: true, 
+            error: null,
+            tempPassword: tempPassword // Pro dev účely - v produkci by se nemělo vracet
+        };
+    } catch (err) {
+        console.error('Neočekávaná chyba při pozvaní uživatele:', err);
+        return { success: false, error: 'Neočekávaná chyba při pozvaní uživatele' };
+    }
+}
+
+/**
+ * Získání aktuálně přihlášeného uživatele včetně role
+ */
+export async function getCurrentUser(): Promise<{ user: AuthUser | null; error: string | null }> {
+    try {
+        console.log('🔍 getCurrentUser: Začínám kontrolu uživatele...');
+        
+        // DŮLEŽITÉ: Používáme getSession() místo getUser()
+        // getSession() kontroluje lokální session v localStorage
+        // getUser() vždy volá API, což může selhat při refresh
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+            console.error('❌ Chyba při získávání session:', sessionError);
+            return { user: null, error: sessionError.message };
+        }
+
+        if (!session || !session.user) {
+            console.log('ℹ️ Žádná aktivní session');
+            return { user: null, error: null };
+        }
+
+        const user = session.user;
+        console.log('✅ Session nalezena pro uživatele:', user.email);
+
+        // Získat roli uživatele z user_profiles
+        const { data: profileData, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+        if (profileError || !profileData) {
+            console.error('❌ Chyba při načítání profilu:', profileError);
+            return { user: null, error: 'Uživatelský profil nebyl nalezen' };
+        }
+
+        console.log('✅ Profil načten, role:', profileData.role);
+
+        return {
+            user: {
+                id: user.id,
+                email: user.email || '',
+                role: profileData.role as UserRole
+            },
+            error: null
+        };
+    } catch (err) {
+        console.error('❌ Neočekávaná chyba při získávání uživatele:', err);
+        return { user: null, error: 'Neočekávaná chyba' };
+    }
+}
+
+/**
+ * Získání role aktuálního uživatele
+ */
+export async function getUserRole(): Promise<{ role: UserRole | null; error: string | null }> {
+    const { user, error } = await getCurrentUser();
+    if (error || !user) {
+        return { role: null, error: error || 'Uživatel není přihlášen' };
+    }
+    return { role: user.role, error: null };
+}
+
+/**
+ * Kontrola, zda je aktuální uživatel správce
+ */
+export async function isSpravce(): Promise<boolean> {
+    const { role } = await getUserRole();
+    return role === 'spravce';
+}
+
+/**
+ * Vytvoření nového uživatele (pouze pro správce)
+ * Poznámka: Tato funkce vyžaduje Supabase Service Role Key, který by měl být pouze na backendu
+ * Pro production je lepší vytvořit Edge Function
+ */
+export async function createUser(
+    email: string, 
+    password: string, 
+    role: UserRole
+): Promise<{ userId: string | null; error: string | null }> {
+    try {
+        // Nejprve zkontrolovat, zda je aktuální uživatel správce
+        const isAdmin = await isSpravce();
+        if (!isAdmin) {
+            return { userId: null, error: 'Pouze správce může vytvářet uživatele' };
+        }
+
+        // POZNÁMKA: Pro vytvoření uživatele potřebujeme Service Role Key
+        // To by mělo být řešeno přes Edge Function nebo Admin API
+        // Pro účely tohoto demo vrátíme chybu s instrukcemi
+        
+        console.warn('⚠️ Vytváření uživatelů vyžaduje Supabase Service Role Key');
+        console.warn('Pro production implementaci vytvořte Edge Function nebo použijte Admin API');
+        
+        return { 
+            userId: null, 
+            error: 'Vytváření uživatelů momentálně není implementováno. Použijte Supabase Dashboard → Authentication → Add User' 
+        };
+
+        // TODO: Implementovat přes Edge Function
+        // const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+        //     method: 'POST',
+        //     headers: {
+        //         'Content-Type': 'application/json',
+        //         'Authorization': `Bearer ${token}`
+        //     },
+        //     body: JSON.stringify({ email, password, role })
+        // });
+    } catch (err) {
+        console.error('Neočekávaná chyba při vytváření uživatele:', err);
+        return { userId: null, error: 'Neočekávaná chyba při vytváření uživatele' };
+    }
+}
+
+/**
+ * Manuální přidání profilu pro existujícího uživatele
+ * (použitelné pokud uživatel byl vytvořen přes Dashboard)
+ */
+export async function addUserProfile(
+    userId: string,
+    email: string,
+    role: UserRole
+): Promise<{ success: boolean; error: string | null }> {
+    try {
+        // Zkontrolovat, zda je aktuální uživatel správce
+        const isAdmin = await isSpravce();
+        if (!isAdmin) {
+            return { success: false, error: 'Pouze správce může přidávat profily' };
+        }
+
+        const { error } = await supabase
+            .from('user_profiles')
+            .insert({
+                id: userId,
+                email,
+                role
+            });
+
+        if (error) {
+            console.error('Chyba při přidávání profilu:', error);
+            return { success: false, error: error.message };
+        }
+
+        return { success: true, error: null };
+    } catch (err) {
+        console.error('Neočekávaná chyba při přidávání profilu:', err);
+        return { success: false, error: 'Neočekávaná chyba' };
+    }
+}
+
+/**
+ * Smazání uživatele (pouze pro správce)
+ */
+export async function deleteUser(userId: string): Promise<{ success: boolean; error: string | null }> {
+    try {
+        // Zkontrolovat, zda je aktuální uživatel správce
+        const isAdmin = await isSpravce();
+        if (!isAdmin) {
+            return { success: false, error: 'Pouze správce může mazat uživatele' };
+        }
+
+        // Nejprve smazat profil (kaskádově se smaže díky ON DELETE CASCADE)
+        const { error } = await supabase
+            .from('user_profiles')
+            .delete()
+            .eq('id', userId);
+
+        if (error) {
+            console.error('Chyba při mazání profilu:', error);
+            return { success: false, error: error.message };
+        }
+
+        // POZNÁMKA: Smazání z auth.users vyžaduje Admin API
+        // Pro production implementaci vytvořte Edge Function
+        console.warn('⚠️ Uživatel byl odstraněn z user_profiles, ale stále existuje v auth.users');
+        console.warn('Pro kompletní smazání použijte Supabase Dashboard nebo implementujte Edge Function');
+
+        return { success: true, error: null };
+    } catch (err) {
+        console.error('Neočekávaná chyba při mazání uživatele:', err);
+        return { success: false, error: 'Neočekávaná chyba' };
+    }
+}
+
+/**
+ * Získání seznamu všech uživatelů (pouze pro správce)
+ */
+export async function listUsers(): Promise<{ users: UserProfile[] | null; error: string | null }> {
+    try {
+        // Zkontrolovat, zda je aktuální uživatel správce
+        const isAdmin = await isSpravce();
+        if (!isAdmin) {
+            return { users: null, error: 'Pouze správce může zobrazit seznam uživatelů' };
+        }
+
+        const { data, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Chyba při načítání uživatelů:', error);
+            return { users: null, error: error.message };
+        }
+
+        return { users: data as UserProfile[], error: null };
+    } catch (err) {
+        console.error('Neočekávaná chyba při načítání uživatelů:', err);
+        return { users: null, error: 'Neočekávaná chyba' };
+    }
+}
+
+/**
+ * Aktualizace role uživatele (pouze pro správce)
+ */
+export async function updateUserRole(
+    userId: string,
+    newRole: UserRole
+): Promise<{ success: boolean; error: string | null }> {
+    try {
+        // Zkontrolovat, zda je aktuální uživatel správce
+        const isAdmin = await isSpravce();
+        if (!isAdmin) {
+            return { success: false, error: 'Pouze správce může měnit role uživatelů' };
+        }
+
+        const { error } = await supabase
+            .from('user_profiles')
+            .update({ role: newRole })
+            .eq('id', userId);
+
+        if (error) {
+            console.error('Chyba při aktualizaci role:', error);
+            return { success: false, error: error.message };
+        }
+
+        return { success: true, error: null };
+    } catch (err) {
+        console.error('Neočekávaná chyba při aktualizaci role:', err);
+        return { success: false, error: 'Neočekávaná chyba' };
+    }
+}
+
+/**
+ * Změna hesla aktuálního uživatele
+ * POZNÁMKA: Nepožaduje ověření současného hesla
+ */
+export async function changePassword(
+    currentPassword: string, // Deprecated - ponecháno pro zpětnou kompatibilitu
+    newPassword: string
+): Promise<{ success: boolean; error: string | null }> {
+    try {
+        const { user: currentUser } = await getCurrentUser();
+        
+        if (!currentUser) {
+            return { success: false, error: 'Uživatel není přihlášen' };
+        }
+
+        // Změna hesla bez ověření současného hesla
+        const { error: updateError } = await supabase.auth.updateUser({
+            password: newPassword
+        });
+
+        if (updateError) {
+            console.error('Chyba při změně hesla:', updateError);
+            return { success: false, error: updateError.message };
+        }
+
+        return { success: true, error: null };
+    } catch (err) {
+        console.error('Neočekávaná chyba při změně hesla:', err);
+        return { success: false, error: 'Neočekávaná chyba při změně hesla' };
+    }
+}
+
+/**
+ * Automatické vytvoření prvního správce (pokud neexistuje žádný uživatel)
+ * POZNÁMKA: Toto je pomocná funkce pro development
+ */
+export async function ensureFirstAdmin(): Promise<{ success: boolean; error: string | null }> {
+    try {
+        // Zkontrolovat, zda existují nějaké profily
+        const { data, error } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .limit(1);
+
+        if (error) {
+            console.error('Chyba při kontrole profilů:', error);
+            return { success: false, error: error.message };
+        }
+
+        if (data && data.length > 0) {
+            // Již existují uživatelé, není potřeba vytvářet prvního správce
+            return { success: true, error: null };
+        }
+
+        // Neexistují žádné profily
+        // Pro vytvoření prvního správce použijte Supabase Dashboard
+        console.warn('⚠️ Neexistují žádné uživatelské profily.');
+        console.warn('Pro vytvoření prvního správce:');
+        console.warn('1. Jděte do Supabase Dashboard → Authentication → Users → Add User');
+        console.warn('2. Email: petr.hajduk@bewit.team, Password: wewe');
+        console.warn('3. Po vytvoření spusťte SQL pro přidání profilu');
+
+        return { success: false, error: 'První správce musí být vytvořen manuálně přes Supabase Dashboard' };
+    } catch (err) {
+        console.error('Neočekávaná chyba:', err);
+        return { success: false, error: 'Neočekávaná chyba' };
+    }
+}
+

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Auth</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #252526;
+            border-radius: 8px;
+            border: 1px solid #3e3e42;
+        }
+        h2 {
+            color: #4ec9b0;
+            margin-top: 0;
+        }
+        pre {
+            background: #1e1e1e;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #3e3e42;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        .success {
+            color: #4ec9b0;
+        }
+        .error {
+            color: #f48771;
+        }
+        .warning {
+            color: #dcdcaa;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Supabase Auth Debug</h1>
+    
+    <div class="section">
+        <h2>LocalStorage Obsah</h2>
+        <button onclick="checkLocalStorage()">Zkontrolovat LocalStorage</button>
+        <button onclick="clearLocalStorage()">Vymazat Auth Data</button>
+        <pre id="localStorage-output">Klikněte na tlačítko...</pre>
+    </div>
+
+    <div class="section">
+        <h2>Supabase Session Status</h2>
+        <button onclick="checkSupabaseSession()">Zkontrolovat Session</button>
+        <pre id="session-output">Klikněte na tlačítko...</pre>
+    </div>
+
+    <div class="section">
+        <h2>Test Přihlášení</h2>
+        <div>
+            <input type="email" id="email" placeholder="Email" style="padding: 8px; margin: 5px; width: 250px;">
+            <input type="password" id="password" placeholder="Heslo" style="padding: 8px; margin: 5px; width: 250px;">
+        </div>
+        <button onclick="testLogin()">Přihlásit se</button>
+        <pre id="login-output">Zadejte přihlašovací údaje...</pre>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const supabaseUrl = 'https://modopafybeslbcqjxsve.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
+        
+        const { createClient } = supabase;
+        const supabaseClient = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                storage: window.localStorage,
+                storageKey: 'supabase.auth.token'
+            }
+        });
+
+        function checkLocalStorage() {
+            const output = document.getElementById('localStorage-output');
+            let result = '<span class="success">📦 LocalStorage Keys:</span>\n\n';
+            
+            // Všechny klíče v localStorage
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.includes('supabase')) {
+                    const value = localStorage.getItem(key);
+                    result += `<span class="warning">${key}:</span>\n`;
+                    try {
+                        const parsed = JSON.parse(value);
+                        result += JSON.stringify(parsed, null, 2) + '\n\n';
+                    } catch (e) {
+                        result += value + '\n\n';
+                    }
+                }
+            }
+            
+            if (localStorage.length === 0) {
+                result += '<span class="error">❌ LocalStorage je prázdný!</span>';
+            }
+            
+            output.innerHTML = result;
+        }
+
+        function clearLocalStorage() {
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.includes('supabase')) {
+                    keys.push(key);
+                }
+            }
+            keys.forEach(key => localStorage.removeItem(key));
+            document.getElementById('localStorage-output').innerHTML = 
+                '<span class="success">✅ Supabase auth data vymazána!</span>';
+        }
+
+        async function checkSupabaseSession() {
+            const output = document.getElementById('session-output');
+            output.innerHTML = '<span class="warning">⏳ Kontroluji session...</span>';
+            
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                
+                let result = '';
+                if (error) {
+                    result = `<span class="error">❌ Chyba při získávání session:</span>\n${JSON.stringify(error, null, 2)}`;
+                } else if (session) {
+                    result = `<span class="success">✅ Session NALEZENA:</span>\n\n`;
+                    result += `Email: ${session.user.email}\n`;
+                    result += `User ID: ${session.user.id}\n`;
+                    result += `Access Token: ${session.access_token.substring(0, 30)}...\n`;
+                    result += `Expires: ${new Date(session.expires_at * 1000).toLocaleString('cs-CZ')}\n\n`;
+                    result += `<span class="warning">Full Session:</span>\n${JSON.stringify(session, null, 2)}`;
+                } else {
+                    result = '<span class="error">❌ Žádná session!</span>';
+                }
+                
+                output.innerHTML = result;
+            } catch (err) {
+                output.innerHTML = `<span class="error">❌ Exception:</span>\n${err.message}`;
+            }
+        }
+
+        async function testLogin() {
+            const output = document.getElementById('login-output');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                output.innerHTML = '<span class="error">❌ Vyplňte email a heslo!</span>';
+                return;
+            }
+            
+            output.innerHTML = '<span class="warning">⏳ Přihlašování...</span>';
+            
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email,
+                    password
+                });
+                
+                let result = '';
+                if (error) {
+                    result = `<span class="error">❌ Chyba při přihlášení:</span>\n${JSON.stringify(error, null, 2)}`;
+                } else if (data.user && data.session) {
+                    result = `<span class="success">✅ ÚSPĚŠNĚ PŘIHLÁŠEN!</span>\n\n`;
+                    result += `Email: ${data.user.email}\n`;
+                    result += `User ID: ${data.user.id}\n`;
+                    result += `Session expires: ${new Date(data.session.expires_at * 1000).toLocaleString('cs-CZ')}\n\n`;
+                    result += '<span class="success">Nyní zkontrolujte LocalStorage!</span>';
+                } else {
+                    result = '<span class="error">❌ Přihlášení selhalo - žádný user nebo session</span>';
+                }
+                
+                output.innerHTML = result;
+                
+                // Automaticky zkontrolujeme localStorage po přihlášení
+                setTimeout(checkLocalStorage, 500);
+            } catch (err) {
+                output.innerHTML = `<span class="error">❌ Exception:</span>\n${err.message}\n${err.stack}`;
+            }
+        }
+
+        // Automatická kontrola při načtení
+        window.addEventListener('load', () => {
+            checkLocalStorage();
+            checkSupabaseSession();
+        });
+    </script>
+</body>
+</html>
+

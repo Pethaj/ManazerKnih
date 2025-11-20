@@ -1,17 +1,20 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 // Removed GoogleGenAI import - using direct fetch API calls instead
-import { createClient } from '@supabase/supabase-js';
 // PDF.js je načten globálně z HTML (legacy build) - není třeba importovat
 import ChatWidget from './src/components/SanaChat/ChatWidget';
 import ChatbotManagement from './src/components/ChatbotManagement';
 import { FilteredSanaChat } from './src/components/SanaChat/SanaChat';
 import { ILovePDFService } from './src/services/ilovepdfService';
-// Vision Metadata Services - pro extrakci metadat z prvních 10 stránek PDF pomocí vision LLM
-import * as pdfToImageService from './src/services/pdfToImageService';
-import * as openRouterVisionService from './src/services/openRouterVisionService';
 // OpenRouter Intelligent Metadata Service - inteligentní extrakce metadat (auto-detekce OCR)
 import * as openRouterMetadataService from './src/services/openRouterMetadataService';
+// Auth components
+import { AuthGuard } from './src/components/Auth/AuthGuard';
+import UserManagement from './src/components/UserManagement/UserManagement';
+import { ProfileSettings } from './src/components/ProfileSettings';
+import { logout, User } from './src/services/customAuthService';
+// Import centrálního Supabase klienta
+import { supabase as supabaseClient, supabaseUrl, supabaseKey } from './src/lib/supabase';
 
 // PDF.js worker je již nastaven v index.html - neměníme ho zde
 
@@ -81,6 +84,9 @@ const IconExport = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="n
 const IconAdd = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
 const IconChatbot = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z"></path><circle cx="9" cy="10" r="1"></circle><circle cx="15" cy="10" r="1"></circle></svg>;
 const IconVideo = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>;
+const IconUser = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
+const IconSettings = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+const IconLogout = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>;
 const IconDatabase = ({status = 'pending', isLoading = false}: {status?: 'pending' | 'success' | 'error', isLoading?: boolean}) => {
     const getColor = () => {
         if (isLoading) return '#3b82f6'; // modrá pro loading
@@ -239,24 +245,7 @@ const formatFileSize = (kb: number) => {
 
 // Environment variables loaded from .env file or localStorage
 // Try to load API key from multiple sources
-const getGeminiApiKey = (): string | null => {
-    // 1. Try environment variable (from .env file via Vite)
-    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'PLACEHOLDER_API_KEY') {
-        return process.env.GEMINI_API_KEY;
-    }
-    
-    // 2. Try localStorage (user can set it manually)
-    if (typeof window !== 'undefined') {
-        const storedKey = localStorage.getItem('GEMINI_API_KEY');
-        if (storedKey && storedKey !== 'PLACEHOLDER_API_KEY') {
-            return storedKey;
-        }
-    }
-    
-    return null;
-};
-
-const GEMINI_API_KEY = getGeminiApiKey();
+// Gemini API byl odstraněn - už se nepoužívá
 
 const sanitizeFilePath = (filename: string): string => {
     const sanitized = filename
@@ -442,33 +431,9 @@ export interface Database {
 }
 
 // --- Supabase Client Setup ---
-const supabaseUrl = 'https://modopafybeslbcqjxsve.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
-
-console.log('🔧 Inicializuji Supabase client...');
-console.log('URL:', supabaseUrl);
-console.log('Key (prvních 20 znaků):', supabaseKey.substring(0, 20) + '...');
-
-const supabaseClient = createClient<Database>(supabaseUrl, supabaseKey, {
-    auth: {
-        persistSession: false,
-        detectSessionInUrl: false,
-        autoRefreshToken: false
-    },
-    global: {
-        headers: {
-            'X-Client-Info': 'knihy-manager'
-        }
-    },
-    db: {
-        schema: 'public'
-    },
-    realtime: {
-        params: {
-            eventsPerSecond: 10
-        }
-    }
-});
+// POUŽÍVÁME CENTRÁLNÍ INSTANCI ze /src/lib/supabase.ts
+// supabaseClient je importován jako alias "supabase as supabaseClient"
+console.log('✅ Používám centrální Supabase klient z /src/lib/supabase.ts');
 
 console.log('✅ Supabase client inicializován');
 
@@ -1894,162 +1859,11 @@ const api = {
     },
 };
 
-// NOVÁ GEMINI AI IMPLEMENTACE - KOMPLETNĚ PŘEPSÁNA
-class GeminiAI {
-    private apiKey: string;
-    private baseUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
-    private lastRequestTime = 0;
-    private requestCount = 0;
-    private dailyLimit = 50; // Free tier limit
-    
-    constructor(apiKey: string) {
-        this.apiKey = apiKey;
-        
-        // Load request count from localStorage
-        const today = new Date().toDateString();
-        const storedDate = localStorage.getItem('gemini_request_date');
-        const storedCount = localStorage.getItem('gemini_request_count');
-        
-        if (storedDate === today && storedCount) {
-            this.requestCount = parseInt(storedCount, 10);
-        } else {
-            // New day, reset counter
-            this.requestCount = 0;
-            localStorage.setItem('gemini_request_date', today);
-            localStorage.setItem('gemini_request_count', '0');
-        }
-    }
-    
-    private updateRequestCount() {
-        this.requestCount++;
-        localStorage.setItem('gemini_request_count', this.requestCount.toString());
-        console.log(`📊 Gemini API requests: ${this.requestCount}/${this.dailyLimit}`);
-    }
-    
-    private async rateLimitDelay() {
-        const now = Date.now();
-        const timeSinceLastRequest = now - this.lastRequestTime;
-        const minDelay = 2000; // 2 seconds between requests
-        
-        if (timeSinceLastRequest < minDelay) {
-            const waitTime = minDelay - timeSinceLastRequest;
-            console.log(`⏳ Rate limiting: čekám ${waitTime}ms...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-        
-        this.lastRequestTime = Date.now();
-    }
-    
-    async generateText(prompt: string): Promise<string> {
-        // Check daily quota
-        if (this.requestCount >= this.dailyLimit) {
-            const errorMsg = `🚫 Denní kvóta Gemini API vyčerpána (${this.requestCount}/${this.dailyLimit}). Zkuste zítra nebo upgradujte plán.`;
-            console.error(errorMsg);
-            throw new Error(errorMsg);
-        }
-        
-        try {
-            // Apply rate limiting
-            await this.rateLimitDelay();
-            
-            // Zjednodušený request body - stejný jako funkční curl
-            const requestBody = {
-                contents: [{
-                    parts: [{ text: prompt }]
-                }]
-            };
-            
-            console.log(`🔍 Odesílám request na Gemini API... (${this.requestCount + 1}/${this.dailyLimit})`);
-            console.log('🔍 this.apiKey =', this.apiKey.slice(0, 8) + '...');
-            console.log('🔍 URL:', `${this.baseUrl}?key=${this.apiKey.slice(0, 8)}...`);
-            
-            const response = await fetch(`${this.baseUrl}?key=${this.apiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(requestBody)
-            });
-            
-            console.log('🔍 Response status:', response.status);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('🔍 Error response:', errorText);
-                
-                // Parse error details
-                let errorDetails = '';
-                try {
-                    const errorData = JSON.parse(errorText);
-                    if (errorData.error) {
-                        errorDetails = errorData.error.message || errorText;
-                    }
-                } catch {
-                    errorDetails = errorText;
-                }
-                
-                // Handle specific error codes
-                if (response.status === 429) {
-                    const quotaMsg = `🚫 Gemini API kvóta vyčerpána! Máte limit ${this.dailyLimit} requestů za den. Zkuste zítra nebo upgradujte na placený plán.`;
-                    console.error(quotaMsg);
-                    throw new Error(quotaMsg);
-                } else if (response.status === 403) {
-                    throw new Error('🔑 Neplatný API klíč nebo nemáte oprávnění k Gemini API');
-                } else if (response.status >= 500) {
-                    throw new Error('🔧 Server chyba Gemini API - zkuste později');
-                } else {
-                    throw new Error(`Gemini API error (${response.status}): ${errorDetails}`);
-                }
-            }
-            
-            // Update request count only on successful request
-            this.updateRequestCount();
-            
-            const data = await response.json();
-            console.log('🔍 Success response received');
-            
-            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
-                const result = data.candidates[0].content.parts[0].text.trim();
-                console.log('✅ Extracted text:', result.slice(0, 100) + '...');
-                return result;
-            }
-            
-            throw new Error('Neplatný formát odpovědi od Gemini API');
-            
-        } catch (error) {
-            console.error('❌ Gemini AI Error:', error);
-            throw error;
-        }
-    }
-}
-
-// Inicializace Gemini AI klienta (po definici třídy)
-const geminiClient = GEMINI_API_KEY ? new GeminiAI(GEMINI_API_KEY) : null;
-
-// Test funkce pro ověření Gemini API
-const testGeminiConnection = async (): Promise<boolean> => {
-    if (!geminiClient) {
-        console.error('Gemini client není inicializován');
-        return false;
-    }
-    
-    try {
-        const testResult = await geminiClient.generateText('Odpověz pouze slovem "FUNGUJE" pokud mě slyšíš.');
-        console.log('✅ Gemini API test úspěšný:', testResult);
-        return testResult.includes('FUNGUJE') || testResult.includes('funguje') || testResult.length > 0;
-    } catch (error) {
-        console.error('❌ Gemini API test neúspěšný:', error);
-        return false;
-    }
-};
-
-// Gemini API je připraveno k použití pouze na vyžádání (ne při startu aplikace)
+// Gemini AI byla odstraněna - už se nepoužívá
 
 const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<string> => {
-    if (!geminiClient) {
-        alert("Gemini API není dostupné - chybí API klíč.");
-        return "AI není k dispozici.";
-    }
+    alert("AI generování bylo odstraněno. Použijte prosím automatickou extrakci metadat při nahrávání souboru.");
+    return "AI není k dispozici.";
     
     console.log("🔍 Načítám obsah dokumentu pro AI analýzu...");
     console.log("📁 FilePath:", book.filePath);
@@ -2135,160 +1949,10 @@ const generateMetadataWithAI = async (field: keyof Book, book: Book): Promise<st
             return "Toto pole není podporováno pro AI generování.";
     }
     
-    try {
-        console.log("🤖 Odesílám prompt s obsahem dokumentu do AI...");
-        const result = await geminiClient.generateText(prompt);
-        console.log("✅ AI odpověď na základě obsahu dokumentu:", result);
-        return result || "Nepodařilo se vygenerovat odpověď.";
-    } catch (error) {
-        console.error(`Chyba při generování ${field}:`, error);
-        return "Nepodařilo se vygenerovat data.";
-    }
+    console.log("⚠️ AI generování bylo vypnuto");
+    return "AI není k dispozici.";
 };
 
-// NOVÁ FUNKCE: Generování metadat pomocí vision LLM z prvních 10 stránek PDF
-const generateMetadataWithVision = async (book: Book): Promise<Partial<Book>> => {
-    console.log("🖼️ Generuji metadata pomocí vision LLM z prvních 10 stránek PDF...");
-    console.log("📁 FilePath:", book.filePath);
-    console.log("📖 Kniha:", book.title, "od", book.author);
-    
-    try {
-        // Ověříme, že je to PDF soubor
-        if (book.format.toLowerCase() !== 'pdf') {
-            throw new Error('Vision metadata lze generovat pouze z PDF souborů');
-        }
-        
-        // Stáhneme PDF soubor ze storage pomocí createSignedUrl (spolehlivější než public URL)
-        console.log('📥 Stahuji PDF soubor z databáze...');
-        
-        // Vytvoříme signed URL (platnost 60 sekund)
-        const { data: signedUrlData, error: urlError } = await supabaseClient.storage
-            .from("Books")
-            .createSignedUrl(book.filePath, 60);
-        
-        if (urlError || !signedUrlData || !signedUrlData.signedUrl) {
-            console.error('❌ Chyba při vytváření signed URL:', urlError);
-            throw new Error(`Nepodařilo se získat signed URL: ${urlError?.message || 'Neznámá chyba'}`);
-        }
-        
-        console.log('📡 Signed URL vytvořena, stahuji soubor...');
-        
-        // Stáhneme soubor přes fetch
-        let response;
-        try {
-            response = await fetch(signedUrlData.signedUrl, {
-                method: 'GET',
-                mode: 'cors',
-                cache: 'no-cache'
-            });
-        } catch (fetchError) {
-            console.error('❌ Fetch selhal při stahování PDF:', fetchError);
-            throw new Error(`Nepodařilo se stáhnout PDF: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
-        }
-        
-        if (!response.ok) {
-            throw new Error(`Nepodařilo se stáhnout soubor: ${response.status} ${response.statusText}`);
-        }
-        
-        const fileData = await response.blob();
-        console.log(`✅ PDF staženo (${Math.round(fileData.size / 1024)} KB)`);
-        
-        // Převedeme prvních 10 stránek na obrázky
-        console.log('🔄 Převádím prvních 10 stránek PDF na obrázky...');
-        let images;
-        try {
-            images = await pdfToImageService.convertPdfPagesToImages(fileData, 10, 2.0);
-            console.log('✅ Konverze PDF na obrázky dokončena');
-        } catch (conversionError) {
-            console.error('❌ Chyba při konverzi PDF na obrázky:', conversionError);
-            throw new Error(`Nepodařilo se převést PDF na obrázky: ${conversionError instanceof Error ? conversionError.message : String(conversionError)}`);
-        }
-        
-        if (!images || images.length === 0) {
-            throw new Error('Nepodařilo se převést žádnou stránku PDF na obrázek');
-        }
-        
-        console.log(`✅ Převedeno ${images.length} stránek na obrázky`);
-        
-        // Připravíme data pro vision API
-        console.log('📦 Připravuji data pro vision API...');
-        const visionImages = images.map(img => ({
-            page_number: img.page_number,
-            base64_png: img.base64_png
-        }));
-        console.log(`✅ Připraveno ${visionImages.length} obrázků pro API`);
-        
-        // Zavoláme vision LLM
-        console.log('🤖 Odesílám obrázky do vision LLM pro extrakci metadat...');
-        let result;
-        try {
-            result = await openRouterVisionService.extractMetadataFromImages(
-                visionImages, 
-                book.title || 'dokument.pdf'
-            );
-            console.log('✅ Vision API odpovědělo');
-        } catch (apiError) {
-            console.error('❌ Chyba při volání vision API:', apiError);
-            throw new Error(`Nepodařilo se volat vision API: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
-        }
-        
-        if (!result) {
-            throw new Error('Vision API nevrátilo žádnou odpověď');
-        }
-        
-        if (!result.success) {
-            throw new Error(result.error || 'Vision LLM vrátil chybu bez zprávy');
-        }
-        
-        if (!result.metadata) {
-            throw new Error('Vision LLM nevrátil metadata');
-        }
-        
-        console.log('✅ Vision LLM úspěšně extrahoval metadata:', result.metadata);
-        
-        // Převedeme metadata na formát Book
-        const extractedMetadata: Partial<Book> = {};
-        
-        if (result.metadata.title) {
-            extractedMetadata.title = result.metadata.title;
-        }
-        if (result.metadata.author) {
-            extractedMetadata.author = result.metadata.author;
-        }
-        if (result.metadata.publicationYear) {
-            extractedMetadata.publicationYear = result.metadata.publicationYear;
-        }
-        if (result.metadata.publisher) {
-            extractedMetadata.publisher = result.metadata.publisher;
-        }
-        if (result.metadata.language) {
-            extractedMetadata.language = result.metadata.language;
-        }
-        if (result.metadata.summary) {
-            extractedMetadata.summary = result.metadata.summary;
-        }
-        if (result.metadata.keywords && result.metadata.keywords.length > 0) {
-            extractedMetadata.keywords = result.metadata.keywords;
-        }
-        if (result.metadata.releaseVersion) {
-            extractedMetadata.releaseVersion = result.metadata.releaseVersion;
-        }
-        
-        console.log('✅ Metadata připravena k naplnění polí:', extractedMetadata);
-        
-        return extractedMetadata;
-        
-    } catch (error) {
-        console.error('❌ Chyba při generování metadat pomocí vision LLM:', error);
-        console.error('❌ Error type:', typeof error);
-        console.error('❌ Error details:', {
-            message: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : 'N/A',
-            error: error
-        });
-        throw error;
-    }
-};
 
 // NOVÁ FUNKCE: Inteligentní generování metadat (auto-detekce OCR)
 const generateMetadataIntelligent = async (book: Book): Promise<Partial<Book>> => {
@@ -2649,96 +2313,7 @@ const generateCoverFromPdf = async (fileData: ArrayBuffer): Promise<File | null>
     }
 };
 
-// Function to set Gemini API key - can be called from browser console
-(window as any).setGeminiApiKey = (apiKey: string) => {
-    if (!apiKey || apiKey.trim() === '') {
-        console.error('❌ API klíč nemůže být prázdný');
-        return false;
-    }
-    
-    localStorage.setItem('GEMINI_API_KEY', apiKey.trim());
-    console.log('✅ Gemini API klíč uložen do localStorage');
-    console.log('🔄 Obnovte stránku pro aktivaci nového API klíče');
-    return true;
-};
-
-// Function to test current Gemini API key - can be called from browser console
-(window as any).testGeminiApiKey = async () => {
-    const currentKey = getGeminiApiKey();
-    if (!currentKey) {
-        console.error('❌ Žádný API klíč není nastaven');
-        console.log('💡 Použijte: setGeminiApiKey("váš-api-klíč")');
-        return false;
-    }
-    
-    console.log('🧪 Testování Gemini API klíče...');
-    const testClient = new GeminiAI(currentKey);
-    
-    try {
-        const result = await testClient.generateText('Odpověz pouze slovem "FUNGUJE" pokud mě slyšíš.');
-        console.log('✅ Test úspěšný! Odpověď:', result);
-        return true;
-    } catch (error) {
-        console.error('❌ Test neúspěšný:', error);
-        return false;
-    }
-};
-
-// Function to show current API key status - can be called from browser console
-(window as any).checkGeminiStatus = () => {
-    const currentKey = getGeminiApiKey();
-    const today = new Date().toDateString();
-    const storedDate = localStorage.getItem('gemini_request_date');
-    const storedCount = localStorage.getItem('gemini_request_count');
-    
-    console.log('🔍 Gemini API Status:');
-    console.log('- Environment variable:', process.env.GEMINI_API_KEY ? `${process.env.GEMINI_API_KEY.slice(0, 8)}...` : 'not set');
-    console.log('- localStorage:', typeof window !== 'undefined' && localStorage.getItem('GEMINI_API_KEY') ? `${localStorage.getItem('GEMINI_API_KEY')!.slice(0, 8)}...` : 'not set');
-    console.log('- Final key:', currentKey ? `${currentKey.slice(0, 8)}...` : 'not available');
-    console.log('- Client initialized:', !!geminiClient);
-    
-    // Show quota information
-    if (storedDate === today && storedCount) {
-        const count = parseInt(storedCount, 10);
-        console.log(`📊 Dnešní kvóta: ${count}/50 requestů`);
-        if (count >= 50) {
-            console.log('🚫 KVÓTA VYČERPÁNA - zkuste zítra nebo upgradujte plán');
-        } else if (count >= 40) {
-            console.log('⚠️ POZOR - blížíte se limitu kvóty');
-        }
-    } else {
-        console.log('📊 Dnešní kvóta: 0/50 requestů (nový den)');
-    }
-    
-    if (!currentKey) {
-        console.log('\n💡 Pro nastavení API klíče použijte:');
-        console.log('setGeminiApiKey("váš-gemini-api-klíč")');
-    }
-};
-
-// Function to reset quota counter - can be called from browser console
-(window as any).resetGeminiQuota = () => {
-    localStorage.setItem('gemini_request_date', new Date().toDateString());
-    localStorage.setItem('gemini_request_count', '0');
-    console.log('✅ Gemini kvóta resetována na 0');
-};
-
-// Function to check remaining quota - can be called from browser console
-(window as any).getGeminiQuota = () => {
-    const today = new Date().toDateString();
-    const storedDate = localStorage.getItem('gemini_request_date');
-    const storedCount = localStorage.getItem('gemini_request_count');
-    
-    if (storedDate === today && storedCount) {
-        const used = parseInt(storedCount, 10);
-        const remaining = 50 - used;
-        console.log(`📊 Gemini kvóta: ${used}/50 použito, ${remaining} zbývá`);
-        return { used, remaining, total: 50 };
-    } else {
-        console.log('📊 Gemini kvóta: 0/50 použito, 50 zbývá (nový den)');
-        return { used: 0, remaining: 50, total: 50 };
-    }
-};
+// Gemini helper funkce byly odstraněny - už se nepoužívají
 
 
 
@@ -3382,11 +2957,13 @@ const TagSelector = ({ selectedTags, allTags, onChange, onAddNewTag, onDeleteTag
     );
 };
 
-const App = () => {
+const App = ({ currentUser }: { currentUser: User }) => {
     const [books, setBooks] = useState<Book[]>([]);
     const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
     const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+    const [isUserManagementOpen, setUserManagementOpen] = useState(false);
+    const [isProfileSettingsOpen, setProfileSettingsOpen] = useState(false);
     
     // Filters
     const [filter, setFilter] = useState('');
@@ -4839,6 +4416,17 @@ const App = () => {
                 isAnyBookSelected={selectedBookIds.size > 0}
                 onChatbotManagementClick={() => setChatbotManagementOpen(true)}
                 onAddVideoClick={() => setAddVideoModalOpen(true)}
+                currentUser={currentUser}
+                onUserManagementClick={() => setUserManagementOpen(true)}
+                onProfileSettingsClick={() => setProfileSettingsOpen(true)}
+                onLogoutClick={async () => {
+                    const { error } = await logout();
+                    if (error) {
+                        alert(`Chyba při odhlášení: ${error}`);
+                    } else {
+                        window.location.reload();
+                    }
+                }}
             />
 
             <div style={styles.mainContent}>
@@ -5263,6 +4851,27 @@ const App = () => {
                     </div>
                 </div>
             )}
+
+            {/* Správa uživatelů */}
+            {isUserManagementOpen && (
+                <UserManagement
+                    currentUserId={currentUser.id}
+                    onClose={() => setUserManagementOpen(false)}
+                />
+            )}
+
+            {isProfileSettingsOpen && (
+                <Modal
+                    isOpen={isProfileSettingsOpen}
+                    onClose={() => setProfileSettingsOpen(false)}
+                    title=""
+                >
+                    <ProfileSettings
+                        currentUser={currentUser}
+                        onClose={() => setProfileSettingsOpen(false)}
+                    />
+                </Modal>
+            )}
         </div>
     );
 };
@@ -5279,9 +4888,14 @@ interface TopToolbarProps {
     isAnyBookSelected: boolean;
     onChatbotManagementClick: () => void;
     onAddVideoClick: () => void;
+    currentUser: User;
+    onUserManagementClick: () => void;
+    onProfileSettingsClick: () => void;
+    onLogoutClick: () => void;
 }
-const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, onBulkDelete, onBulkDownload, onExportXml, onConvertClick, isAnyBookSelected, onChatbotManagementClick, onAddVideoClick }: TopToolbarProps) => {
+const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, onBulkDelete, onBulkDownload, onExportXml, onConvertClick, isAnyBookSelected, onChatbotManagementClick, onAddVideoClick, currentUser, onUserManagementClick, onProfileSettingsClick, onLogoutClick }: TopToolbarProps) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const isSpravce = currentUser.role === 'spravce';
 
     return (
         <header style={styles.header}>
@@ -5299,7 +4913,12 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                     <button style={styles.button} onClick={onUploadClick}><IconUpload /> Přidat knihu</button>
                     <button style={styles.button} onClick={onAddVideoClick}><IconVideo /> Přidat video</button>
                     <button style={styles.button} onClick={onConvertClick} disabled={!isAnyBookSelected}>Konvertovat knihu</button>
-                    <button style={styles.button} onClick={onChatbotManagementClick}><IconChatbot /> Správa chatbotů</button>
+                    {isSpravce && (
+                        <button style={styles.button} onClick={onChatbotManagementClick}><IconChatbot /> Správa chatbotů</button>
+                    )}
+                    {isSpravce && (
+                        <button style={styles.button} onClick={onUserManagementClick}><IconUser /> Správa uživatelů</button>
+                    )}
                  {selectedCount > 0 && (
                     <div style={{ position: 'relative' }}>
                         <button style={styles.button} onClick={() => setDropdownOpen(o => !o)} onBlur={() => setTimeout(() => setDropdownOpen(false), 200)}>
@@ -5316,9 +4935,52 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                 )}
                 </div>
             </div>
-            <div style={styles.viewToggle}>
-                <button style={{...styles.iconButton, ...(viewMode === 'list' ? styles.iconButtonActive : {})}} onClick={() => onViewModeChange('list')} aria-label="List view"><IconList/></button>
-                <button style={{...styles.iconButton, ...(viewMode === 'grid' ? styles.iconButtonActive : {})}} onClick={() => onViewModeChange('grid')} aria-label="Grid view"><IconGrid/></button>
+            <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    marginRight: '12px',
+                    fontSize: '12px'
+                }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{currentUser.email}</span>
+                    <span style={{
+                        color: 'var(--text-secondary)',
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        background: isSpravce ? '#e0e7ff' : '#f3e8ff',
+                        borderRadius: '8px',
+                        marginTop: '2px'
+                    }}>
+                        {isSpravce ? 'Správce' : 'Admin'}
+                    </span>
+                </div>
+                <div style={styles.viewToggle}>
+                    <button style={{...styles.iconButton, ...(viewMode === 'list' ? styles.iconButtonActive : {})}} onClick={() => onViewModeChange('list')} aria-label="List view"><IconList/></button>
+                    <button style={{...styles.iconButton, ...(viewMode === 'grid' ? styles.iconButtonActive : {})}} onClick={() => onViewModeChange('grid')} aria-label="Grid view"><IconGrid/></button>
+                </div>
+                <button 
+                    style={{
+                        ...styles.iconButton,
+                        padding: '0.5rem'
+                    }} 
+                    onClick={onProfileSettingsClick}
+                    title="Nastavení profilu"
+                >
+                    <IconSettings />
+                </button>
+                <button 
+                    style={{
+                        ...styles.button,
+                        background: 'var(--background-secondary)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-color)'
+                    }} 
+                    onClick={onLogoutClick}
+                    title="Odhlásit se"
+                >
+                    <IconLogout /> Odhlásit
+                </button>
             </div>
         </header>
     );
@@ -6144,136 +5806,6 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
         }
     }, [updateLocalBook, localBook.id, checkCacheStatus, extractTextViaWebhook]);
 
-    const handleBulkAIGenerate = async () => {
-        setIsBulkGenerating(true);
-        const fieldsToFill: (keyof Book)[] = [];
-
-        // Použijeme aktuální localBook pro kontrolu, ale nebudeme ho měnit v dependencies
-        const currentBook = localBook;
-        
-        if (!currentBook.author || currentBook.author === 'Neznámý') fieldsToFill.push('author');
-        if (!currentBook.publicationYear) fieldsToFill.push('publicationYear');
-        if (!currentBook.publisher) fieldsToFill.push('publisher');
-        if (!currentBook.summary) fieldsToFill.push('summary');
-        if (!currentBook.keywords || currentBook.keywords.length === 0) fieldsToFill.push('keywords');
-        // Jazyk se nebude automaticky vyplňovat - často je to špatně
-
-        if (fieldsToFill.length === 0) {
-            alert("Všechna metadata se zdají být vyplněna.");
-            setIsBulkGenerating(false);
-            return;
-        }
-
-        // AUTOMATICKÁ OCR EXTRAKCE PŘED HROMADNÝM AI GENEROVÁNÍM
-        try {
-            const cacheStatus = checkCacheStatus(localBook.id);
-            if (!cacheStatus.hasCache) {
-                console.log('📥 Spouštím automatickou OCR extrakci před hromadným AI generováním...');
-                const extractedText = await extractTextViaWebhook(localBook);
-                console.log('✅ Text extrahován přes OCR webhook:', extractedText.length, 'znaků');
-                updateLocalBook(prev => ({...prev}));
-            }
-        } catch (extractError) {
-            console.warn('⚠️ Automatická OCR extrakce selhala před hromadným generováním:', extractError);
-            const shouldContinue = confirm('⚠️ Nepodařilo se extrahovat text přes OCR webhook. AI bude generovat metadata pouze z názvu knihy. Pokračovat?');
-            if (!shouldContinue) {
-                setIsBulkGenerating(false);
-                return;
-            }
-        }
-
-        const generationPromises = fieldsToFill.map(field =>
-            generateMetadataWithAI(field, localBook)
-                .then(result => ({ field, status: 'fulfilled' as const, value: result }))
-                .catch(error => ({ field, status: 'rejected' as const, reason: error }))
-        );
-
-        const results = await Promise.all(generationPromises);
-
-        updateLocalBook(prevBook => {
-            const newBookData = { ...prevBook };
-            results.forEach(item => {
-                if (item.status === 'fulfilled') {
-                    if (item.value) {
-                        let updatedValue: any = item.value;
-                        if (item.field === 'keywords') {
-                            updatedValue = item.value.split(',').map(k => k.trim());
-                        } else if (item.field === 'publicationYear') {
-                            updatedValue = parseInt(item.value, 10) || null;
-                        }
-                        (newBookData as any)[item.field] = updatedValue;
-                    }
-                } else {
-                    console.error(`Failed to generate metadata for ${item.field}:`, item.reason);
-                }
-            });
-            return newBookData;
-        });
-        
-        setIsBulkGenerating(false);
-    };
-
-    // NOVÝ HANDLER: Hromadné generování metadat pomocí vision LLM z prvních 10 stránek
-    const handleBulkVisionGenerate = async () => {
-        setIsBulkGenerating(true);
-        
-        try {
-            // Ověříme, že je to PDF soubor
-            if (localBook.format.toLowerCase() !== 'pdf') {
-                alert('⚠️ Vision metadata lze generovat pouze z PDF souborů!');
-                setIsBulkGenerating(false);
-                return;
-            }
-            
-            // Potvrzení od uživatele
-            const shouldProceed = confirm(
-                `🖼️ METADATA Z VISION LLM\n\n` +
-                `Tato funkce:\n` +
-                `• Převede prvních 10 stránek PDF na obrázky\n` +
-                `• Pošle je do vision LLM (GPT-4o mini)\n` +
-                `• Automaticky vyplní všechna dostupná metadata\n\n` +
-                `Proces může trvat 1-2 minuty.\n\n` +
-                `Pokračovat?`
-            );
-            
-            if (!shouldProceed) {
-                setIsBulkGenerating(false);
-                return;
-            }
-            
-            console.log('🖼️ Spouštím vision metadata generování...');
-            
-            // Zavoláme vision funkci
-            const extractedMetadata = await generateMetadataWithVision(localBook);
-            
-            // Aktualizujeme localBook s extrahovanými daty
-            updateLocalBook(prevBook => ({
-                ...prevBook,
-                ...extractedMetadata
-            }));
-            
-            // Zobrazíme uživateli, co bylo vyplněno
-            const filledFields = Object.keys(extractedMetadata).join(', ');
-            alert(
-                `✅ Vision metadata úspěšně vygenerována!\n\n` +
-                `Vyplněná pole:\n${filledFields}\n\n` +
-                `Zkontrolujte prosím metadata a v případě potřeby je upravte.`
-            );
-            
-            console.log('✅ Vision metadata úspěšně aplikována na knihu');
-            
-        } catch (error) {
-            console.error('❌ Chyba při vision metadata generování:', error);
-            alert(
-                `❌ Chyba při generování vision metadata:\n\n` +
-                `${error instanceof Error ? error.message : String(error)}\n\n` +
-                `Zkuste to prosím znovu nebo použijte standardní "Vyplnit metadata".`
-            );
-        } finally {
-            setIsBulkGenerating(false);
-        }
-    };
-
     // NOVÝ HANDLER: Inteligentní generování metadat (auto-detekce OCR)
     const handleBulkIntelligentGenerate = async () => {
         setIsBulkGenerating(true);
@@ -6286,41 +5818,22 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                 return;
             }
             
-            // Potvrzení od uživatele
-            const shouldProceed = confirm(
-                `🤖 INTELIGENTNÍ EXTRAKCE METADAT\n\n` +
-                `Tato funkce:\n` +
-                `• Automaticky detekuje zda PDF má OCR text\n` +
-                `• S OCR: Extrahuje text a použije textový AI model (rychlejší, levnější)\n` +
-                `• Bez OCR: Převede na obrázky a použije vision AI model\n` +
-                `• Automaticky vyplní všechna dostupná metadata\n\n` +
-                `Proces může trvat 1-3 minuty.\n\n` +
-                `Pokračovat?`
-            );
-            
-            if (!shouldProceed) {
-                setIsBulkGenerating(false);
-                return;
-            }
-            
             console.log('🤖 Spouštím inteligentní extrakci metadat...');
             
             // Zavoláme inteligentní funkci
             const extractedMetadata = await generateMetadataIntelligent(localBook);
             
-            // Aktualizujeme localBook s extrahovanými daty
-            updateLocalBook(prevBook => ({
-                ...prevBook,
-                ...extractedMetadata
-            }));
+            console.log('📝 Aplikuji extrahovaná metadata:', extractedMetadata);
             
-            // Zobrazíme uživateli, co bylo vyplněno
-            const filledFields = Object.keys(extractedMetadata).join(', ');
-            alert(
-                `✅ Metadata úspěšně extrahována!\n\n` +
-                `Vyplněná pole:\n${filledFields}\n\n` +
-                `Zkontrolujte prosím metadata a v případě potřeby je upravte.`
-            );
+            // Aktualizujeme localBook s extrahovanými daty
+            updateLocalBook(prevBook => {
+                const updatedBook = {
+                    ...prevBook,
+                    ...extractedMetadata
+                };
+                console.log('📚 Aktualizovaná kniha:', updatedBook);
+                return updatedBook;
+            });
             
             console.log('✅ Inteligentní metadata úspěšně aplikována na knihu');
             
@@ -6918,36 +6431,15 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                             </div>
                         )}
                         
-                        {/* Čtvrtá řada: Vyplnit metadata, Metadata 2 (Vision), Metadata 3 (Intelligent) */}
+                        {/* Čtvrtá řada: Vyplnit metadata */}
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <button style={styles.button} onClick={handleBulkAIGenerate} disabled={isBulkGenerating}>
-                                {isBulkGenerating ? 'Generuji...' : <><IconMagic /> Vyplnit metadata</>}
-                            </button>
                             <button 
-                                style={{
-                                    ...styles.button,
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                    color: 'white',
-                                    border: 'none'
-                                }} 
-                                onClick={handleBulkVisionGenerate} 
-                                disabled={isBulkGenerating || localBook.format.toLowerCase() !== 'pdf'}
-                                title="Generovat metadata pomocí vision LLM z prvních 10 stránek PDF"
-                            >
-                                {isBulkGenerating ? 'Generuji...' : <>🖼️ Metadata 2</>}
-                            </button>
-                            <button 
-                                style={{
-                                    ...styles.button,
-                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                    color: 'white',
-                                    border: 'none'
-                                }} 
+                                style={styles.button} 
                                 onClick={handleBulkIntelligentGenerate} 
                                 disabled={isBulkGenerating || localBook.format.toLowerCase() !== 'pdf'}
                                 title="Inteligentní extrakce metadat - automaticky detekuje OCR a volá optimální AI model"
                             >
-                                {isBulkGenerating ? 'Generuji...' : <>🤖 Metadata 3</>}
+                                {isBulkGenerating ? 'Generuji...' : <><IconMagic /> Vyplnit metadata</>}
                             </button>
                         </div>
                         
@@ -7555,8 +7047,14 @@ const styles: { [key: string]: React.CSSProperties } = {
 const root = createRoot(document.getElementById('root')!);
 root.render(
   <React.StrictMode>
-    <App />
-    <ChatWidget />
+    <AuthGuard>
+      {(currentUser) => (
+        <>
+          <App currentUser={currentUser} />
+          <ChatWidget />
+        </>
+      )}
+    </AuthGuard>
   </React.StrictMode>
 );
 // Test function for new iLovePDF processing

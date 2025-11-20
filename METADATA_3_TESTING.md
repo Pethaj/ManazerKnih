@@ -244,3 +244,5 @@ Pokud najdete bug nebo máte dotaz:
 3. Ověřte OpenRouter API status: https://openrouter.ai/docs
 
 
+
+

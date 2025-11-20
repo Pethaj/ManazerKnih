@@ -1,250 +1,278 @@
 /**
- * OpenRouter Intelligent Metadata Service
- * Inteligentní extrakce metadat z PDF - automaticky detekuje OCR a volá optimální AI model
+ * OpenRouter Metadata Service - Inteligentní extrakce metadat
+ * Automaticky detekuje OCR a volá správný AI model přes Supabase Edge Function
  */
 
-import * as pdfToImageService from './pdfToImageService';
-
-// Helper pro získání PDF.js z window
-function getPdfjsLib(): any {
-  if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
-    return (window as any).pdfjsLib;
+// Použijeme globální pdfjsLib z window, který je už inicializovaný v index.html
+declare global {
+  interface Window {
+    pdfjsLib: any;
   }
-  throw new Error('PDF.js není načten!');
 }
+
+// Pro TypeScript import (není potřeba, používáme window.pdfjsLib)
+// import * as pdfjsLib from 'pdfjs-dist';
 
 export interface ExtractedMetadata {
   title?: string;
   author?: string;
   publicationYear?: number;
   publisher?: string;
-  language?: string;
   summary?: string;
   keywords?: string[];
+  language?: string;
+  categories?: string[];
   releaseVersion?: string;
+  hasOCR?: boolean;
 }
 
-export interface IntelligentExtractionResult {
+interface MetadataResponse {
   success: boolean;
   metadata?: ExtractedMetadata;
-  type?: 'text' | 'images'; // Jaký typ vstupu byl použit
-  model?: string; // Jaký AI model byl použit
   error?: string;
+  type?: 'text' | 'images';
+  model?: string;
 }
 
 /**
- * Extrahuje text z prvních N stránek PDF pomocí PDF.js
+ * Extrahuje text z PDF pomocí PDF.js
  */
 async function extractTextFromPDF(
-  pdfBlob: Blob,
+  pdfData: ArrayBuffer,
   maxPages: number = 10
 ): Promise<string> {
-  console.log(`📄 Pokus o extrakci textu z prvních ${maxPages} stránek PDF...`);
-  
   try {
-    const arrayBuffer = await pdfBlob.arrayBuffer();
-    const pdfjsLib = getPdfjsLib();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    // Použijeme globální pdfjsLib z window
+    const pdfjsLib = window.pdfjsLib;
+    if (!pdfjsLib) {
+      throw new Error('PDF.js není načten. Zkuste obnovit stránku.');
+    }
+    
+    const loadingTask = pdfjsLib.getDocument({ data: pdfData });
     const pdf = await loadingTask.promise;
     
-    const pagesToProcess = Math.min(maxPages, pdf.numPages);
+    const numPages = Math.min(pdf.numPages, maxPages);
+    console.log(`📄 Extrahuji text z prvních ${numPages} stránek...`);
+    
     let fullText = '';
     
-    for (let pageNum = 1; pageNum <= pagesToProcess; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      
-      fullText += pageText + '\n\n';
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        const pageText = textContent.items
+          .map((item: any) => {
+            if (item.str !== undefined) return String(item.str);
+            if (item.text !== undefined) return String(item.text);
+            if (item.chars !== undefined) return String(item.chars);
+            if (typeof item === 'string') return item;
+            return '';
+          })
+          .join(' ');
+        
+        fullText += pageText + '\n';
+        console.log(`📝 Stránka ${pageNum}: ${pageText.length} znaků`);
+      } catch (pageError) {
+        console.warn(`⚠️ Chyba při zpracování stránky ${pageNum}:`, pageError);
+      }
     }
     
-    console.log(`✅ Text extrahován: ${fullText.length} znaků`);
     return fullText.trim();
-    
   } catch (error) {
     console.error('❌ Chyba při extrakci textu z PDF:', error);
-    throw error;
+    return '';
   }
 }
 
 /**
- * Detekuje zda PDF obsahuje OCR text
- * @returns true pokud PDF obsahuje dostatek textu (>500 znaků)
+ * Konvertuje PDF stránky na obrázky pomocí PDF.js
  */
-async function detectOCR(pdfBlob: Blob, maxPages: number = 10): Promise<boolean> {
+async function convertPdfToImages(
+  pdfData: ArrayBuffer,
+  maxPages: number = 10,
+  scale: number = 2.0
+): Promise<string[]> {
   try {
-    const text = await extractTextFromPDF(pdfBlob, maxPages);
-    const hasOCR = text.length > 500;
-    
-    console.log(`🔍 OCR detekce: ${hasOCR ? '✅ Obsahuje text' : '❌ Neobsahuje dostatek textu'} (${text.length} znaků)`);
-    
-    return hasOCR;
-  } catch (error) {
-    console.error('❌ Chyba při detekci OCR:', error);
-    return false;
-  }
-}
-
-/**
- * Stáhne PDF soubor ze Supabase storage
- */
-async function downloadPDF(pdfUrl: string): Promise<Blob> {
-  console.log(`📥 Stahuji PDF z URL: ${pdfUrl}`);
-  
-  try {
-    const response = await fetch(pdfUrl);
-    if (!response.ok) {
-      throw new Error(`Nepodařilo se stáhnout PDF: ${response.status} ${response.statusText}`);
+    // Použijeme globální pdfjsLib z window
+    const pdfjsLib = window.pdfjsLib;
+    if (!pdfjsLib) {
+      throw new Error('PDF.js není načten. Zkuste obnovit stránku.');
     }
     
-    const blob = await response.blob();
-    console.log(`✅ PDF staženo (${Math.round(blob.size / 1024)} KB)`);
+    const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+    const pdf = await loadingTask.promise;
     
-    return blob;
-  } catch (error) {
-    console.error('❌ Chyba při stahování PDF:', error);
-    throw error;
-  }
-}
-
-/**
- * Zavolá Supabase Edge Function pro extrakci metadat
- */
-async function callEdgeFunction(
-  type: 'text' | 'images',
-  content: string | string[],
-  fileName: string,
-  supabaseUrl: string,
-  supabaseKey: string
-): Promise<IntelligentExtractionResult> {
-  console.log(`📡 Volám Edge Function s typem: ${type}`);
-  
-  const edgeFunctionUrl = `${supabaseUrl}/functions/v1/extract-metadata-ai`;
-  
-  try {
-    const response = await fetch(edgeFunctionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-      },
-      body: JSON.stringify({
-        type: type,
-        content: content,
-        fileName: fileName,
-      }),
-    });
+    const numPages = Math.min(pdf.numPages, maxPages);
+    console.log(`🖼️ Konvertuji prvních ${numPages} stránek na obrázky...`);
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(
-        `Edge Function error: ${response.status} - ${errorData?.error || response.statusText}`
-      );
+    const images: string[] = [];
+    
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale });
+        
+        // Vytvoříme canvas
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (!context) {
+          console.error('❌ Nepodařilo se získat 2D kontext canvasu');
+          continue;
+        }
+        
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        // Vykreslíme stránku na canvas
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+        
+        await page.render(renderContext).promise;
+        
+        // Převedeme canvas na base64 PNG (bez data:image/png;base64, prefixu)
+        const base64Image = canvas.toDataURL('image/png').split(',')[1];
+        images.push(base64Image);
+        
+        console.log(`✅ Stránka ${pageNum} převedena (${Math.round(base64Image.length / 1024)} KB)`);
+      } catch (pageError) {
+        console.error(`❌ Chyba při konverzi stránky ${pageNum}:`, pageError);
+      }
     }
     
-    const result = await response.json();
-    console.log('✅ Edge Function response:', result);
-    
-    return result;
-    
+    return images;
   } catch (error) {
-    console.error('❌ Chyba při volání Edge Function:', error);
-    throw error;
+    console.error('❌ Chyba při konverzi PDF na obrázky:', error);
+    return [];
   }
 }
 
 /**
  * Hlavní funkce pro inteligentní extrakci metadat
- * Automaticky detekuje OCR a volá odpovídající AI model přes Supabase Edge Function
+ * Automaticky detekuje OCR a volá Edge Function s textem nebo obrázky
  */
 export async function extractMetadataIntelligent(
   pdfUrl: string,
-  fileName: string,
+  filename: string,
   supabaseUrl: string,
   supabaseKey: string
-): Promise<IntelligentExtractionResult> {
+): Promise<MetadataResponse> {
   console.log('🤖 Spouštím inteligentní extrakci metadat...');
-  console.log(`📄 Soubor: ${fileName}`);
-  console.log(`🔗 URL: ${pdfUrl}`);
+  console.log('📥 PDF URL:', pdfUrl);
+  console.log('📁 Název souboru:', filename);
   
   try {
     // 1. Stáhneme PDF
-    const pdfBlob = await downloadPDF(pdfUrl);
-    
-    // 2. Detekujeme, zda obsahuje OCR text
-    const hasOCR = await detectOCR(pdfBlob);
-    
-    let type: 'text' | 'images';
-    let content: string | string[];
-    
-    if (hasOCR) {
-      // PDF má OCR text - extrahujeme text
-      console.log('✅ PDF obsahuje OCR text, použijeme textový model');
-      type = 'text';
-      content = await extractTextFromPDF(pdfBlob, 10);
-      
-      if (!content || content.length < 100) {
-        console.warn('⚠️ Extrahovaný text je příliš krátký, použijeme vision model');
-        type = 'images';
-        const images = await pdfToImageService.convertPdfPagesToImages(pdfBlob, 10);
-        content = images.map(img => img.base64_png);
-      }
-    } else {
-      // PDF nemá OCR text - použijeme vision model
-      console.log('❌ PDF neobsahuje OCR text, použijeme vision model');
-      type = 'images';
-      const images = await pdfToImageService.convertPdfPagesToImages(pdfBlob, 10);
-      content = images.map(img => img.base64_png);
+    console.log('📥 Stahuji PDF soubor...');
+    const pdfResponse = await fetch(pdfUrl);
+    if (!pdfResponse.ok) {
+      throw new Error(`Nepodařilo se stáhnout PDF: ${pdfResponse.status}`);
     }
     
-    // 3. Zavoláme Edge Function s připraveným obsahem
-    console.log(`📡 Odesílám ${type === 'text' ? 'text' : 'obrázky'} do Edge Function...`);
+    const pdfBlob = await pdfResponse.blob();
+    const pdfData = await pdfBlob.arrayBuffer();
+    const pdfSizeMB = (pdfData.byteLength / 1024 / 1024).toFixed(2);
+    console.log(`✅ PDF staženo (${pdfSizeMB} MB)`);
     
-    const result = await callEdgeFunction(
-      type,
-      content,
-      fileName,
-      supabaseUrl,
-      supabaseKey
-    );
+    // 2. Detekujeme OCR - pokusíme se extrahovat text
+    console.log('🔍 Detekuji OCR text...');
+    const extractedText = await extractTextFromPDF(pdfData, 10);
     
-    return result;
+    let requestData: any;
+    let inputType: 'text' | 'images';
+    
+    // 3. Rozhodneme se podle množství textu
+    if (extractedText.length > 500) {
+      // ✅ Má OCR text
+      console.log(`✅ PDF obsahuje OCR text (${extractedText.length} znaků)`);
+      console.log(`📝 První 200 znaků: "${extractedText.substring(0, 200)}..."`);
+      
+      inputType = 'text';
+      requestData = {
+        type: 'text',
+        content: extractedText,
+        fileName: filename,
+      };
+    } else {
+      // ❌ Nemá OCR text → konvertujeme na obrázky
+      console.log(`❌ PDF neobsahuje OCR text (pouze ${extractedText.length} znaků)`);
+      console.log('🖼️ Konvertuji PDF na obrázky pro vision model...');
+      
+      const images = await convertPdfToImages(pdfData, 10, 2.0);
+      
+      if (images.length === 0) {
+        throw new Error('Nepodařilo se převést PDF na obrázky');
+      }
+      
+      console.log(`✅ Převedeno ${images.length} stránek na obrázky`);
+      
+      inputType = 'images';
+      requestData = {
+        type: 'images',
+        content: images,
+        fileName: filename,
+      };
+    }
+    
+    // 4. Zavoláme Supabase Edge Function
+    console.log(`📡 Volám Edge Function s typem: ${inputType}`);
+    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/extract-metadata-ai`;
+    
+    const response = await fetch(edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseKey}`,
+      },
+      body: JSON.stringify(requestData),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Edge Function chyba: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Edge Function vrátila chybu');
+    }
+    
+    console.log('✅ Metadata úspěšně extrahována:', result.metadata);
+    console.log(`📊 Model: ${result.model} | Typ: ${result.type}`);
+    
+    return {
+      success: true,
+      metadata: {
+        ...result.metadata,
+        hasOCR: inputType === 'text',
+      },
+      type: inputType,
+      model: result.model,
+    };
     
   } catch (error) {
     console.error('❌ Chyba při inteligentní extrakci metadat:', error);
     return {
       success: false,
-      error: `Chyba při extrakci metadat: ${error instanceof Error ? error.message : 'Neznámá chyba'}`,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
 
 /**
- * Testovací funkce pro ověření Edge Function
+ * Stará metoda - zachována pro kompatibilitu
  */
-export async function testEdgeFunction(
-  supabaseUrl: string,
-  supabaseKey: string
-): Promise<boolean> {
-  console.log('🧪 Testuji Edge Function...');
-  
-  try {
-    const result = await callEdgeFunction(
-      'text',
-      'Test document content',
-      'test.pdf',
-      supabaseUrl,
-      supabaseKey
-    );
-    
-    console.log('✅ Edge Function test:', result.success ? 'ÚSPĚŠNÝ' : 'NEÚSPĚŠNÝ');
-    return result.success;
-  } catch (error) {
-    console.error('❌ Edge Function test neúspěšný:', error);
-    return false;
-  }
+export async function analyzeDocument(
+  content: string
+): Promise<ExtractedMetadata> {
+  console.warn('⚠️ analyzeDocument je deprecated, použijte extractMetadataIntelligent');
+  return {
+    summary: '',
+    keywords: [],
+    language: 'cs',
+    categories: []
+  };
 }
-

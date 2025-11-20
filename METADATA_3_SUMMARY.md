@@ -265,3 +265,5 @@ Plně funkční řešení pro inteligentní extrakci metadat z PDF:
 **Gratulujeme! Metadata 3 je připraveno k použití! 🎉**
 
 
+
+

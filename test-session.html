@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Session Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Session Test</h1>
+    <div id="output"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(msg, data = null) {
+            console.log(msg, data);
+            const div = document.createElement('div');
+            div.style.marginBottom = '10px';
+            div.innerHTML = `<strong>${msg}</strong>`;
+            if (data) {
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(data, null, 2);
+                div.appendChild(pre);
+            }
+            output.appendChild(div);
+        }
+        
+        const { createClient } = supabase;
+        const supabaseUrl = 'https://modopafybeslbcqjxsve.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
+        
+        log('🔧 Vytvářím Supabase klienta...');
+        const client = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
+        
+        log('✅ Klient vytvořen');
+        
+        // Kontrola localStorage při načtení
+        log('📦 LocalStorage obsah:');
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.includes('supabase') || key.includes('sb-')) {
+                log(`  ${key}:`, localStorage.getItem(key)?.substring(0, 100) + '...');
+            }
+        }
+        
+        // Zkontrolujeme session
+        client.auth.getSession().then(({ data: { session }, error }) => {
+            if (error) {
+                log('❌ Chyba při getSession:', error);
+            } else if (session) {
+                log('✅ SESSION EXISTUJE:', {
+                    user: session.user.email,
+                    expires: new Date(session.expires_at * 1000).toISOString()
+                });
+            } else {
+                log('❌ ŽÁDNÁ SESSION');
+            }
+        });
+        
+        // Listener pro změny auth stavu
+        client.auth.onAuthStateChange((event, session) => {
+            log(`🔐 Auth State Change: ${event}`, session ? {
+                user: session.user.email,
+                expires: new Date(session.expires_at * 1000).toISOString()
+            } : null);
+        });
+    </script>
+</body>
+</html>
+

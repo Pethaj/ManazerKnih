@@ -6,9 +6,12 @@ const supabaseUrl = 'https://modopafybeslbcqjxsve.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U';
 
 // Sdílený Supabase klient pro celou aplikaci
+// Nepoužíváme Supabase Auth - pouze databázi
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    persistSession: false
+    persistSession: false, // Nepoužíváme Supabase Auth session
+    autoRefreshToken: false,
+    detectSessionInUrl: false
   }
 });
 

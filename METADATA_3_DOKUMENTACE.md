@@ -299,3 +299,5 @@ Pro otázky a problémy:
 - Ověřte OpenRouter API status: https://openrouter.ai/docs
 
 
+
+
