@@ -4909,15 +4909,15 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                         objectFit: 'contain'
                     }}
                 />
-                <div style={styles.headerActions}>
-                    <button style={styles.button} onClick={onUploadClick}><IconUpload /> Přidat knihu</button>
-                    <button style={styles.button} onClick={onAddVideoClick}><IconVideo /> Přidat video</button>
-                    <button style={styles.button} onClick={onConvertClick} disabled={!isAnyBookSelected}>Konvertovat knihu</button>
+                <div style={styles.headerActions} className="header-actions-responsive">
+                    <button style={styles.button} onClick={onUploadClick}><IconUpload /> <span className="button-text">Přidat knihu</span></button>
+                    <button style={styles.button} onClick={onAddVideoClick}><IconVideo /> <span className="button-text">Přidat video</span></button>
+                    <button style={styles.button} onClick={onConvertClick} disabled={!isAnyBookSelected}><span className="button-text">Konvertovat knihu</span></button>
                     {isSpravce && (
-                        <button style={styles.button} onClick={onChatbotManagementClick}><IconChatbot /> Správa chatbotů</button>
+                        <button style={styles.button} onClick={onChatbotManagementClick}><IconChatbot /> <span className="button-text">Správa chatbotů</span></button>
                     )}
                     {isSpravce && (
-                        <button style={styles.button} onClick={onUserManagementClick}><IconUser /> Správa uživatelů</button>
+                        <button style={styles.button} onClick={onUserManagementClick}><IconUser /> <span className="button-text">Správa uživatelů</span></button>
                     )}
                  {selectedCount > 0 && (
                     <div style={{ position: 'relative' }}>
@@ -4935,26 +4935,51 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                 )}
                 </div>
             </div>
-            <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-end',
-                    marginRight: '12px',
-                    fontSize: '12px'
-                }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{currentUser.email}</span>
-                    <span style={{
-                        color: 'var(--text-secondary)',
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        background: isSpravce ? '#e0e7ff' : '#f3e8ff',
+            <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'nowrap'}}>
+                <button
+                    className="user-info-button"
+                    onClick={onProfileSettingsClick}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 12px',
+                        background: 'var(--background-secondary)',
+                        border: '1px solid var(--border-color)',
                         borderRadius: '8px',
-                        marginTop: '2px'
-                    }}>
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontSize: '12px',
+                        color: 'var(--text-primary)',
+                        whiteSpace: 'nowrap'
+                    }}
+                    title={currentUser.email}
+                >
+                    <span 
+                        className="user-email-text"
+                        style={{ 
+                            fontWeight: '500',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: '150px'
+                        }}
+                    >
+                        {currentUser.email}
+                    </span>
+                    <span 
+                        className="user-role-badge"
+                        style={{
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            background: isSpravce ? '#e0e7ff' : '#f3e8ff',
+                            color: isSpravce ? '#1e40af' : '#6b21a8',
+                            borderRadius: '6px',
+                            fontWeight: '500'
+                        }}
+                    >
                         {isSpravce ? 'Správce' : 'Admin'}
                     </span>
-                </div>
+                </button>
                 <div style={styles.viewToggle}>
                     <button style={{...styles.iconButton, ...(viewMode === 'list' ? styles.iconButtonActive : {})}} onClick={() => onViewModeChange('list')} aria-label="List view"><IconList/></button>
                     <button style={{...styles.iconButton, ...(viewMode === 'grid' ? styles.iconButtonActive : {})}} onClick={() => onViewModeChange('grid')} aria-label="Grid view"><IconGrid/></button>
@@ -4970,6 +4995,7 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                     <IconSettings />
                 </button>
                 <button 
+                    className="logout-button"
                     style={{
                         ...styles.button,
                         background: 'var(--background-secondary)',
@@ -4979,7 +5005,7 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                     onClick={onLogoutClick}
                     title="Odhlásit se"
                 >
-                    <IconLogout /> Odhlásit
+                    <IconLogout /> <span className="logout-text">Odhlásit</span>
                 </button>
             </div>
         </header>

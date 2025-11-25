@@ -161,3 +161,5 @@ Pokud chcete více detailů:
 
 **Pokud máte další problémy, podívejte se do ostatních dokumentačních souborů nebo mi dejte vědět!**
 
+
+

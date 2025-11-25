@@ -169,3 +169,5 @@ Před nasazením do produkce:
 - `NOVA_SPRAVA_UZIVATELU.md` - Kompletní dokumentace správy uživatelů
 - `AUTH_IMPLEMENTATION_SUMMARY.md` - Shrnutí autentizačního systému
 
+
+

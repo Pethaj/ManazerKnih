@@ -246,3 +246,5 @@ Pokud najdete bug nebo máte dotaz:
 
 
 
+
+

@@ -129,6 +129,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
                                 required
                                 disabled={isLoading}
                                 placeholder="Vaše heslo"
+                                autoComplete="current-password"
+                                name="password"
                                 style={{
                                     width: '100%',
                                     padding: '12px 48px 12px 16px',

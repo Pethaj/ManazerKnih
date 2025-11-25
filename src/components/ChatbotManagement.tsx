@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ProductEmbeddingManager } from './ProductEmbeddingManager';
+import { ProductEmbeddingManagerFeed2 } from './ProductEmbeddingManagerFeed2';
 import ProductSyncAdmin from './SanaChat/ProductSync';
+import ProductChat from './ProductChat';
 import { 
   ChatbotSettingsService, 
   ChatbotSettings, 
@@ -121,6 +123,8 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
         }
     ]);
     const [showProductEmbeddings, setShowProductEmbeddings] = useState(false);
+    const [showProductEmbeddingsFeed2, setShowProductEmbeddingsFeed2] = useState(false);
+    const [showProductChat, setShowProductChat] = useState(false);
 
     // Načti data z databáze při startu komponenty
     useEffect(() => {
@@ -547,27 +551,47 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
 
                                             {/* Tlačítko pro spuštění chatu */}
                                             <div style={styles.testChatSection}>
-                                                <button
-                                                    style={styles.testChatButton}
-                                                    onClick={() => openChatWithSettings({
-                                                        id: chatbot.chatbot_id,
-                                                        name: chatbot.chatbot_name,
-                                                        description: chatbot.description || '',
-                                                        url: '',
-                                                        features: {
-                                                            product_recommendations: chatbot.product_recommendations,
-                                                            book_database: chatbot.book_database
-                                                        }
-                                                    })}
-                                                >
-                                                    💬 Spustit chat s nastavením
-                                                </button>
-                                                <div style={styles.testChatDescription}>
-                                                    Chat bude používat pouze zaškrtnuté kategorie a typy publikací
-                                                    {unsavedChanges.has(chatbot.chatbot_id) && (
-                                                        <span style={{ color: '#dc3545' }}> (⚠️ Neuložené změny se neprojeví)</span>
-                                                    )}
-                                                </div>
+                                                {chatbot.chatbot_id === 'product_chat' ? (
+                                                    <>
+                                                        <button
+                                                            style={{
+                                                                ...styles.testChatButton,
+                                                                backgroundColor: '#28a745',
+                                                                borderColor: '#28a745'
+                                                            }}
+                                                            onClick={() => setShowProductChat(true)}
+                                                        >
+                                                            💬 Otevřít Product Chat
+                                                        </button>
+                                                        <div style={styles.testChatDescription}>
+                                                            Produktový chat s personalizovanými doporučeními přes N8N webhook
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            style={styles.testChatButton}
+                                                            onClick={() => openChatWithSettings({
+                                                                id: chatbot.chatbot_id,
+                                                                name: chatbot.chatbot_name,
+                                                                description: chatbot.description || '',
+                                                                url: '',
+                                                                features: {
+                                                                    product_recommendations: chatbot.product_recommendations,
+                                                                    book_database: chatbot.book_database
+                                                                }
+                                                            })}
+                                                        >
+                                                            💬 Spustit chat s nastavením
+                                                        </button>
+                                                        <div style={styles.testChatDescription}>
+                                                            Chat bude používat pouze zaškrtnuté kategorie a typy publikací
+                                                            {unsavedChanges.has(chatbot.chatbot_id) && (
+                                                                <span style={{ color: '#dc3545' }}> (⚠️ Neuložené změny se neprojeví)</span>
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -607,6 +631,17 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                         📋 Spravovat Embeddingy
                                     </button>
                                 </div>
+                                
+                                <div style={styles.actionCard}>
+                                    <h4>AI Embeddingy Pro Feed 2</h4>
+                                    <p>Vygenerujte embeddingy pro vylepšená produktová doporučení z Feed 2</p>
+                                    <button
+                                        style={styles.primaryButton}
+                                        onClick={() => setShowProductEmbeddingsFeed2(true)}
+                                    >
+                                        📋 Spravovat Embeddingy Pro Feed 2
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -643,6 +678,26 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
 
                 {showProductEmbeddings && (
                     <ProductEmbeddingManager onClose={() => setShowProductEmbeddings(false)} />
+                )}
+                
+                {showProductEmbeddingsFeed2 && (
+                    <ProductEmbeddingManagerFeed2 onClose={() => setShowProductEmbeddingsFeed2(false)} />
+                )}
+                
+                {showProductChat && (
+                    <div style={styles.overlay}>
+                        <div style={{
+                            ...styles.container,
+                            width: '95vw',
+                            height: '90vh',
+                            maxWidth: '1400px',
+                            padding: 0,
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}>
+                            <ProductChat onClose={() => setShowProductChat(false)} />
+                        </div>
+                    </div>
                 )}
             </div>
         </div>
@@ -710,7 +765,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     },
 
     tabButton: {
-        background: 'none',
+        backgroundColor: 'transparent',
         border: 'none',
         padding: '16px 24px',
         cursor: 'pointer',
@@ -726,7 +781,7 @@ const styles: { [key: string]: React.CSSProperties } = {
 
     tabButtonActive: {
         color: '#007bff',
-        borderBottomColor: '#007bff',
+        borderBottom: '3px solid #007bff',
         backgroundColor: 'white',
     },
 
@@ -837,7 +892,7 @@ const styles: { [key: string]: React.CSSProperties } = {
 
     productActions: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+        gridTemplateColumns: 'repeat(3, 1fr)',
         gap: '20px',
     },
 

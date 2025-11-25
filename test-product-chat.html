@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Product Chat Webhook</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #218838;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Product Chat Webhook</h1>
+        
+        <div class="test-section">
+            <h2>1. Test N8N Webhook Connection</h2>
+            <p>Otestuje spojení s N8N webhookem a základní odpověď.</p>
+            <button onclick="testWebhookConnection()">Test Connection</button>
+            <div id="connection-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>2. Test Product Recommendations</h2>
+            <label for="query-input">Zadejte dotaz:</label>
+            <input type="text" id="query-input" placeholder="např. wany na bolest nohy" value="wany na bolest nohy">
+            <button onclick="testProductRecommendations()">Test Query</button>
+            <div id="recommendations-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>3. Test Response Format</h2>
+            <p>Ověří že N8N webhook vrací správný formát (text + products array s recommendation).</p>
+            <button onclick="testResponseFormat()">Validate Format</button>
+            <div id="format-result"></div>
+        </div>
+    </div>
+
+    <script>
+        const WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/cd6b668b-1e35-4018-9bf4-28d0926b023b';
+
+        function showLoading(elementId) {
+            document.getElementById(elementId).innerHTML = '<div class="loading">⏳ Načítám...</div>';
+        }
+
+        function showResult(elementId, content, isSuccess) {
+            const className = isSuccess ? 'success' : 'error';
+            document.getElementById(elementId).innerHTML = 
+                `<div class="result ${className}">${content}</div>`;
+        }
+
+        async function testWebhookConnection() {
+            showLoading('connection-result');
+            
+            try {
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chatInput: 'test',
+                        session_id: 'test-' + Date.now(),
+                        timestamp: new Date().toISOString()
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                showResult('connection-result', 
+                    `✅ Spojení úspěšné!\n\nStatus: ${response.status}\nResponse:\n${JSON.stringify(data, null, 2)}`,
+                    true
+                );
+            } catch (error) {
+                showResult('connection-result', 
+                    `❌ Chyba spojení:\n\n${error.message}\n\n⚠️ Zkontrolujte:\n1. N8N workflow je aktivní\n2. Webhook URL je správná\n3. CORS je povolený`,
+                    false
+                );
+            }
+        }
+
+        async function testProductRecommendations() {
+            const query = document.getElementById('query-input').value;
+            
+            if (!query.trim()) {
+                alert('Zadejte dotaz');
+                return;
+            }
+
+            showLoading('recommendations-result');
+            
+            try {
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chatInput: query,
+                        session_id: 'test-' + Date.now(),
+                        timestamp: new Date().toISOString()
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                const productsCount = data.products ? data.products.length : 0;
+                const hasText = data.text && data.text.length > 0;
+                
+                let result = `✅ Produktová doporučení získána!\n\n`;
+                result += `📝 Text: ${hasText ? '✓ Přítomen (' + data.text.length + ' znaků)' : '✗ Chybí'}\n`;
+                result += `📦 Produkty: ${productsCount}\n\n`;
+                
+                if (productsCount > 0) {
+                    result += `Produkty:\n`;
+                    data.products.forEach((p, i) => {
+                        result += `\n${i + 1}. Product Code: ${p.product_code}\n`;
+                        result += `   Recommendation: ${p.recommendation ? p.recommendation.substring(0, 100) + '...' : '✗ Chybí'}\n`;
+                    });
+                }
+                
+                result += `\n\nKompletní response:\n${JSON.stringify(data, null, 2)}`;
+                
+                showResult('recommendations-result', result, true);
+            } catch (error) {
+                showResult('recommendations-result', 
+                    `❌ Chyba:\n\n${error.message}`,
+                    false
+                );
+            }
+        }
+
+        async function testResponseFormat() {
+            showLoading('format-result');
+            
+            try {
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chatInput: 'test validace formátu',
+                        session_id: 'validation-' + Date.now(),
+                        timestamp: new Date().toISOString()
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                // Validace formátu
+                const checks = [];
+                
+                // Check 1: text field
+                if (typeof data.text === 'string' && data.text.length > 0) {
+                    checks.push('✅ data.text: string přítomen');
+                } else {
+                    checks.push('❌ data.text: chybí nebo není string');
+                }
+                
+                // Check 2: products array
+                if (Array.isArray(data.products)) {
+                    checks.push('✅ data.products: array přítomen');
+                    
+                    // Check 3: products structure
+                    if (data.products.length > 0) {
+                        const firstProduct = data.products[0];
+                        
+                        if (typeof firstProduct.product_code === 'string') {
+                            checks.push('✅ product.product_code: string přítomen');
+                        } else {
+                            checks.push('❌ product.product_code: chybí nebo není string');
+                        }
+                        
+                        if (typeof firstProduct.recommendation === 'string' && firstProduct.recommendation.length > 0) {
+                            checks.push('✅ product.recommendation: string přítomen (personalizace OK!)');
+                        } else {
+                            checks.push('❌ product.recommendation: chybí nebo není string (personalizace chybí!)');
+                        }
+                    } else {
+                        checks.push('⚠️ products array je prázdný');
+                    }
+                } else {
+                    checks.push('❌ data.products: chybí nebo není array');
+                }
+                
+                const allPassed = checks.every(check => check.startsWith('✅'));
+                
+                let result = allPassed ? '✅ Formát je SPRÁVNÝ!\n\n' : '❌ Formát má problémy!\n\n';
+                result += checks.join('\n');
+                result += '\n\nOčekávaný formát:\n';
+                result += JSON.stringify({
+                    text: "string",
+                    products: [
+                        {
+                            product_code: "string (např. 2324)",
+                            recommendation: "string (personalizované doporučení)"
+                        }
+                    ]
+                }, null, 2);
+                
+                showResult('format-result', result, allPassed);
+            } catch (error) {
+                showResult('format-result', 
+                    `❌ Chyba:\n\n${error.message}`,
+                    false
+                );
+            }
+        }
+    </script>
+</body>
+</html>
+

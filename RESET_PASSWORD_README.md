@@ -268,3 +268,5 @@ Součást Manažer Knih aplikace.
 **Pro rychlý start začněte zde: [QUICK_FIX_GUIDE.md](./QUICK_FIX_GUIDE.md) 🚀**
 
 
+
+

@@ -267,3 +267,5 @@ Plně funkční řešení pro inteligentní extrakci metadat z PDF:
 
 
 
+
+

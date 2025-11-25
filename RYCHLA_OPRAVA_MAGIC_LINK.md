@@ -134,3 +134,5 @@ Před nasazením přidejte produkční URL do Supabase:
 
 **Shrnutí:** Problém byl v chybějící redirect URL konfiguraci. Nyní je kód opraven a stačí pouze přidat URL do Supabase dashboardu.
 
+
+

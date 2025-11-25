@@ -126,3 +126,5 @@ Toto by vyžadovalo:
 ✅ Implementováno a funkční s obejitím Admin API požadavku
 
 
+
+

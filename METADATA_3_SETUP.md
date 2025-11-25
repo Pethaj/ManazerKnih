@@ -102,3 +102,5 @@ Aplikace je nyní připravena. Tlačítko **"🤖 Metadata 3"** funguje!
 
 
 
+
+

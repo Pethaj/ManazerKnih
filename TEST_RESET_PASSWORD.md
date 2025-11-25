@@ -211,3 +211,5 @@ Pokud všechny testy prošly, gratulujeme! Reset hesla je plně funkční.
 - `EMAIL_TEMPLATE_FIX.md` - Průvodce opravou template
 
 
+
+

@@ -230,3 +230,5 @@ Po provedení těchto 3 kroků bude reset hesla **plně funkční**.
 **Vše hotovo! 🎉**
 
 
+
+

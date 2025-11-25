@@ -108,3 +108,5 @@ Pokud problém přetrvává:
 
 **TL;DR:** Kód je opraven ✅ Stačí přidat URL do Supabase dashboardu ⚠️
 
+
+

@@ -75,3 +75,5 @@ COMMIT;
 -- Kontrola rolí (správce vs admin) se provádí na aplikační úrovni v authService
 
 
+
+

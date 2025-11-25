@@ -1,0 +1,391 @@
+// supabase/functions/sync-feed-2/index.ts
+// Edge Function pro synchronizaci Product Feed 2 z BEWIT
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { XMLParser } from "npm:fast-xml-parser";
+
+// === ENV VARIABLES ===
+const FEED_URL = "https://bewit.love/feed/bewit?auth=xr32PRbrs554K";
+const SUPABASE_URL = Deno.env.get("SB_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const N8N_WEBHOOK_URL = "https://n8n.srv980546.hstgr.cloud/webhook/3890ccdd-d09f-461b-b409-660d477023a3";
+
+// === XML Parser konfigurace ===
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  textNodeName: "#text",
+  parseTagValue: false,
+  parseAttributeValue: false,
+  trimValues: true,
+  processEntities: false,
+  htmlEntities: false
+});
+
+// === Pomocné funkce ===
+const nowIso = () => new Date().toISOString();
+
+function decodeHtmlEntities(text: string): string {
+  if (!text) return text;
+  
+  return text
+    .replace(/&#x([0-9A-Fa-f]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function toStr(v: any): string | null {
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  if (s === "") return null;
+  return decodeHtmlEntities(s);
+}
+
+function toNum(v: any): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
+function toInt(v: any): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function extractTextContent(node: any): string | null {
+  if (!node) return null;
+  if (typeof node === 'string') return node;
+  if (node['#text']) return String(node['#text']);
+  return String(node);
+}
+
+interface ProductFeed2 {
+  product_code: string;
+  product_name: string;
+  description_short: string | null;
+  description_long: string | null;
+  category: string | null;
+  url: string | null;
+  thumbnail: string | null;
+  price: number | null;
+  currency: string;
+  availability: number;
+  in_action: number;
+  sales_last_30_days: number;
+  sync_status: string;
+  last_sync_at: string;
+}
+
+async function sendToN8nWebhook(product: ProductFeed2): Promise<boolean> {
+  try {
+    if (!product.description_short && !product.description_long) {
+      console.log(`⏭️ Produkt ${product.product_code} nemá popisy, přeskakuji n8n webhook`);
+      return true;
+    }
+
+    const payload = {
+      product_code: product.product_code,
+      product_name: product.product_name,
+      description_short: product.description_short || "",
+      description_long: product.description_long || "",
+      feed_source: "feed_2",
+      category: product.category || "",
+      price: product.price || 0,
+      url: product.url || ""
+    };
+
+    console.log(`📤 Odesílám na n8n webhook: ${product.product_code}`);
+    
+    const response = await fetch(N8N_WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.error(`❌ N8N webhook error pro ${product.product_code}: ${response.status}`);
+      return false;
+    }
+
+    console.log(`✅ N8N webhook úspěšný pro ${product.product_code}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Chyba při volání n8n webhook pro ${product.product_code}:`, error);
+    return false;
+  }
+}
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return new Response(
+      JSON.stringify({ 
+        ok: false, 
+        error: "Chybí Supabase konfigurace (SB_URL nebo SB_SERVICE_ROLE_KEY)" 
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, "content-type": "application/json" } 
+      }
+    );
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  const { data: log } = await supabase
+    .from("sync_logs")
+    .insert({
+      sync_type: "product_feed_2",
+      status: "running",
+      started_at: nowIso(),
+      feed_url: FEED_URL
+    })
+    .select("id")
+    .single();
+
+  const logId = log?.id ?? -1;
+  let processed = 0;
+  let inserted = 0;
+  let updated = 0;
+  let failed = 0;
+  let webhooksSent = 0;
+  let webhooksFailed = 0;
+
+  try {
+    console.log(`⏳ Čekám 40 sekund, než začnu stahovat feed (feed se musí vygenerovat)...`);
+    await new Promise(resolve => setTimeout(resolve, 40000));
+    
+    console.log(`🔄 Začínám stahovat feed z: ${FEED_URL}`);
+    const startDownload = Date.now();
+    
+    const res = await fetch(FEED_URL, {
+      headers: { 
+        accept: "application/xml",
+        "User-Agent": "Supabase-Edge-Function/1.0"
+      }
+    });
+
+    const downloadTime = ((Date.now() - startDownload) / 1000).toFixed(2);
+    console.log(`⏱️ Stahování feedu trvalo: ${downloadTime}s`);
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} při stahování feedu`);
+    }
+
+    const xmlText = await res.text();
+    console.log(`✅ Feed stažen, velikost: ${xmlText.length} znaků`);
+    
+    if (xmlText.length < 100) {
+      throw new Error(`Feed je příliš krátký (${xmlText.length} znaků), možná není kompletní`);
+    }
+
+    const parsed = parser.parse(xmlText);
+    console.log("📊 XML parsováno, hledám ITEM elementy...");
+
+    // Feed má strukturu: <DATA><ITEMS><ITEM>...</ITEM></ITEMS></DATA>
+    const itemsNode = parsed?.DATA?.ITEMS?.ITEM;
+    const items = itemsNode ? (Array.isArray(itemsNode) ? itemsNode : [itemsNode]) : [];
+    
+    console.log(`📦 Nalezeno ${items.length} produktů`);
+
+    if (items.length === 0) {
+      const feedPreview = xmlText.substring(0, 500);
+      console.error(`❌ Žádné ITEM elementy! Začátek feedu: ${feedPreview}`);
+      throw new Error(`⚠️ Žádné produkty (ITEM) nenalezeny! Feed obsahuje ${xmlText.length} znaků. Začátek: ${feedPreview.substring(0, 200)}`);
+    }
+
+    const chunkSize = 50;
+    
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      processed += chunk.length;
+
+      console.log(`🔄 Zpracovávám dávku ${Math.floor(i / chunkSize) + 1}/${Math.ceil(items.length / chunkSize)} (${chunk.length} produktů)`);
+
+      const products: ProductFeed2[] = [];
+
+      for (const item of chunk) {
+        try {
+          const product_code = toStr(extractTextContent(item.ID));
+          const product_name = toStr(extractTextContent(item.PRODUCTNAME));
+
+          if (!product_code || !product_name) {
+            console.warn("⚠️ Produkt bez ID nebo názvu, přeskakuji");
+            failed++;
+            continue;
+          }
+
+          const description_short = toStr(extractTextContent(item.DESCRIPTION_SHORT));
+          const description_long = toStr(extractTextContent(item.DESCRIPTION_LONG));
+          const category = toStr(extractTextContent(item.CATEGORYTEXT));
+          const url = toStr(extractTextContent(item.URL));
+          const thumbnail = toStr(extractTextContent(item.THUMBNAIL));
+          const price = toNum(extractTextContent(item.PRICE));
+          const availability = toInt(extractTextContent(item.AVAIBILITY)) ?? 0;
+          const in_action = toInt(extractTextContent(item.IN_ACTION)) ?? 0;
+          const sales_last_30_days = toInt(extractTextContent(item.SALES_LAST_30_DAYS)) ?? 0;
+
+          const product: ProductFeed2 = {
+            product_code,
+            product_name,
+            description_short,
+            description_long,
+            category,
+            url,
+            thumbnail,
+            price,
+            currency: "CZK",
+            availability,
+            in_action,
+            sales_last_30_days,
+            sync_status: "success",
+            last_sync_at: nowIso()
+          };
+
+          products.push(product);
+        } catch (error) {
+          console.error("❌ Chyba při zpracování produktu:", error);
+          failed++;
+        }
+      }
+
+      if (products.length === 0) {
+        console.warn("⚠️ Žádné produkty k uložení v této dávce");
+        continue;
+      }
+
+      const before = Date.now();
+      
+      // ZMĚNA: Použijeme custom upsert, který zachová embedding_status a embedding_generated_at
+      // Pro každý produkt použijeme INSERT ... ON CONFLICT UPDATE s COALESCE
+      for (const product of products) {
+        const { error: upsertError } = await supabase.rpc('upsert_product_feed_2_preserve_embedding', {
+          p_product_code: product.product_code,
+          p_product_name: product.product_name,
+          p_description_short: product.description_short,
+          p_description_long: product.description_long,
+          p_category: product.category,
+          p_url: product.url,
+          p_thumbnail: product.thumbnail,
+          p_price: product.price,
+          p_currency: product.currency,
+          p_availability: product.availability,
+          p_in_action: product.in_action,
+          p_sales_last_30_days: product.sales_last_30_days,
+          p_sync_status: product.sync_status,
+          p_last_sync_at: product.last_sync_at
+        });
+
+        if (upsertError) {
+          console.error(`❌ Chyba při upsert produktu ${product.product_code}:`, upsertError);
+          failed++;
+        } else {
+          // Zjistíme, zda byl INSERT nebo UPDATE
+          const { data: checkData } = await supabase
+            .from('product_feed_2')
+            .select('created_at')
+            .eq('product_code', product.product_code)
+            .single();
+          
+          if (checkData) {
+            const created = new Date(checkData.created_at).getTime();
+            if (created > before - 5000) {
+              inserted++;
+            } else {
+              updated++;
+            }
+          }
+        }
+      }
+
+      console.log(`✅ Dávka uložena: ${products.length} produktů`);
+
+      // N8N webhooky jsou vypnuté pro rychlejší synchronizaci
+      // Embeddings se vytvoří později přes separátní proces
+    }
+
+    await supabase
+      .from("sync_logs")
+      .update({
+        status: "success",
+        finished_at: nowIso(),
+        records_processed: processed,
+        records_inserted: inserted,
+        records_updated: updated,
+        records_failed: failed
+      })
+      .eq("id", logId);
+
+    console.log(`
+✅ Synchronizace Product Feed 2 dokončena!
+📊 Zpracováno: ${processed}
+➕ Vloženo: ${inserted}
+🔄 Aktualizováno: ${updated}
+❌ Selhalo: ${failed}
+📤 N8N webhooks odesláno: ${webhooksSent}
+⚠️ N8N webhooks selhalo: ${webhooksFailed}
+    `);
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        processed,
+        inserted,
+        updated,
+        failed,
+        webhooks: {
+          sent: webhooksSent,
+          failed: webhooksFailed
+        }
+      }),
+      {
+        headers: { ...corsHeaders, "content-type": "application/json" }
+      }
+    );
+
+  } catch (e) {
+    console.error("❌ Kritická chyba při synchronizaci:", e);
+    
+    await supabase
+      .from("sync_logs")
+      .update({
+        status: "error",
+        finished_at: nowIso(),
+        records_processed: processed,
+        records_inserted: inserted,
+        records_updated: updated,
+        records_failed: failed,
+        error_message: String(e?.message ?? e)
+      })
+      .eq("id", logId);
+
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: String(e?.message ?? e),
+        processed,
+        inserted,
+        updated,
+        failed
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "content-type": "application/json" }
+      }
+    );
+  }
+});

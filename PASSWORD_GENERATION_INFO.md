@@ -96,3 +96,5 @@ Reset hesla nyní:
 **POZNÁMKA**: Pro plně funkční reset hesla je nutné mít správně nakonfigurované Supabase email šablony.
 
 
+
+

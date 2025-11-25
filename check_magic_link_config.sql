@@ -98,3 +98,5 @@ WHERE email_confirmed_at IS NULL;
 -- - Po použití tokenu se automaticky vytvoří session
 -- - Session je platná typicky 7 dní (refresh token 30 dní)
 
+
+

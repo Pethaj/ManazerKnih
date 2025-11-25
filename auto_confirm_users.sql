@@ -22,3 +22,5 @@ CREATE TRIGGER on_auth_user_created_confirm
   FOR EACH ROW
   EXECUTE FUNCTION auto_confirm_user();
 
+
+

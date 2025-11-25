@@ -61,3 +61,5 @@ WHERE
 -- - Zkontrolujte ip_address pro suspicious activity
 
 
+
+

@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { supabase as supabaseClient } from '../../lib/supabase';
 
-// URL produktového feedu BEWIT
+// URL produktových feedů BEWIT
 const BEWIT_FEED_URL = 'https://bewit.love/feeds/zbozi.xml';
+const BEWIT_FEED_2_URL = 'https://bewit.love/feed/bewit?auth=xr32PRbrs554K';
+
+// Supabase Edge Function URL pro Feed 2
+const getSupabaseUrl = () => {
+    const url = supabaseClient.supabaseUrl;
+    return url;
+};
+
+const SYNC_FEED_2_FUNCTION_URL = `${getSupabaseUrl()}/functions/v1/sync-feed-2`;
 
 // Interface pro produkt
 interface Product {
@@ -240,7 +249,7 @@ const syncProductsToSupabase = async (products: Product[]): Promise<{ inserted: 
     return { inserted, updated, failed };
 };
 
-// Hlavní funkce pro synchronizaci
+// Hlavní funkce pro synchronizaci Feed 1 (původní)
 export const syncProductsFeed = async (): Promise<boolean> => {
     const startTime = new Date().toISOString();
     
@@ -268,7 +277,7 @@ export const syncProductsFeed = async (): Promise<boolean> => {
     const logId = logData.id;
 
     try {
-        console.log('🔄 Začínám synchronizaci produktového feedu z BEWIT...');
+        console.log('🔄 Začínám synchronizaci produktového feedu z BEWIT (Feed 1)...');
         
         // 1. Načteme XML feed
         const xmlText = await fetchXMLFeed(BEWIT_FEED_URL);
@@ -316,36 +325,115 @@ export const syncProductsFeed = async (): Promise<boolean> => {
     }
 };
 
+// Nová funkce pro synchronizaci Feed 2 (přes Edge Function)
+export const syncProductsFeed2 = async (): Promise<boolean> => {
+    try {
+        console.log('🔄 Spouštím synchronizaci Product Feed 2...');
+        
+        // Získáme anon key z Supabase klienta
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+
+        // Zavoláme Edge Function
+        const { data, error } = await supabaseClient.functions.invoke('sync-feed-2', {
+            body: {}
+        });
+
+        if (error) {
+            console.error('❌ Chyba při volání Edge Function:', error);
+            throw error;
+        }
+
+        console.log('✅ Synchronizace Feed 2 dokončena:', data);
+        return data?.ok === true;
+
+    } catch (error) {
+        console.error('❌ Kritická chyba při synchronizaci Feed 2:', error);
+        return false;
+    }
+};
+
+// Funkce pro získání posledního sync logu pro daný feed
+export const getLastSyncLog = async (syncType: string): Promise<SyncLog | null> => {
+    try {
+        const { data, error } = await supabaseClient
+            .from('sync_logs')
+            .select('*')
+            .eq('sync_type', syncType)
+            .order('started_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error) {
+            console.error('Chyba při načítání sync logu:', error);
+            return null;
+        }
+
+        return data;
+    } catch (error) {
+        console.error('Kritická chyba při načítání sync logu:', error);
+        return null;
+    }
+};
+
+// Funkce pro získání počtu produktů v tabulkách
+export const getProductCounts = async (): Promise<{feed1: number, feed2: number}> => {
+    try {
+        const { count: count1 } = await supabaseClient
+            .from('products')
+            .select('*', { count: 'exact', head: true });
+
+        const { count: count2 } = await supabaseClient
+            .from('product_feed_2')
+            .select('*', { count: 'exact', head: true });
+
+        return {
+            feed1: count1 || 0,
+            feed2: count2 || 0
+        };
+    } catch (error) {
+        console.error('Chyba při načítání počtu produktů:', error);
+        return { feed1: 0, feed2: 0 };
+    }
+};
+
 // React komponenta pro administraci produktové synchronizace
 const ProductSyncAdmin: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingFeed2, setIsLoadingFeed2] = useState(false);
+    const [selectedFeed, setSelectedFeed] = useState<'feed_1' | 'feed_2'>('feed_1');
+    
+    // State pro Feed 1
     const [lastSyncStatus, setLastSyncStatus] = useState<SyncLog | null>(null);
     const [productCount, setProductCount] = useState<number>(0);
+    
+    // State pro Feed 2
+    const [lastSyncStatusFeed2, setLastSyncStatusFeed2] = useState<SyncLog | null>(null);
+    const [productCountFeed2, setProductCountFeed2] = useState<number>(0);
 
     // Načteme data při startu
     useEffect(() => {
         loadSyncStatus();
         loadProductCount();
+        loadSyncStatusFeed2();
+        loadProductCountFeed2();
     }, []);
 
     const loadSyncStatus = async () => {
         try {
-            const { data, error } = await supabaseClient
-                .from('sync_logs')
-                .select('*')
-                .eq('sync_type', 'products_feed')
-                .order('started_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (error && error.code !== 'PGRST116') {
-                console.error('Chyba při načítání sync statusu:', error);
-                return;
-            }
-
-            setLastSyncStatus(data);
+            const log = await getLastSyncLog('products_feed');
+            setLastSyncStatus(log);
         } catch (error) {
-            console.error('Chyba při načítání sync statusu:', error);
+            console.error('Chyba při načítání sync statusu Feed 1:', error);
+        }
+    };
+
+    const loadSyncStatusFeed2 = async () => {
+        try {
+            const log = await getLastSyncLog('product_feed_2');
+            setLastSyncStatusFeed2(log);
+        } catch (error) {
+            console.error('Chyba při načítání sync statusu Feed 2:', error);
         }
     };
 
@@ -356,13 +444,30 @@ const ProductSyncAdmin: React.FC = () => {
                 .select('*', { count: 'exact', head: true });
 
             if (error) {
-                console.error('Chyba při načítání počtu produktů:', error);
+                console.error('Chyba při načítání počtu produktů Feed 1:', error);
                 return;
             }
 
             setProductCount(count || 0);
         } catch (error) {
-            console.error('Chyba při načítání počtu produktů:', error);
+            console.error('Chyba při načítání počtu produktů Feed 1:', error);
+        }
+    };
+
+    const loadProductCountFeed2 = async () => {
+        try {
+            const { count, error } = await supabaseClient
+                .from('product_feed_2')
+                .select('*', { count: 'exact', head: true });
+
+            if (error) {
+                console.error('Chyba při načítání počtu produktů Feed 2:', error);
+                return;
+            }
+
+            setProductCountFeed2(count || 0);
+        } catch (error) {
+            console.error('Chyba při načítání počtu produktů Feed 2:', error);
         }
     };
 
@@ -419,22 +524,71 @@ const ProductSyncAdmin: React.FC = () => {
         await handleHttpSync();
     };
 
+    const handleManualSyncFeed2 = async () => {
+        setIsLoadingFeed2(true);
+        try {
+            console.log('🚀 Spouštím synchronizaci Feed 2...');
+            
+            const success = await syncProductsFeed2();
+            
+            if (success) {
+                await loadSyncStatusFeed2();
+                await loadProductCountFeed2();
+                alert('✅ Synchronizace Feed 2 úspěšně dokončena!');
+            } else {
+                throw new Error('Synchronizace Feed 2 selhala');
+            }
+        } catch (error) {
+            console.error('❌ Chyba při synchronizaci Feed 2:', error);
+            alert('❌ Chyba při synchronizaci Feed 2: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
+        } finally {
+            setIsLoadingFeed2(false);
+        }
+    };
+
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleString('cs-CZ');
     };
 
     return (
-        <div className="bg-white rounded-lg shadow-md p-6 max-w-2xl mx-auto">
+        <div className="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold text-bewit-dark mb-6">
                 🛒 Synchronizace produktů BEWIT
             </h2>
+
+            {/* Výběr feedu */}
+            <div className="mb-6 flex gap-4 border-b border-gray-200">
+                <button
+                    onClick={() => setSelectedFeed('feed_1')}
+                    className={`px-6 py-3 font-semibold border-b-2 transition-colors ${
+                        selectedFeed === 'feed_1'
+                            ? 'border-bewit-blue text-bewit-blue'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Feed 1 - zbozi.xml
+                </button>
+                <button
+                    onClick={() => setSelectedFeed('feed_2')}
+                    className={`px-6 py-3 font-semibold border-b-2 transition-colors ${
+                        selectedFeed === 'feed_2'
+                            ? 'border-bewit-blue text-bewit-blue'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Feed 2 - Product Feed 2
+                </button>
+            </div>
             
-            {/* Statistiky */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-bewit-lightBlue rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-bewit-blue mb-2">Produkty v databázi</h3>
-                    <p className="text-3xl font-bold text-bewit-blue">{productCount}</p>
-                </div>
+            {/* Obsah pro Feed 1 */}
+            {selectedFeed === 'feed_1' && (
+                <>
+                    {/* Statistiky Feed 1 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="bg-bewit-lightBlue rounded-lg p-4">
+                            <h3 className="text-lg font-semibold text-bewit-blue mb-2">Produkty v databázi</h3>
+                            <p className="text-3xl font-bold text-bewit-blue">{productCount}</p>
+                        </div>
                 
                 {lastSyncStatus && (
                     <div className={`rounded-lg p-4 ${lastSyncStatus.status === 'success' ? 'bg-green-100' : lastSyncStatus.status === 'error' ? 'bg-red-100' : 'bg-yellow-100'}`}>
@@ -465,32 +619,97 @@ const ProductSyncAdmin: React.FC = () => {
                 )}
             </div>
 
-            {/* Tlačítka */}
-            <div className="flex gap-4">
-                <button
-                    onClick={handleManualSync}
-                    disabled={isLoading}
-                    className="flex-1 bg-bewit-blue text-white px-6 py-3 rounded-lg font-semibold hover:bg-bewit-blue/90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                >
-                    {isLoading ? '⏳ Synchronizuji...' : '🔄 Spustit synchronizaci'}
-                </button>
-                
-                <button
-                    onClick={() => window.open(BEWIT_FEED_URL, '_blank')}
-                    className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
-                >
-                    📋 Zobrazit feed
-                </button>
-            </div>
+                    {/* Tlačítka Feed 1 */}
+                    <div className="flex gap-4">
+                        <button
+                            onClick={handleManualSync}
+                            disabled={isLoading}
+                            className="flex-1 bg-bewit-blue text-white px-6 py-3 rounded-lg font-semibold hover:bg-bewit-blue/90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {isLoading ? '⏳ Synchronizuji...' : '🔄 Synchronizovat Feed 1 nyní'}
+                        </button>
+                        
+                        <button
+                            onClick={() => window.open(BEWIT_FEED_URL, '_blank')}
+                            className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+                        >
+                            📋 Zobrazit feed
+                        </button>
+                    </div>
+                </>
+            )}
 
-            {/* Informace o automatické synchronizaci */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <h3 className="font-semibold text-gray-700 mb-2">ℹ️ Automatická synchronizace</h3>
-                <p className="text-sm text-gray-600">
-                    Pro nastavení automatické denní synchronizace můžete použít cron job nebo Supabase Edge Functions.
-                    Produkty se budou synchronizovat z feedu: <code className="bg-gray-200 px-2 py-1 rounded">{BEWIT_FEED_URL}</code>
-                </p>
-            </div>
+            {/* Obsah pro Feed 2 */}
+            {selectedFeed === 'feed_2' && (
+                <>
+                    {/* Statistiky Feed 2 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="bg-purple-100 rounded-lg p-4">
+                            <h3 className="text-lg font-semibold text-purple-700 mb-2">Produkty v databázi (Feed 2)</h3>
+                            <p className="text-3xl font-bold text-purple-700">{productCountFeed2}</p>
+                            <p className="text-xs text-gray-600 mt-2">Tabulka: product_feed_2</p>
+                        </div>
+                        
+                        {lastSyncStatusFeed2 && (
+                            <div className={`rounded-lg p-4 ${lastSyncStatusFeed2.status === 'success' ? 'bg-green-100' : lastSyncStatusFeed2.status === 'error' ? 'bg-red-100' : 'bg-yellow-100'}`}>
+                                <h3 className="text-lg font-semibold mb-2">Poslední synchronizace</h3>
+                                <p className="text-sm">
+                                    <strong>Status:</strong> {lastSyncStatusFeed2.status === 'success' ? '✅ Úspěch' : lastSyncStatusFeed2.status === 'error' ? '❌ Chyba' : '⏳ Běží'}
+                                </p>
+                                <p className="text-sm">
+                                    <strong>Čas:</strong> {formatDate(lastSyncStatusFeed2.started_at)}
+                                </p>
+                                {lastSyncStatusFeed2.status === 'success' && (
+                                    <>
+                                        <p className="text-sm">
+                                            <strong>Zpracováno:</strong> {lastSyncStatusFeed2.records_processed}
+                                        </p>
+                                        <p className="text-sm">
+                                            <strong>Nových:</strong> {lastSyncStatusFeed2.records_inserted}, 
+                                            <strong> Aktualizováno:</strong> {lastSyncStatusFeed2.records_updated}
+                                        </p>
+                                    </>
+                                )}
+                                {lastSyncStatusFeed2.error_message && (
+                                    <p className="text-sm text-red-600 mt-2">
+                                        <strong>Chyba:</strong> {lastSyncStatusFeed2.error_message}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Tlačítka Feed 2 */}
+                    <div className="flex gap-4">
+                        <button
+                            onClick={handleManualSyncFeed2}
+                            disabled={isLoadingFeed2}
+                            className="flex-1 bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {isLoadingFeed2 ? '⏳ Synchronizuji Feed 2...' : '🔄 Synchronizovat Feed 2 nyní'}
+                        </button>
+                        
+                        <button
+                            onClick={() => window.open(BEWIT_FEED_2_URL, '_blank')}
+                            className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+                        >
+                            📋 Zobrazit feed
+                        </button>
+                    </div>
+
+                    {/* Info o Feed 2 */}
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <h3 className="font-semibold text-blue-900 mb-2">ℹ️ O Product Feed 2</h3>
+                        <ul className="text-sm text-blue-800 space-y-1">
+                            <li>• <strong>URL:</strong> {BEWIT_FEED_2_URL}</li>
+                            <li>• <strong>Struktura:</strong> ITEM → ID, PRODUCTNAME, DESCRIPTION_SHORT, DESCRIPTION_LONG</li>
+                            <li>• <strong>Embeddingy:</strong> Automaticky odesílány na n8n webhook</li>
+                            <li>• <strong>Automatická synchronizace:</strong> Denně ve 2:00 (UTC)</li>
+                            <li>• <strong>Vektorové vyhledávání:</strong> Popisy jsou indexovány pro chatbot</li>
+                        </ul>
+                    </div>
+                </>
+            )}
         </div>
     );
 };

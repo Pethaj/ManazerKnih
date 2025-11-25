@@ -63,31 +63,31 @@ INSERT INTO public.chatbot_settings (
     allowed_publication_types
 ) VALUES 
     (
-        'sana_kancelar', 
-        'Sana Kancelář', 
-        'Chatbot pro kancelářské potřeby s omezeným přístupem',
+        'sana_chat', 
+        'Sana Chat', 
+        'Hlavní chatbot pro lékařskou literaturu s plným přístupem ke všem kategoriím',
         false,
         true,
-        '{}', -- Prozatím prázdné, naplní se přes admin rozhraní
-        (SELECT ARRAY[id] FROM public.publication_types WHERE name = 'public') -- Pouze veřejné publikace
+        COALESCE((SELECT ARRAY_AGG(id) FROM public.categories), '{}'), -- Všechny kategorie
+        COALESCE((SELECT ARRAY_AGG(id) FROM public.publication_types), '{}') -- Všechny typy publikací
     ),
     (
-        'medbase_sana', 
-        'MedBase Sana', 
-        'Hlavní chatbot s plným přístupem ke všem kategoriím a typům publikací',
+        'product_chat', 
+        'Product Chat', 
+        'Chatbot se zaměřením na produktová doporučení',
         true,
-        true,
-        (SELECT ARRAY_AGG(id) FROM public.categories), -- Všechny kategorie
-        (SELECT ARRAY_AGG(id) FROM public.publication_types) -- Všechny typy publikací
+        false,
+        '{}', -- Žádné kategorie (nepotřebuje databázi knih)
+        '{}' -- Žádné typy publikací
     ),
     (
-        'general_chat', 
-        'Obecný Chat', 
-        'Základní chatbot pro obecné dotazy',
+        'test_chat', 
+        'Testovací Chat', 
+        'Testovací chatbot s omezeným přístupem',
         false,
         true,
-        '{}', -- Žádné kategorie
-        (SELECT ARRAY[id] FROM public.publication_types WHERE name = 'public') -- Pouze veřejné publikace
+        '{}', -- Prázdné, naplní se přes admin rozhraní
+        COALESCE((SELECT ARRAY[id] FROM public.publication_types WHERE name = 'public'), '{}') -- Pouze veřejné publikace
     )
 ON CONFLICT (chatbot_id) DO NOTHING;
 

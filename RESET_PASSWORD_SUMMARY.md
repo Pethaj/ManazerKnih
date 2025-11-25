@@ -241,3 +241,5 @@ Implementovali jsme kompletní, bezpečné a user-friendly řešení pro reset h
 - `update_supabase_urls.sh` - URL config script
 
 
+
+

@@ -212,3 +212,5 @@ Implementovali jsme kompletní řešení pro reset hesla:
 **Jediné co musíte udělat je aktualizovat Email Template v Supabase Dashboard!**
 
 
+
+

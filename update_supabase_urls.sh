@@ -66,3 +66,5 @@ echo "2. Otestujte reset hesla flow"
 echo "3. Zkontrolujte Console (F12) pro případné chyby"
 
 
+
+

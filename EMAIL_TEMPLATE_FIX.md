@@ -137,3 +137,5 @@ Po provedení těchto změn:
 **Pokud máte problémy, přečtěte si kompletní dokumentaci v `RESET_PASSWORD_SETUP.md`**
 
 
+
+

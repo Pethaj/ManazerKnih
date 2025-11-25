@@ -294,3 +294,5 @@ Refresh Token:
 
 **Další krok:** Přejděte do Supabase Dashboard a přidejte redirect URLs!
 
+
+

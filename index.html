@@ -187,6 +187,62 @@
             color: white !important;
             border-color: rgba(255, 255, 255, 0.3) !important;
         }
+        
+        /* Responsive user info */
+        .user-info-button:hover {
+            background: var(--background-tertiary) !important;
+            border-color: var(--accent-primary) !important;
+        }
+        
+        /* Responsive header actions */
+        @media (max-width: 1200px) {
+            .header-actions-responsive {
+                gap: 0.5rem !important;
+            }
+            .header-actions-responsive button {
+                padding: 0.4rem 0.6rem !important;
+                font-size: 0.85rem !important;
+            }
+        }
+        
+        @media (max-width: 1024px) {
+            .button-text {
+                display: none !important;
+            }
+            .header-actions-responsive button {
+                min-width: auto !important;
+                padding: 0.5rem !important;
+            }
+        }
+        
+        @media (max-width: 900px) {
+            .user-email-text {
+                max-width: 100px !important;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .user-email-text {
+                display: none !important;
+            }
+            .user-info-button {
+                padding: 6px 10px !important;
+                min-width: auto !important;
+            }
+            .header-actions-responsive {
+                gap: 0.25rem !important;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .logout-text {
+                display: none !important;
+            }
+            .logout-button {
+                min-width: auto !important;
+                padding: 0.5rem !important;
+            }
+        }
     </style>
 <script type="importmap">
 {

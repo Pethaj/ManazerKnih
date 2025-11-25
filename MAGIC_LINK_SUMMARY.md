@@ -342,3 +342,5 @@ Pokud problém přetrvává:
 
 **Čas potřebný:** 2 minuty v dashboardu + 1 minuta test = **3 minuty celkem**
 
+
+

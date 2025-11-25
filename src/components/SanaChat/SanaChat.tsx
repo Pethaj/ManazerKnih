@@ -865,8 +865,17 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 console.log('🛍️ Používám hybridní systém pro produktové doporučení...');
                 
                 try {
-                    // Použij nový hybridní systém
-                    const hybridProducts = await getHybridProductRecommendations(text.trim(), sessionId);
+                    // Použij nový hybridní systém s nastavením feedů
+                    const useFeed1 = chatbotSettings.use_feed_1 !== false; // default true
+                    const useFeed2 = chatbotSettings.use_feed_2 !== false; // default true
+                    
+                    const hybridProducts = await getHybridProductRecommendations(
+                        text.trim(), 
+                        sessionId,
+                        10,
+                        useFeed1,
+                        useFeed2
+                    );
                     
                     // Konvertuj hybridní produkty na standardní ProductRecommendation formát
                     const productRecommendations: ProductRecommendation[] = hybridProducts.map((product, index) => ({
@@ -1151,8 +1160,17 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 console.log('🛍️ Používám hybridní systém pro produktové doporučení...');
                 
                 try {
-                    // Použij nový hybridní systém
-                    const hybridProducts = await getHybridProductRecommendations(text.trim(), sessionId);
+                    // Použij nový hybridní systém s nastavením feedů
+                    const useFeed1 = chatbotSettings.use_feed_1 !== false; // default true
+                    const useFeed2 = chatbotSettings.use_feed_2 !== false; // default true
+                    
+                    const hybridProducts = await getHybridProductRecommendations(
+                        text.trim(), 
+                        sessionId,
+                        10,
+                        useFeed1,
+                        useFeed2
+                    );
                     
                     // Konvertuj hybridní produkty na standardní ProductRecommendation formát
                     const productRecommendations: ProductRecommendation[] = hybridProducts.map((product, index) => ({
