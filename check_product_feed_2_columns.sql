@@ -54,3 +54,6 @@ SET
 WHERE product_code = '2347'
 RETURNING id, product_code, embedding_status, embedding_generated_at;
 
+
+
+

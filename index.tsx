@@ -4839,11 +4839,20 @@ const App = ({ currentUser }: { currentUser: User }) => {
                     <div style={styles.chatContainer}>
                         <div style={styles.chatContent}>
                             <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                {console.log('📋 Předávám nastavení do FilteredSanaChat:', {
+                                    product_recommendations: activeChatbot.features.product_recommendations,
+                                    product_button_recommendations: activeChatbot.features.product_button_recommendations,
+                                    book_database: activeChatbot.features.book_database,
+                                    allFeatures: activeChatbot.features
+                                })}
                                 <FilteredSanaChat 
                                     onClose={() => setActiveChatbot(null)}
                                     chatbotSettings={{
                                         product_recommendations: activeChatbot.features.product_recommendations || false,
-                                        book_database: activeChatbot.features.book_database || false
+                                        product_button_recommendations: activeChatbot.features.product_button_recommendations || false,
+                                        book_database: activeChatbot.features.book_database || false,
+                                        use_feed_1: activeChatbot.features.use_feed_1 !== undefined ? activeChatbot.features.use_feed_1 : true,
+                                        use_feed_2: activeChatbot.features.use_feed_2 !== undefined ? activeChatbot.features.use_feed_2 : true
                                     }}
                                 />
                             </div>
@@ -4964,7 +4973,7 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                             maxWidth: '150px'
                         }}
                     >
-                        {currentUser.email}
+                        {currentUser.firstName}
                     </span>
                     <span 
                         className="user-role-badge"
@@ -5593,6 +5602,9 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
     const [isTestingOCR, setIsTestingOCR] = useState(false);
     const [isTestingCompression, setIsTestingCompression] = useState(false);
     const [testSelectedLanguage, setTestSelectedLanguage] = useState('Angličtina');
+    
+    // Vývojářská roleta
+    const [showDevTools, setShowDevTools] = useState(false);
     const [testCompressionLevel, setTestCompressionLevel] = useState('recommended');
     
     // Dialogy pro výběr možností
@@ -5981,36 +5993,10 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
             ))}
             {renderStaticField("OCR extrakce textu", (
                 <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                    <span style={{color: checkCacheStatus(localBook.id).hasCache ? '#22c55e' : '#6b7280'}}>
-                        {checkCacheStatus(localBook.id).hasCache 
-                            ? `✅ Text extrahován (${checkCacheStatus(localBook.id).size} znaků, ${checkCacheStatus(localBook.id).age} starý)`
-                            : '⏳ Text bude automaticky extrahován při prvním AI generování'
-                        }
-                    </span>
-
-                    {!checkCacheStatus(localBook.id).hasCache && (
-                        <button 
-                            style={{...styles.button, fontSize: '0.8em', padding: '4px 8px', background: '#007bff', color: 'white'}}
-                            onClick={async () => {
-                                try {
-                                    const shouldProceed = confirm(`KONTEXT PRO LLM\n\n⚠️ Speciální OCR extrakce s limitem 50 stránek\n• Určeno pro LLM kontextové analýzy\n• Uloží se do mezipaměti jako běžný OCR text\n\nPokračovat?`);
-                                    if (!shouldProceed) return;
-                                    
-                                    console.log('🧠 Spouštím LLM kontext extrakci z hlavního view...');
-                                    const extractedText = await sendToLLMContextWebhook(localBook);
-                                    
-                                    alert(`✅ LLM kontext extrahován!\n\nVelikost: ${extractedText.length} znaků\n(Max 50 stránek)`);
-                                    updateLocalBook({...localBook});
-                                    
-                                } catch (error) {
-                                    console.error('❌ Chyba při LLM kontext extrakci:', error);
-                                    alert(`❌ Chyba: ${error instanceof Error ? error.message : String(error)}`);
-                                }
-                            }}
-                            title="Extrahovat obsah pro LLM kontext - max 50 stránek"
-                        >
-                            Kontext pro LLM
-                        </button>
+                    {checkCacheStatus(localBook.id).hasCache && (
+                        <span style={{color: '#22c55e'}}>
+                            ✅ Text extrahován ({checkCacheStatus(localBook.id).size} znaků, {checkCacheStatus(localBook.id).age} starý)
+                        </span>
                     )}
 
                     {checkCacheStatus(localBook.id).hasCache && (
@@ -6480,9 +6466,6 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                             <button style={styles.button} onClick={onReadClick}>Číst knihu</button>
                             <button style={styles.iconButton} onClick={() => setIsEditing(true)} aria-label="Upravit metadata"><IconEdit /></button>
-                            <button style={{...styles.iconButton, color: '#3b82f6'}} onClick={() => onTestWebhook(book.id)} aria-label="Testovat webhook" title="Testovat webhook (pouze zavolá webhook bez mazání knihy)"><IconTestWebhook size={18}/></button>
-                            <button style={{...styles.iconButton, color: '#10b981'}} onClick={() => onDebugStorage(book.id, book.title)} aria-label="Diagnostika storage" title="Zkontrolovat storage cesty (otevřete konzoli)">🔍</button>
-                            <button style={{...styles.iconButton, color: '#f59e0b'}} onClick={() => onTestDeleteImages(book.id)} aria-label="Test mazání images" title="Testovat mazání images složky (skutečné smazání!)">🧪</button>
                             <button style={{...styles.iconButton, color: 'var(--danger-color)'}} onClick={() => onDelete(book.id)} aria-label="Smazat knihu"><IconDelete size={18}/></button>
                         </div>
                     </>
@@ -6643,6 +6626,96 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                     </div>
                 </div>
             )}
+            
+            {/* Vývojářská roleta */}
+            <div style={{ 
+                marginTop: '2rem', 
+                borderTop: '1px solid var(--border-color)', 
+                paddingTop: '1rem'
+            }}>
+                <button
+                    onClick={() => setShowDevTools(!showDevTools)}
+                    style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        backgroundColor: 'var(--background-secondary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <span>🛠️ Vývojářské nástroje</span>
+                    <span style={{ transform: showDevTools ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+                </button>
+                
+                {showDevTools && (
+                    <div style={{ 
+                        marginTop: '0.5rem',
+                        padding: '1rem',
+                        backgroundColor: 'var(--background-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        gap: '0.5rem',
+                        flexWrap: 'wrap'
+                    }}>
+                        <button 
+                            style={{
+                                ...styles.button,
+                                fontSize: '0.85rem',
+                                padding: '6px 12px',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }} 
+                            onClick={() => onTestWebhook(book.id)} 
+                            title="Testovat webhook (pouze zavolá webhook bez mazání knihy)"
+                        >
+                            <IconTestWebhook size={16}/>
+                            Testovat webhook
+                        </button>
+                        
+                        <button 
+                            style={{
+                                ...styles.button,
+                                fontSize: '0.85rem',
+                                padding: '6px 12px',
+                                backgroundColor: '#10b981',
+                                color: 'white',
+                                border: 'none'
+                            }} 
+                            onClick={() => onDebugStorage(book.id, book.title)} 
+                            title="Zkontrolovat storage cesty (otevřete konzoli)"
+                        >
+                            🔍 Diagnostika storage
+                        </button>
+                        
+                        <button 
+                            style={{
+                                ...styles.button,
+                                fontSize: '0.85rem',
+                                padding: '6px 12px',
+                                backgroundColor: '#f59e0b',
+                                color: 'white',
+                                border: 'none'
+                            }} 
+                            onClick={() => onTestDeleteImages(book.id)} 
+                            title="Testovat mazání images složky (skutečné smazání!)"
+                        >
+                            🧪 Test mazání images
+                        </button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

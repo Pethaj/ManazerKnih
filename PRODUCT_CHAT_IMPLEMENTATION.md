@@ -317,7 +317,7 @@ Pokud webhook nefunguje, zkontrolujte:
 - **N8N dělá RAG**: Embedding, vyhledávání, GPT - vše na straně N8N
 - **Aplikace jen zobrazuje**: Fetchne metadata a ukáže v carousel
 - **Feed 2 only**: Pouze `product_feed_2` tabulka
-- **6 produktů**: N8N by měl vracet ideálně 6 nejrelevantnějších
+- **Max 6 produktů**: Carousel zobrazí maximálně prvních 6 produktů (i když N8N vrátí více)
 
 ## Další kroky
 

@@ -97,3 +97,6 @@ Frontend už je upravený a automaticky použije nové sloupce.
 **Status:** ✅ HOTOVO  
 **Testováno:** Ne (čeká na spuštění SQL migrace)
 
+
+
+

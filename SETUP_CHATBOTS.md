@@ -93,3 +93,6 @@ Po úspěšném vytvoření chatbotů můžete:
 3. **Nastavit typy publikací** pro jednotlivé chatboty
 4. **Otestovat chaty** pomocí tlačítka "Spustit chat s nastavením"
 
+
+
+

@@ -132,3 +132,6 @@ echo ""
 echo -e "${GREEN}🎉 Hotovo!${NC}"
 echo ""
 
+
+
+

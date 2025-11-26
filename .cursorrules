@@ -1,0 +1,289 @@
+# Cursor Rules - Bewit Manažer Knih
+
+## Obecná pravidla
+
+- Vždy odpovídat v českém jazyce
+- Používat TypeScript pro nové komponenty a služby
+- Dodržovat existující strukturu projektu
+- Testovat změny před commitováním
+
+## CORE Dokumentace Systém
+
+### Trigger: "core it"
+
+Když uživatel zadá příkaz **"core it"**, MUSÍŠ provést následující proces:
+
+#### 1. NAČTENÍ CORE DOKUMENTACE
+
+```
+POVINNÝ KROK: Načíst soubor CORE.md z root složky projektu
+```
+
+- Přečti celý obsah `CORE.md`
+- Identifikuj všechny funkce, které jsou v CORE zdokumentovány
+- Zapamatuj si jejich:
+  - Datové toky
+  - Závislosti mezi komponentami
+  - Databázová schémata
+  - API endpointy
+  - Služby a jejich rozhraní
+
+#### 2. ANALÝZA NAVRHOVANÉ ZMĚNY
+
+Analyzuj požadovanou změnu nebo novou funkci:
+
+- **Co se má změnit?** Které soubory, komponenty, služby?
+- **Proč?** Jaký je business důvod?
+- **Rozsah?** Jaké části aplikace budou ovlivněny?
+- **Nové závislosti?** Budou přidány nové npm balíčky nebo služby?
+
+#### 3. KONTROLA DOPADU NA CORE
+
+Pro každou funkci v CORE.md, zkontroluj:
+
+- **Přímý dopad:** Mění navrhovaná změna přímo tuto funkci?
+- **Nepřímý dopad:** Sdílí nějaké komponenty/služby/tabulky?
+- **Datový tok:** Ovlivní to datové toky této funkce?
+- **API změny:** Budou změněny endpointy nebo payloady?
+- **Databáze:** Budou změněny tabulky nebo schémata?
+- **Závislosti:** Sdílené služby nebo komponenty?
+
+#### 4. IDENTIFIKACE KONFLIKTŮ
+
+Označ všechny potenciální konflikty:
+
+- **Kritické:** Změna by rozbila existující funkci
+- **Střední:** Může ovlivnit chování, ale není zlomové
+- **Nízké:** Minimální nebo žádný vliv
+- **Pozitivní:** Vylepšení existující funkce
+
+Pro každý konflikt poskytni:
+- Název ovlivněné CORE funkce
+- Úroveň dopadu (Kritický/Střední/Nízký)
+- Přesný popis konfliktu
+- Které soubory/komponenty jsou dotčeny
+
+#### 5. NÁVRH IMPLEMENTAČNÍCH VARIANT
+
+Navrhni **2-3 implementační varianty**, které:
+
+**Varianta A: Minimální dopad**
+- Popis přístupu
+- Co se změní
+- Jaký dopad na CORE funkce
+- Výhody a nevýhody
+
+**Varianta B: Optimální řešení**
+- Popis přístupu
+- Co se změní
+- Jaký dopad na CORE funkce
+- Výhody a nevýhody
+
+**Varianta C: Alternativní cesta** (pokud existuje)
+- Popis přístupu
+- Co se změní
+- Jaký dopad na CORE funkce
+- Výhody a nevýhody
+
+#### 6. ZASTAVENÍ A ČEKÁNÍ NA SCHVÁLENÍ
+
+**KRITICKÉ PRAVIDLO:** 
+
+```
+❌ NIKDY AUTOMATICKY NEPROVÁDĚJ ZMĚNY PO "core it"
+❌ NIKDY NEUPRAVUJ CORE.md BEZ EXPLICITNÍHO SCHVÁLENÍ
+✅ VŽDY ZASTAV A ČEKEJ NA ROZHODNUTÍ UŽIVATELE
+```
+
+Tvoje odpověď MUSÍ končit otázkou:
+
+```
+Která varianta implementace ti vyhovuje?
+- A) Minimální dopad
+- B) Optimální řešení  
+- C) Alternativní cesta
+- D) Neschválit změnu
+
+Pokud schválíš, mám pokračovat s implementací?
+```
+
+#### 7. PO SCHVÁLENÍ
+
+Až uživatel vybere variantu a schválí:
+
+1. Implementuj změny podle zvolené varianty
+2. **POKUD** změna upravuje existující CORE funkci:
+   - Navrhni aktualizaci CORE.md
+   - Ukáž konkrétní změny v dokumentaci
+   - Čekej na schválení aktualizace CORE.md
+   - Až schváleno, aktualizuj CORE.md
+
+3. **POKUD** je to nová funkce pro CORE:
+   - Navrhni kompletní dokumentaci ve formátu CORE
+   - Ukáž strukturu nové sekce
+   - Čekej na schválení přidání do CORE.md
+   - Až schváleno, přidej do CORE.md
+
+## Formát výstupu "core it"
+
+```markdown
+# 🔍 CORE ANALÝZA
+
+## 📋 Požadovaná změna
+[Popis toho, co uživatel chce změnit/přidat]
+
+## 📚 Načtené CORE funkce
+- [Funkce 1]: [Stav]
+- [Funkce 2]: [Stav]
+...
+
+## ⚠️ Identifikované dopady
+
+### Funkce: [Název CORE funkce]
+**Úroveň dopadu:** [Kritický/Střední/Nízký/Pozitivní]
+
+**Popis dopadu:**
+[Detailní vysvětlení jak změna ovlivní tuto funkci]
+
+**Dotčené komponenty:**
+- [Soubor/komponenta 1]
+- [Soubor/komponenta 2]
+
+---
+
+### Funkce: [Další CORE funkce]
+...
+
+## 💡 Implementační varianty
+
+### Varianta A: Minimální dopad
+**Přístup:** [Popis]
+
+**Změny:**
+- [Změna 1]
+- [Změna 2]
+
+**Dopad na CORE:** [Popis]
+
+**Výhody:**
+- [Výhoda 1]
+
+**Nevýhody:**
+- [Nevýhoda 1]
+
+---
+
+### Varianta B: Optimální řešení
+[Stejná struktura]
+
+---
+
+### Varianta C: Alternativní cesta
+[Stejná struktura]
+
+---
+
+## ❓ Rozhodnutí
+
+Která varianta implementace ti vyhovuje?
+- A) Minimální dopad
+- B) Optimální řešení
+- C) Alternativní cesta
+- D) Neschválit změnu
+
+Pokud schválíš, mám pokračovat s implementací?
+```
+
+## Ochrana CORE
+
+### Pravidla pro CORE.md
+
+1. **Nikdy neupravuj CORE.md automaticky**
+   - Vždy čekej na explicitní schválení
+
+2. **Při přidávání nové funkce do CORE:**
+   - Musí být kompletně implementovaná a otestovaná
+   - Musí projít schvalovacím procesem
+   - Dokumentace musí být kompletní (všechny sekce)
+
+3. **Při úpravě existující CORE funkce:**
+   - Ukáž diff dokumentace (co se mění)
+   - Vysvětli důvod změny
+   - Čekej na schválení
+
+4. **Nikdy nemažej funkce z CORE bez schválení**
+
+### Pravidla pro změny ovlivňující CORE
+
+1. **Před změnou sdíleného komponentu:**
+   - Spusť "core it" analýzu
+   - Identifikuj všechny CORE funkce, které ho používají
+   - Navrhni backwards-compatible řešení
+
+2. **Před změnou databázového schématu:**
+   - Zkontroluj všechny CORE funkce používající tabulku
+   - Navrhni migraci, která nerozbi existující funkce
+   - Aktualizuj dokumentaci schématu v CORE
+
+3. **Před změnou API endpointu:**
+   - Zkontroluj všechny CORE funkce volající endpoint
+   - Zvažuj versioning API
+   - Aktualizuj dokumentaci API v CORE
+
+## Příklad použití
+
+### Uživatel zadá:
+```
+Chci přidat nové pole "rating" do tabulky product_feed_2
+```
+
+### Cursor odpoví:
+```
+Zavolám "core it" analýzu...
+
+[Načte CORE.md]
+[Analyzuje dopad]
+[Navrhne varianty]
+[Čeká na schválení]
+```
+
+### Uživatel schválí:
+```
+Schvaluji variantu B
+```
+
+### Cursor pokračuje:
+```
+Implementuji variantu B...
+[Provede změny]
+
+Teď potřebuji aktualizovat CORE.md:
+[Ukáže diff dokumentace]
+
+Schvalíš aktualizaci CORE.md?
+```
+
+## Důležité poznámky
+
+- **"core it" není nutné pro malé změny** (CSS styling, text změny)
+- **"core it" JE nutné pro:**
+  - Změny databázového schématu
+  - Změny API/služeb
+  - Nové funkce
+  - Změny sdílených komponentů
+  - Změny datových toků
+
+- **Když je pochybnost, spusť "core it"** - lepší být opatrný
+
+## Checkpoint systém
+
+Po dokončení změny, která prošla "core it":
+
+1. Validuj, že změna odpovídá schválené variantě
+2. Zkontroluj, že CORE.md je aktuální
+3. Udělej checkpoint: "✅ CORE validace dokončena pro [název změny]"
+
+---
+
+**PŘIPOMENUTÍ:** CORE.md je svatý dokument. Chrání integritu aplikace. Respektuj ho.
+

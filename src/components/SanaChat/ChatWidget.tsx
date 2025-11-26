@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FilteredSanaChat } from './SanaChat';
+import { ChatbotSettingsService } from '../../services/chatbotSettingsService';
 
 const ChatBubbleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -19,25 +20,101 @@ const CloseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 interface ChatWidgetProps {
     chatbotSettings?: {
         product_recommendations: boolean;
+        product_button_recommendations: boolean;
         book_database: boolean;
+        use_feed_1?: boolean;
+        use_feed_2?: boolean;
     };
 }
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ 
-    chatbotSettings = { product_recommendations: false, book_database: true } 
+    chatbotSettings: propChatbotSettings 
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [chatbotSettings, setChatbotSettings] = useState<{
+        product_recommendations: boolean;
+        product_button_recommendations: boolean;
+        book_database: boolean;
+        use_feed_1?: boolean;
+        use_feed_2?: boolean;
+    } | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Načtení nastavení SanaChat z databáze při prvním načtení
+    useEffect(() => {
+        const loadChatbotSettings = async () => {
+            // Pokud jsou poskytnuta nastavení přes props, použij je
+            if (propChatbotSettings) {
+                setChatbotSettings(propChatbotSettings);
+                setIsLoading(false);
+                return;
+            }
+
+            try {
+                console.log('🤖 Načítám nastavení pro SanaChat z databáze...');
+                const settings = await ChatbotSettingsService.getChatbotSettings('sana_chat');
+                
+                if (settings) {
+                    console.log('✅ Nastavení SanaChat načteno:', settings);
+                    setChatbotSettings({
+                        product_recommendations: settings.product_recommendations || false,
+                        product_button_recommendations: settings.product_button_recommendations || false,
+                        book_database: settings.book_database !== undefined ? settings.book_database : true,
+                        use_feed_1: settings.use_feed_1 !== undefined ? settings.use_feed_1 : true,
+                        use_feed_2: settings.use_feed_2 !== undefined ? settings.use_feed_2 : true,
+                    });
+                } else {
+                    console.warn('⚠️ Nastavení SanaChat nenalezeno, použiji defaultní hodnoty');
+                    // Defaultní nastavení pokud není v databázi
+                    setChatbotSettings({
+                        product_recommendations: false,
+                        product_button_recommendations: false,
+                        book_database: true,
+                        use_feed_1: true,
+                        use_feed_2: true,
+                    });
+                }
+            } catch (error) {
+                console.error('❌ Chyba při načítání nastavení SanaChat:', error);
+                // Fallback na defaultní nastavení
+                setChatbotSettings({
+                    product_recommendations: false,
+                    product_button_recommendations: false,
+                    book_database: true,
+                    use_feed_1: true,
+                    use_feed_2: true,
+                });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadChatbotSettings();
+    }, [propChatbotSettings]);
 
     const toggleChat = () => {
         setIsOpen(!isOpen);
     };
+
+    // Pokud se načítají nastavení, nezobrazuj tlačítko
+    if (isLoading) {
+        return null;
+    }
+
+    // Pokud nastavení nejsou dostupná, nezobrazuj widget
+    if (!chatbotSettings) {
+        return null;
+    }
 
     return (
         <>
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                     <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
-                        <FilteredSanaChat chatbotSettings={chatbotSettings} />
+                        <FilteredSanaChat 
+                            chatbotSettings={chatbotSettings} 
+                            onClose={() => setIsOpen(false)}
+                        />
                     </div>
                 </div>
             )}

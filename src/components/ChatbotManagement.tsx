@@ -77,7 +77,10 @@ interface Chatbot {
     url: string;
     features: {
         product_recommendations: boolean;
+        product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
         book_database: boolean;
+        use_feed_1?: boolean;
+        use_feed_2?: boolean;
     };
 }
 
@@ -108,6 +111,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
             url: 'https://bewit.love/sana-chat',
             features: {
                 product_recommendations: false,
+                product_button_recommendations: false,
                 book_database: true,
             }
         },
@@ -118,6 +122,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
             url: 'https://bewit.love/sana-kancelar',
             features: {
                 product_recommendations: false,
+                product_button_recommendations: false,
                 book_database: false,
             }
         }
@@ -217,7 +222,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
     };
 
     // Funkce pro toggle funkcí chatbota s logikou závislostí
-    const toggleChatbotFunction = (chatbotId: string, feature: 'product_recommendations' | 'book_database') => {
+    const toggleChatbotFunction = (chatbotId: string, feature: 'product_recommendations' | 'product_button_recommendations' | 'book_database') => {
         const chatbot = chatbotSettings.find(c => c.chatbot_id === chatbotId);
         if (!chatbot) return;
 
@@ -248,7 +253,14 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
             
             console.log(`💾 Ukládám nastavení pro chatbota ${chatbotId}:`, changes);
             
-            await ChatbotSettingsService.updateChatbotSettings(chatbotId, changes);
+            const updatedSettings = await ChatbotSettingsService.updateChatbotSettings(chatbotId, changes);
+            
+            // Aktualizuj lokální state s novými hodnotami z databáze
+            setChatbotSettings(prev => prev.map(chatbot =>
+                chatbot.chatbot_id === chatbotId
+                    ? updatedSettings
+                    : chatbot
+            ));
             
             // Odstraň ze seznamu neuložených změn
             setUnsavedChanges(prev => {
@@ -266,9 +278,16 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
             
             console.log('✅ Nastavení úspěšně uloženo');
             
+            // Zobraz uživateli potvrzení
+            alert('✅ Nastavení chatbota bylo úspěšně uloženo!');
+            
         } catch (err) {
             console.error('❌ Chyba při ukládání nastavení:', err);
-            setError(err instanceof Error ? err.message : 'Nepodařilo se uložit nastavení chatbota');
+            const errorMessage = err instanceof Error ? err.message : 'Nepodařilo se uložit nastavení chatbota';
+            setError(`Chyba při ukládání nastavení chatbota "${chatbotId}": ${errorMessage}`);
+            
+            // Zobraz alert s chybou
+            alert(`❌ ${errorMessage}`);
         } finally {
             setSavingChatbotId(null);
         }
@@ -324,6 +343,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
         // Zobrazíme informaci o konfiguraci
         const enabledFeatures = [];
         if (chatbot.features.product_recommendations) enabledFeatures.push("Produktová doporučení");
+        if (chatbot.features.product_button_recommendations) enabledFeatures.push("Produktové doporučení na tlačítko");
         if (chatbot.features.book_database) enabledFeatures.push("Databáze knih");
         
         const featuresText = enabledFeatures.length > 0 
@@ -388,7 +408,18 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                             
                             {error && (
                                 <div style={styles.errorMessage}>
-                                    ❌ {error}
+                                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>❌ Chyba</div>
+                                    <div style={{ marginBottom: '8px' }}>{error}</div>
+                                    {error.includes('nebyl nalezen v databázi') && (
+                                        <div style={styles.errorHint}>
+                                            <strong>💡 Řešení:</strong>
+                                            <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                                                <li>Otevřete Supabase SQL Editor</li>
+                                                <li>Spusťte script <code>fix_chatbot_settings.sql</code></li>
+                                                <li>Obnovte tuto stránku</li>
+                                            </ol>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             
@@ -430,7 +461,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                     <label style={styles.settingLabel}>
                                                         <input
                                                             type="checkbox"
-                                                            checked={chatbot.product_recommendations}
+                                                            checked={chatbot.product_recommendations || false}
                                                             onChange={() => toggleChatbotFunction(chatbot.chatbot_id, 'product_recommendations')}
                                                             style={styles.checkbox}
                                                         />
@@ -446,7 +477,23 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                     <label style={styles.settingLabel}>
                                                         <input
                                                             type="checkbox"
-                                                            checked={chatbot.book_database}
+                                                            checked={chatbot.product_button_recommendations || false}
+                                                            onChange={() => toggleChatbotFunction(chatbot.chatbot_id, 'product_button_recommendations')}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <IconProduct />
+                                                        Produktové doporučení na tlačítko
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Zobrazit tlačítko "Doporučit produkty" na konci odpovědi chatbota
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.book_database || false}
                                                             onChange={() => toggleChatbotFunction(chatbot.chatbot_id, 'book_database')}
                                                             style={styles.checkbox}
                                                         />
@@ -578,7 +625,10 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                                 url: '',
                                                                 features: {
                                                                     product_recommendations: chatbot.product_recommendations,
-                                                                    book_database: chatbot.book_database
+                                                                    product_button_recommendations: chatbot.product_button_recommendations,
+                                                                    book_database: chatbot.book_database,
+                                                                    use_feed_1: chatbot.use_feed_1,
+                                                                    use_feed_2: chatbot.use_feed_2
                                                                 }
                                                             })}
                                                         >
@@ -981,6 +1031,18 @@ const styles: { [key: string]: React.CSSProperties } = {
         borderRadius: '8px',
         marginBottom: '16px',
         border: '1px solid #f5c6cb',
+        fontSize: '14px',
+        lineHeight: '1.5',
+    },
+
+    errorHint: {
+        backgroundColor: '#fff3cd',
+        color: '#856404',
+        padding: '12px',
+        borderRadius: '6px',
+        marginTop: '12px',
+        border: '1px solid #ffeaa7',
+        fontSize: '13px',
     },
 
     loadingMessage: {

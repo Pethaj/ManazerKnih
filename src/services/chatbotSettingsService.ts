@@ -5,6 +5,9 @@
 
 import { supabase } from '../lib/supabase';
 
+// Edge funkce URL pro admin operace
+const EDGE_FUNCTION_URL = 'https://modopafybeslbcqjxsve.supabase.co/functions/v1/update-chatbot-settings';
+
 // Interface pro nastavení chatbota podle databázové struktury
 export interface ChatbotSettings {
   id?: string;
@@ -12,6 +15,7 @@ export interface ChatbotSettings {
   chatbot_name: string;
   description?: string;
   product_recommendations: boolean;
+  product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
   book_database: boolean;
   allowed_categories: string[];
   allowed_publication_types: string[];
@@ -51,6 +55,7 @@ export interface CreateChatbotSettingsData {
   chatbot_name: string;
   description?: string;
   product_recommendations: boolean;
+  product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
   book_database: boolean;
   allowed_categories: string[];
   allowed_publication_types: string[];
@@ -66,6 +71,7 @@ export interface UpdateChatbotSettingsData {
   chatbot_name?: string;
   description?: string;
   product_recommendations?: boolean;
+  product_button_recommendations?: boolean;  // 🆕 Produktové doporučení na tlačítko
   book_database?: boolean;
   allowed_categories?: string[];
   allowed_publication_types?: string[];
@@ -82,7 +88,10 @@ export interface ChatbotFilters {
   publicationTypes: PublicationType[];
   labels: Label[];
   productRecommendations: boolean;
+  productButtonRecommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
   bookDatabase: boolean;
+  useFeed1: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
+  useFeed2: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
 }
 
 export class ChatbotSettingsService {
@@ -135,6 +144,7 @@ export class ChatbotSettingsService {
   // Vytvoření nového chatbota
   static async createChatbotSettings(data: CreateChatbotSettingsData): Promise<ChatbotSettings> {
     try {
+      // Pro CREATE použijeme běžný klient - RLS politika by měla povolit INSERT
       const { data: result, error } = await supabase
         .from('chatbot_settings')
         .insert([data])
@@ -156,21 +166,37 @@ export class ChatbotSettingsService {
   // Aktualizace nastavení chatbota
   static async updateChatbotSettings(chatbotId: string, data: UpdateChatbotSettingsData): Promise<ChatbotSettings> {
     try {
-      const { data: result, error } = await supabase
+      console.log(`🔍 Aktualizuji chatbota s ID: "${chatbotId}"`, data);
+      
+      // Použij Supabase klient s RLS politikami (bez edge funkce)
+      console.log('💾 Používám Supabase klient pro UPDATE...');
+      
+      // Proveď UPDATE
+      const { data: updateResult, error: updateError } = await supabase
         .from('chatbot_settings')
         .update(data)
         .eq('chatbot_id', chatbotId)
         .select()
         .single();
 
-      if (error) {
-        console.error('Chyba při aktualizaci chatbota:', error);
-        throw error;
+      if (updateError) {
+        console.error('❌ Chyba při UPDATE:', updateError);
+        throw new Error(
+          `UPDATE selhal: ${updateError.message}\n\n` +
+          `💡 Řešení:\n` +
+          `1. Zkontrolujte, zda jste přihlášeni\n` +
+          `2. Spusťte SQL script pro opravu RLS politik (viz dokumentace)`
+        );
       }
 
-      return result;
+      if (!updateResult) {
+        throw new Error('UPDATE nevrátil žádná data');
+      }
+
+      console.log('✅ UPDATE proběhl úspěšně!');
+      return updateResult;
     } catch (error) {
-      console.error('Chyba při aktualizaci chatbota:', error);
+      console.error('❌ Chyba při aktualizaci chatbota:', error);
       throw error;
     }
   }
@@ -178,6 +204,7 @@ export class ChatbotSettingsService {
   // Smazání chatbota
   static async deleteChatbotSettings(chatbotId: string): Promise<void> {
     try {
+      // Pro DELETE použijeme běžný klient - RLS politika by měla povolit DELETE
       const { error } = await supabase
         .from('chatbot_settings')
         .delete()
@@ -312,7 +339,10 @@ export class ChatbotSettingsService {
         publicationTypes,
         labels,
         productRecommendations: settings.product_recommendations,
+        productButtonRecommendations: settings.product_button_recommendations,
         bookDatabase: settings.book_database,
+        useFeed1: settings.use_feed_1 !== false, // default true
+        useFeed2: settings.use_feed_2 !== false, // default true
       };
     } catch (error) {
       console.error('Chyba při načítání filtrů chatbota:', error);
@@ -323,15 +353,8 @@ export class ChatbotSettingsService {
   // Aktivace/deaktivace chatbota
   static async setActive(chatbotId: string, isActive: boolean): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('chatbot_settings')
-        .update({ is_active: isActive })
-        .eq('chatbot_id', chatbotId);
-
-      if (error) {
-        console.error('Chyba při změně aktivace chatbota:', error);
-        throw error;
-      }
+      // Použijeme edge funkci pro konzistenci
+      await this.updateChatbotSettings(chatbotId, { is_active: isActive });
     } catch (error) {
       console.error('Chyba při změně aktivace chatbota:', error);
       throw error;

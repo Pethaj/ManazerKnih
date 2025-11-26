@@ -140,3 +140,6 @@ $$;
 -- Hotovo
 SELECT '✅ Funkce upsert_product_feed_2_preserve_embedding vytvořena' AS status;
 
+
+
+

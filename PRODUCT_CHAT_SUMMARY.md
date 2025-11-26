@@ -96,7 +96,7 @@ ProductCarousel s personalizací
 - 🔄 **N8N RAG**: Vše (embedding, search, GPT) dělá N8N
 - 🎨 **Čistá aplikace**: Pouze zobrazuje výsledky a obohacuje metadata
 - 📦 **Feed 2 Only**: Data z `product_feed_2` tabulky
-- 🎯 **6 produktů**: Ideální počet pro carousel
+- 🎯 **Max 6 produktů**: Carousel zobrazí maximálně prvních 6 produktů
 
 ## 🧪 Testování
 

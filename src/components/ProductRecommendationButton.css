@@ -1,0 +1,33 @@
+/* Product Recommendation Button Styles */
+
+.product-recommendation-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.product-recommendation-button:hover {
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(-1px);
+}
+
+.product-recommendation-button:active {
+  transform: translateY(0);
+}
+
+.product-recommendation-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Spinner animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+

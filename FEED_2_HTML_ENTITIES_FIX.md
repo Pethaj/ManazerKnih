@@ -146,3 +146,6 @@ Po opravě:
 4. 🔄 Ověřit data v databázi
 5. 🔄 Případně smazat staré záznamy s chybnými daty a znovu synchronizovat
 
+
+
+

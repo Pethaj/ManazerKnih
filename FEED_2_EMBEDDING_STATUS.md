@@ -113,3 +113,6 @@ add_embedding_status_to_feed_2.sql
 **Datum:** 25. listopadu 2025  
 **Verze:** 1.0 - Jednoduché řešení bez edge funkcí
 
+
+
+

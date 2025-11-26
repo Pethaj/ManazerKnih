@@ -193,7 +193,7 @@ const ProductChat: React.FC<ProductChatProps> = ({ onClose }) => {
               {msg.products && msg.products.length > 0 && (
                 <div className="mt-4 w-full">
                   <ProductCarousel
-                    products={msg.products.map(p => ({
+                    products={msg.products.slice(0, 6).map(p => ({
                       id: p.product_code,
                       product_code: p.product_code,
                       product_name: p.product_name,
@@ -203,7 +203,7 @@ const ProductChat: React.FC<ProductChatProps> = ({ onClose }) => {
                       price: p.price,
                       currency: p.currency
                     }))}
-                    title="🛍️ Doporučené produkty"
+                    title="Doporučené produkty"
                     showSimilarity={false}
                   />
                 </div>

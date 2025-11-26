@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { supabase as supabaseClient } from '../../lib/supabase';
 import ProductSyncAdmin from './ProductSync';
 import { ProductCarousel } from '../ProductCarousel';
+import { ProductRecommendationButton } from '../ProductRecommendationButton';
 import { ProductRecommendation } from '../../services/productSearchService';
 import { generateProductResponse, convertChatHistoryToGPT } from '../../services/gptService';
 import { quickVectorSearchTest } from '../../services/vectorDiagnostics';
@@ -82,7 +83,10 @@ interface SanaChatProps {
   selectedPublicationTypes: string[];
   chatbotSettings?: {
     product_recommendations: boolean;
+    product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
     book_database: boolean;
+    use_feed_1?: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
+    use_feed_2?: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
   };
   onClose?: () => void;
 }
@@ -360,8 +364,16 @@ const TypingIndicator: React.FC = () => (
 const Message: React.FC<{ 
     message: ChatMessage; 
     onSilentPrompt: (prompt: string) => void; 
-    chatbotSettings?: { product_recommendations: boolean; book_database: boolean; };
-}> = ({ message, onSilentPrompt, chatbotSettings }) => {
+    chatbotSettings?: { 
+        product_recommendations: boolean; 
+        product_button_recommendations: boolean; 
+        book_database: boolean; 
+        use_feed_1?: boolean; 
+        use_feed_2?: boolean; 
+    };
+    sessionId?: string;        // 🆕 Pro ProductRecommendationButton
+    lastUserQuery?: string;    // 🆕 Pro ProductRecommendationButton
+}> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery }) => {
     const isUser = message.role === 'user';
     
     // Vylepšené zpracování HTML pro lepší zobrazení obrázků a formátování
@@ -448,6 +460,22 @@ const Message: React.FC<{
                         </div>
                     )}
                     
+                    {/* Produktové doporučení na tlačítko - zobrazí se pokud je zapnuté v nastavení */}
+                    {!isUser && chatbotSettings?.product_button_recommendations && sessionId && lastUserQuery && (
+                        <div className="mt-4">
+                            {console.log('🔘 Zobrazuji tlačítko doporučení', { 
+                                product_button_recommendations: chatbotSettings?.product_button_recommendations,
+                                sessionId: !!sessionId,
+                                lastUserQuery: lastUserQuery.substring(0, 30) 
+                            })}
+                            <ProductRecommendationButton
+                                userQuery={lastUserQuery}
+                                botResponse={message.text}
+                                sessionId={sessionId}
+                            />
+                        </div>
+                    )}
+                    
                     {message.sources && message.sources.length > 0 && (
                         <div className={`mt-4 pt-3 border-t ${isUser ? 'border-t-white/30' : 'border-t-slate-200'}`}>
                             <h4 className={`text-xs font-semibold mb-2 uppercase tracking-wider ${isUser ? 'text-white/80' : 'text-slate-500'}`}>Zdroje</h4>
@@ -478,8 +506,15 @@ const ChatWindow: React.FC<{
     isLoading: boolean; 
     onSilentPrompt: (prompt: string) => void;
     shouldAutoScroll?: boolean;
-    chatbotSettings?: { product_recommendations: boolean; book_database: boolean; };
-}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings }) => {
+    chatbotSettings?: { 
+        product_recommendations: boolean; 
+        product_button_recommendations: boolean; 
+        book_database: boolean; 
+        use_feed_1?: boolean; 
+        use_feed_2?: boolean; 
+    };
+    sessionId?: string;        // 🆕 Pro ProductRecommendationButton
+}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings, sessionId }) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -572,7 +607,24 @@ const ChatWindow: React.FC<{
                         <p>Jak vám dnes mohu pomoci?</p>
                     </div>
                 )}
-                {messages.map((msg) => (<Message key={msg.id} message={msg} onSilentPrompt={onSilentPrompt} chatbotSettings={chatbotSettings} />))}
+                {messages.map((msg, index) => {
+                    // Pro ProductRecommendationButton potřebujeme znát poslední dotaz uživatele
+                    const lastUserQuery = messages
+                        .slice(0, index)
+                        .reverse()
+                        .find(m => m.role === 'user')?.text || '';
+                    
+                    return (
+                        <Message 
+                            key={msg.id} 
+                            message={msg} 
+                            onSilentPrompt={onSilentPrompt} 
+                            chatbotSettings={chatbotSettings}
+                            sessionId={sessionId}
+                            lastUserQuery={lastUserQuery}
+                        />
+                    );
+                })}
                 {isLoading && <TypingIndicator />}
                 
                 {/* Invisible element pro scrollování na konec */}
@@ -644,15 +696,21 @@ const ChatInput: React.FC<{ onSendMessage: (text: string) => void; isLoading: bo
 };
 
 const languages = [{ code: 'cs', label: 'CZ' }, { code: 'sk', label: 'SK' }, { code: 'de', label: 'DE' }, { code: 'en', label: 'UK' }];
-const Header: React.FC<{ 
-    onNewChat: () => void; 
-    onExportPdf: () => void; 
-    selectedLanguage: string; 
+const Header: React.FC<{
+    onNewChat: () => void;
+    onExportPdf: () => void;
+    selectedLanguage: string;
     onLanguageChange: (lang: string) => void;
     onToggleFilters?: () => void;
     isFilterPanelVisible?: boolean;
     onToggleProductRecommendations?: () => void;
-    chatbotSettings?: { product_recommendations: boolean; book_database: boolean; };
+    chatbotSettings?: { 
+        product_recommendations: boolean; 
+        product_button_recommendations: boolean; 
+        book_database: boolean; 
+        use_feed_1?: boolean; 
+        use_feed_2?: boolean; 
+    };
     onClose?: () => void;
 }> = ({ onNewChat, onExportPdf, selectedLanguage, onLanguageChange, onToggleFilters, isFilterPanelVisible, onToggleProductRecommendations, chatbotSettings, onClose }) => (
     <header className="bg-bewit-blue text-white shadow-md z-10">
@@ -710,7 +768,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     selectedCategories, 
     selectedLabels, 
     selectedPublicationTypes,
-    chatbotSettings = { product_recommendations: false, book_database: true },
+    chatbotSettings = { 
+        product_recommendations: false, 
+        product_button_recommendations: false, 
+        book_database: true,
+        use_feed_1: true,
+        use_feed_2: true
+    },
     onClose
 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1010,7 +1074,14 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         <div className="flex flex-col h-full font-sans">
             <main className="flex-1 flex flex-col w-full min-h-0">
                 <div id="chat-container-for-pdf" className="w-full flex-1 min-h-0 relative">
-                     <ChatWindow messages={messages} isLoading={isLoading} onSilentPrompt={handleSilentPrompt} shouldAutoScroll={autoScroll} chatbotSettings={chatbotSettings} />
+                     <ChatWindow 
+                        messages={messages} 
+                        isLoading={isLoading} 
+                        onSilentPrompt={handleSilentPrompt} 
+                        shouldAutoScroll={autoScroll} 
+                        chatbotSettings={chatbotSettings}
+                        sessionId={sessionId}
+                     />
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
                     <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
@@ -1024,7 +1095,13 @@ const SanaChat: React.FC<SanaChatProps> = ({
     selectedCategories, 
     selectedLabels, 
     selectedPublicationTypes,
-    chatbotSettings = { product_recommendations: false, book_database: true },
+    chatbotSettings = { 
+        product_recommendations: false, 
+        product_button_recommendations: false, 
+        book_database: true,
+        use_feed_1: true,
+        use_feed_2: true
+    },
     onClose
 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1327,7 +1404,14 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 ) : (
                     <>
                         <div id="chat-container-for-pdf" className="w-full flex-1 min-h-0 relative">
-                             <ChatWindow messages={messages} isLoading={isLoading} onSilentPrompt={handleSilentPrompt} shouldAutoScroll={autoScroll} chatbotSettings={chatbotSettings} />
+                             <ChatWindow 
+                                messages={messages} 
+                                isLoading={isLoading} 
+                                onSilentPrompt={handleSilentPrompt} 
+                                shouldAutoScroll={autoScroll} 
+                                chatbotSettings={chatbotSettings}
+                                sessionId={sessionId}
+                             />
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
                             <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
@@ -1343,13 +1427,22 @@ const SanaChat: React.FC<SanaChatProps> = ({
 interface FilteredSanaChatProps {
     chatbotSettings?: {
         product_recommendations: boolean;
+        product_button_recommendations: boolean;
         book_database: boolean;
+        use_feed_1?: boolean;
+        use_feed_2?: boolean;
     };
     onClose?: () => void;
 }
 
 const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({ 
-    chatbotSettings = { product_recommendations: false, book_database: true },
+    chatbotSettings = { 
+        product_recommendations: false, 
+        product_button_recommendations: false, 
+        book_database: true,
+        use_feed_1: true,
+        use_feed_2: true
+    },
     onClose
 }) => {
     // Uložíme nastavení do state pro správný scope v useCallback

@@ -42,7 +42,10 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
   // Nastavení chatbota
   const [chatbotSettings, setChatbotSettings] = useState({
     product_recommendations: false,
+    product_button_recommendations: false,
     book_database: true,
+    use_feed_1: true,
+    use_feed_2: true,
   });
   
   // State pro UI
@@ -79,8 +82,14 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
         setSelectedPublicationTypes(filters.publicationTypes.map(pt => pt.name));
         setSelectedLabels(filters.labels.map(l => l.name));
         
-        // Nastav nastavení chatbota
-        setChatbotSettings(filters.settings);
+        // Nastav nastavení chatbota - z getChatbotFilters() dostaneme kompletní filtry
+        setChatbotSettings({
+          product_recommendations: filters.productRecommendations,
+          product_button_recommendations: filters.productButtonRecommendations,
+          book_database: filters.bookDatabase,
+          use_feed_1: filters.useFeed1,
+          use_feed_2: filters.useFeed2,
+        });
         
         // Pokud máme nastavení z databáze, použij název z databáze
         const settingsWithDetails = await ChatbotSettingsService.getChatbotSettingsWithDetails(chatbotId);
@@ -114,7 +123,10 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
         
         setChatbotSettings({
           product_recommendations: false,
+          product_button_recommendations: false,
           book_database: true,
+          use_feed_1: true,
+          use_feed_2: true,
         });
       } finally {
         setLoading(false);

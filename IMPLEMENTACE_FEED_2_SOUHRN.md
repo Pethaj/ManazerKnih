@@ -186,3 +186,6 @@ Vše je zdokumentováno v `PRODUCT_FEED_2_README.md` s detailními instrukcemi p
 **Testováno:** ⏳ Připraveno k testování
 
 
+
+
+

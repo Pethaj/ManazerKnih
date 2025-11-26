@@ -71,16 +71,36 @@ async function callProductChatWebhook(
     let data = await response.json();
     console.log('✅ N8N webhook raw response:', JSON.stringify(data).substring(0, 200) + '...');
 
-    // N8N vrací data zabalené v array[0].data struktuře
-    // Formát: [{ data: [{ "ID produktu": "2737", "Doporuceni": "..." }] }]
+    // N8N může vracet data v několika formátech:
+    // 1. [{ data: [...] }] - pole s objektem
+    // 2. { data: [...] } - přímo objekt
+    // 3. { text: "...", products: [...] } - standardní formát
+    
+    let productsData = null;
+    
+    // Varianta 1: Array s data property
     if (Array.isArray(data) && data.length > 0 && data[0].data) {
       console.log('🔧 Rozbaluji N8N response z array[0].data struktury');
-      const productsData = data[0].data;
+      productsData = data[0].data;
+    }
+    // Varianta 2: Objekt s data property
+    else if (data.data && Array.isArray(data.data)) {
+      console.log('🔧 Rozbaluji N8N response z object.data struktury');
+      productsData = data.data;
+    }
+    // Varianta 3: Už má standardní formát
+    else if (data.text && Array.isArray(data.products)) {
+      console.log('✅ N8N response je už ve standardním formátu');
+      return data;
+    }
+    
+    // Pokud máme productsData, konvertujeme na standardní formát
+    if (productsData && Array.isArray(productsData)) {
+      console.log(`🔧 Konvertuji ${productsData.length} produktů na standardní formát`);
       
-      // Konvertuj N8N formát na náš formát
       const products = productsData.map((item: any) => ({
-        product_code: item['ID produktu'],
-        recommendation: item['Doporuceni']
+        product_code: item['ID produktu'] || item.product_code,
+        recommendation: item['Doporuceni'] || item.recommendation
       }));
       
       data = {
@@ -94,10 +114,10 @@ async function callProductChatWebhook(
       });
     }
 
-    // Validace response
+    // Validace finálního formátu
     if (!data.text || !Array.isArray(data.products)) {
-      console.error('❌ Invalid N8N response format:', data);
-      throw new Error('Invalid response format from N8N webhook');
+      console.error('❌ Invalid N8N response format po konverzi:', JSON.stringify(data, null, 2));
+      throw new Error('Invalid response format from N8N webhook - nelze konvertovat na standardní formát');
     }
 
     console.log('✅ Finální response:', {

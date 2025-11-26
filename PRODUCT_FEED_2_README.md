@@ -374,3 +374,6 @@ Pro technické dotazy kontaktujte development team nebo vytvořte issue v reposi
 **Autor:** AI Assistant
 
 
+
+
+

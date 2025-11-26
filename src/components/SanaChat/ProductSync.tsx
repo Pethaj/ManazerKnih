@@ -696,18 +696,6 @@ const ProductSyncAdmin: React.FC = () => {
                             📋 Zobrazit feed
                         </button>
                     </div>
-
-                    {/* Info o Feed 2 */}
-                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <h3 className="font-semibold text-blue-900 mb-2">ℹ️ O Product Feed 2</h3>
-                        <ul className="text-sm text-blue-800 space-y-1">
-                            <li>• <strong>URL:</strong> {BEWIT_FEED_2_URL}</li>
-                            <li>• <strong>Struktura:</strong> ITEM → ID, PRODUCTNAME, DESCRIPTION_SHORT, DESCRIPTION_LONG</li>
-                            <li>• <strong>Embeddingy:</strong> Automaticky odesílány na n8n webhook</li>
-                            <li>• <strong>Automatická synchronizace:</strong> Denně ve 2:00 (UTC)</li>
-                            <li>• <strong>Vektorové vyhledávání:</strong> Popisy jsou indexovány pro chatbot</li>
-                        </ul>
-                    </div>
                 </>
             )}
         </div>

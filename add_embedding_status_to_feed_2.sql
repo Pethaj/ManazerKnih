@@ -33,3 +33,6 @@ WHERE table_schema = 'public'
   AND column_name IN ('embedding_status', 'embedding_generated_at')
 ORDER BY ordinal_position;
 
+
+
+

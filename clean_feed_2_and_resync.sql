@@ -145,3 +145,6 @@ WHERE feed_source = 'feed_2';
 -- - Embeddings mohou být vytvořeny až několik minut po uložení produktů
 -- - Pro force resync můžete skript spustit znovu
 
+
+
+

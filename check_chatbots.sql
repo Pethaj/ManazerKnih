@@ -40,3 +40,6 @@ LEFT JOIN public.publication_types pt ON pt.id = ANY(cs.allowed_publication_type
 GROUP BY cs.chatbot_id, cs.chatbot_name, cs.is_active, cs.product_recommendations, cs.book_database
 ORDER BY cs.chatbot_name;
 
+
+
+

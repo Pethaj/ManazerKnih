@@ -204,3 +204,6 @@ Pro detailní informace viz:
 **Datum:** 25.11.2024  
 **Otestováno:** ✅ Ano (8/8 testů prošlo)
 
+
+
+
