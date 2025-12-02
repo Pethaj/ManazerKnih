@@ -21,6 +21,7 @@ export interface ChatbotSettings {
   allowed_publication_types: string[];
   allowed_labels: string[];
   is_active: boolean;
+  is_default_web_chatbot?: boolean;  // 🆕 Zobrazit v bublině na webu
   // Nová nastavení pro feed zdroje
   use_feed_1?: boolean;
   use_feed_2?: boolean;
@@ -77,6 +78,7 @@ export interface UpdateChatbotSettingsData {
   allowed_publication_types?: string[];
   allowed_labels?: string[];
   is_active?: boolean;
+  is_default_web_chatbot?: boolean;  // 🆕 Zobrazit v bublině na webu
   // Nová nastavení pro feed zdroje
   use_feed_1?: boolean;
   use_feed_2?: boolean;
@@ -139,6 +141,33 @@ export class ChatbotSettingsService {
   // Načtení nastavení chatbota s detaily (rozšířené informace)
   static async getChatbotSettingsWithDetails(chatbotId: string): Promise<ChatbotSettings | null> {
     return this.getChatbotSettings(chatbotId);
+  }
+
+  // 🆕 Načtení výchozího webového chatbota (pro bublinu na webu)
+  static async getDefaultWebChatbot(): Promise<ChatbotSettings | null> {
+    try {
+      console.log('🌐 Načítám výchozí webový chatbot (is_default_web_chatbot = true)...');
+      
+      const { data, error } = await supabase
+        .from('chatbot_settings')
+        .select('*')
+        .eq('is_default_web_chatbot', true)
+        .eq('is_active', true)
+        .single();
+
+      if (error) {
+        console.warn('⚠️ Výchozí webový chatbot nenalezen, fallback na sana_chat:', error);
+        // Fallback na sana_chat, pokud není nastaven žádný výchozí
+        return this.getChatbotSettings('sana_chat');
+      }
+
+      console.log('✅ Výchozí webový chatbot načten:', data?.chatbot_id);
+      return data;
+    } catch (error) {
+      console.error('❌ Chyba při načítání výchozího webového chatbota:', error);
+      // Fallback na sana_chat
+      return this.getChatbotSettings('sana_chat');
+    }
   }
 
   // Vytvoření nového chatbota

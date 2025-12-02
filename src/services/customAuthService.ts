@@ -230,9 +230,9 @@ export async function isAdmin(): Promise<boolean> {
 
 /**
  * Změna hesla aktuálního uživatele
+ * Nevyžaduje ověření starého hesla - uživatel už je přihlášený
  */
 export async function changePassword(
-    currentPassword: string,
     newPassword: string
 ): Promise<{ success: boolean; error: string | null }> {
     try {
@@ -242,28 +242,13 @@ export async function changePassword(
             return { success: false, error: 'Uživatel není přihlášen' };
         }
 
-        // 1. Načíst aktuální hash hesla
-        const { data: userData, error: fetchError } = await supabase
-            .from('users')
-            .select('password_hash')
-            .eq('id', user.id)
-            .single();
+        console.log('🔐 Měním heslo pro uživatele:', user.id);
 
-        if (fetchError || !userData) {
-            return { success: false, error: 'Nepodařilo se načíst uživatele' };
-        }
-
-        // 2. Ověřit současné heslo
-        const isPasswordValid = await bcrypt.compare(currentPassword, userData.password_hash);
-        
-        if (!isPasswordValid) {
-            return { success: false, error: 'Současné heslo je nesprávné' };
-        }
-
-        // 3. Zahashovat nové heslo
+        // 1. Zahashovat nové heslo
         const newPasswordHash = await bcrypt.hash(newPassword, 10);
+        console.log('✅ Heslo zahashováno');
 
-        // 4. Aktualizovat heslo v databázi
+        // 2. Aktualizovat heslo v databázi
         const { error: updateError } = await supabase
             .from('users')
             .update({ password_hash: newPasswordHash })

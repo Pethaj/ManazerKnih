@@ -1,6 +1,10 @@
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { supabase as supabaseClient } from '../../lib/supabase';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 import ProductSyncAdmin from './ProductSync';
 import { ProductCarousel } from '../ProductCarousel';
 import { ProductRecommendationButton } from '../ProductRecommendationButton';
@@ -88,6 +92,7 @@ interface SanaChatProps {
     use_feed_1?: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
     use_feed_2?: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
   };
+  chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
 }
 
@@ -267,9 +272,9 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
         }
         
         // Rozšířený parsing textu - zkusíme více možností
-        let botText = responsePayload?.html || 
+        let botText = responsePayload?.output ||  // 🆕 Pro Sana 2 markdown (priorita)
+                     responsePayload?.html || 
                      responsePayload?.text || 
-                     responsePayload?.output || 
                      responsePayload?.content ||
                      responsePayload?.response ||
                      responsePayload?.message ||
@@ -281,14 +286,14 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
              throw new Error(fallbackMessage + debugInfo);
         }
         
-        // Správné zpracování HTML z N8N - zachovat vše kromě <style> tagů
+        // Správné zpracování odpovědi z N8N
         let finalBotText = botText;
         
-        console.log('🔍 Původní HTML odpověď z N8N:', botText.substring(0, 500) + '...');
+        console.log('🔍 Původní odpověď z N8N:', botText.substring(0, 500) + '...');
         
-        // Pokud přišlo HTML z N8N, zpracuj ho správně
-        if (responsePayload?.html || botText.includes('<style>') || botText.includes('<div class="chatgpt-text">')) {
-            // Odstraň pouze <style> bloky - zachovej vše ostatní včetně wrapper divů
+        // Pokud přišlo HTML z N8N (ne markdown), zpracuj ho
+        if (responsePayload?.html || (botText.includes('<style>') || botText.includes('<div class="chatgpt-text">'))) {
+            // Odstraň pouze <style> bloky
             finalBotText = botText
                 .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
                 .trim();
@@ -300,7 +305,13 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
             }
         }
         
-        console.log('🔧 Zpracovaný HTML:', finalBotText.substring(0, 500) + '...');
+        // 🆕 Pro markdown (Sana 2): Odstraň sekci "Zdroje:" pokud jsou sources v samostatném poli
+        if (responsePayload?.sources && responsePayload.sources.length > 0 && finalBotText.includes('### Zdroje:')) {
+            // Odstraň vše od "### Zdroje:" až do konce
+            finalBotText = finalBotText.replace(/###\s*Zdroje:[\s\S]*$/i, '').trim();
+        }
+        
+        console.log('🔧 Zpracovaný text:', finalBotText.substring(0, 500) + '...');
         
         // Log pro debug obrázků
         if (finalBotText.includes('<img')) {
@@ -371,10 +382,12 @@ const Message: React.FC<{
         use_feed_1?: boolean; 
         use_feed_2?: boolean; 
     };
-    sessionId?: string;        // 🆕 Pro ProductRecommendationButton
-    lastUserQuery?: string;    // 🆕 Pro ProductRecommendationButton
-}> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery }) => {
+    sessionId?: string;
+    lastUserQuery?: string;
+    chatbotId?: string;  // 🆕 Pro rozlišení Sana 2 (markdown rendering)
+}> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery, chatbotId }) => {
     const isUser = message.role === 'user';
+    const usesMarkdown = chatbotId === 'sana_local_format';  // 🆕 Sana Local Format používá markdown
     
     // Vylepšené zpracování HTML pro lepší zobrazení obrázků a formátování
     const processMessageText = (text: string): string => {
@@ -404,13 +417,6 @@ const Message: React.FC<{
                 if (!attrs.includes('alt=')) {
                     newAttrs += ' alt="Obrázek z dokumentu"';
                 }
-                
-                // Onerror handler odstraněn - obrázky se zobrazují správně
-                
-                // Odstraním crossorigin, protože může způsobovat CORS problémy
-                // if (!attrs.includes('crossorigin=')) {
-                //     newAttrs += ' crossorigin="anonymous"';
-                // }
                 
                 return `<img${newAttrs}>`;
             }
@@ -445,7 +451,57 @@ const Message: React.FC<{
             )}
             <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                 <div className={`px-4 py-3 rounded-2xl max-w-xl md:max-w-2xl lg:max-w-3xl shadow-sm ${isUser ? 'bg-bewit-blue text-white rounded-br-none' : 'bg-white text-bewit-dark border border-slate-200 rounded-bl-none'}`}>
-                    <div className="prose prose-sm max-w-none text-inherit prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-h4:text-base prose-h5:text-sm prose-h6:text-xs prose-p:my-2 prose-strong:font-bold prose-a:text-bewit-blue hover:prose-a:underline prose-img:block prose-img:max-w-full prose-img:h-auto prose-img:rounded-lg prose-img:mt-3 prose-img:mb-2 prose-img:shadow-md prose-img:object-cover" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+                    {/* 🆕 SANA 2: ReactMarkdown rendering pro markdown formát */}
+                    {usesMarkdown && !isUser ? (
+                        <div className="markdown-content">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                                components={{
+                                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                                    h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                                    h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                                    h4: ({node, ...props}) => <h4 className="text-base font-bold mt-2 mb-1" {...props} />,
+                                    h5: ({node, ...props}) => <h5 className="text-sm font-bold mt-1 mb-1" {...props} />,
+                                    h6: ({node, ...props}) => <h6 className="text-xs font-bold mt-1 mb-1" {...props} />,
+                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                                    strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                                    em: ({node, ...props}) => <em className="italic" {...props} />,
+                                    a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                                    li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                                    img: ({node, ...props}) => (
+                                        <img 
+                                            className="max-w-full h-auto rounded-lg my-3 shadow-md block" 
+                                            loading="lazy"
+                                            {...props} 
+                                        />
+                                    ),
+                                    code: ({node, inline, ...props}: any) => 
+                                        inline ? (
+                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                        ) : (
+                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                        ),
+                                    pre: ({node, ...props}) => <pre className="bg-slate-100 p-3 rounded-lg my-2 overflow-x-auto" {...props} />,
+                                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-bewit-blue pl-4 my-2 italic text-slate-600" {...props} />,
+                                    hr: ({node, ...props}) => <hr className="my-4 border-slate-200" {...props} />,
+                                    table: ({node, ...props}) => <table className="min-w-full border-collapse my-2" {...props} />,
+                                    thead: ({node, ...props}) => <thead className="bg-slate-100" {...props} />,
+                                    tbody: ({node, ...props}) => <tbody {...props} />,
+                                    tr: ({node, ...props}) => <tr className="border-b border-slate-200" {...props} />,
+                                    th: ({node, ...props}) => <th className="px-4 py-2 text-left font-bold" {...props} />,
+                                    td: ({node, ...props}) => <td className="px-4 py-2" {...props} />,
+                                }}
+                            >
+                                {message.text || ''}
+                            </ReactMarkdown>
+                        </div>
+                    ) : (
+                        /* Standardní HTML rendering pro ostatní chatboty */
+                        <div className="prose prose-sm max-w-none text-inherit prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-h4:text-base prose-h5:text-sm prose-h6:text-xs prose-p:my-2 prose-strong:font-bold prose-a:text-bewit-blue hover:prose-a:underline prose-img:block prose-img:max-w-full prose-img:h-auto prose-img:rounded-lg prose-img:mt-3 prose-img:mb-2 prose-img:shadow-md prose-img:object-cover" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+                    )}
                     
                     {/* Produktová doporučení - zobrazí se pokud jsou zapnutá v nastavení chatbotu */}
                     {!isUser && message.productRecommendations && message.productRecommendations.length > 0 && 
@@ -476,11 +532,19 @@ const Message: React.FC<{
                         </div>
                     )}
                     
-                    {message.sources && message.sources.length > 0 && (
-                        <div className={`mt-4 pt-3 border-t ${isUser ? 'border-t-white/30' : 'border-t-slate-200'}`}>
-                            <h4 className={`text-xs font-semibold mb-2 uppercase tracking-wider ${isUser ? 'text-white/80' : 'text-slate-500'}`}>Zdroje</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {message.sources.map((source, index) => (<SourcePill key={index} source={source} />))}
+                    {/* Standardní zdroje uvnitř bubble (pro ostatní chatboty) */}
+                    {/* Zdroje UVNITŘ bubble - pro všechny chatboty (včetně Sana Local Format) */}
+                    {!isUser && message.sources && message.sources.length > 0 && (
+                        <div className={`mt-4 pt-4 border-t ${isUser ? 'border-t-white/30' : 'border-t-slate-200'}`}>
+                            <h4 className={`text-xs font-semibold mb-2 uppercase tracking-wider ${isUser ? 'text-white/80' : 'text-slate-500'}`}>
+                                Zdroje
+                            </h4>
+                            <div className="flex flex-col gap-1">
+                                {message.sources.map((source, index) => (
+                                    <div key={index} className={`text-xs ${isUser ? 'text-white/90' : 'text-slate-600'}`}>
+                                        - {source.title}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -513,8 +577,9 @@ const ChatWindow: React.FC<{
         use_feed_1?: boolean; 
         use_feed_2?: boolean; 
     };
-    sessionId?: string;        // 🆕 Pro ProductRecommendationButton
-}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings, sessionId }) => {
+    sessionId?: string;
+    chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
+}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings, sessionId, chatbotId }) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -622,6 +687,7 @@ const ChatWindow: React.FC<{
                             chatbotSettings={chatbotSettings}
                             sessionId={sessionId}
                             lastUserQuery={lastUserQuery}
+                            chatbotId={chatbotId}
                         />
                     );
                 })}
@@ -775,6 +841,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         use_feed_1: true,
         use_feed_2: true
     },
+    chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose
 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1081,6 +1148,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         shouldAutoScroll={autoScroll} 
                         chatbotSettings={chatbotSettings}
                         sessionId={sessionId}
+                        chatbotId={chatbotId}
                      />
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
@@ -1102,6 +1170,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
         use_feed_1: true,
         use_feed_2: true
     },
+    chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose
 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1411,6 +1480,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                                 shouldAutoScroll={autoScroll} 
                                 chatbotSettings={chatbotSettings}
                                 sessionId={sessionId}
+                                chatbotId={chatbotId}
                              />
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
@@ -1432,6 +1502,7 @@ interface FilteredSanaChatProps {
         use_feed_1?: boolean;
         use_feed_2?: boolean;
     };
+    chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;
 }
 
@@ -1443,6 +1514,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
         use_feed_1: true,
         use_feed_2: true
     },
+    chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose
 }) => {
     // Uložíme nastavení do state pro správný scope v useCallback
@@ -1782,6 +1854,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                             selectedLabels={selectedLabels}
                             selectedPublicationTypes={selectedPublicationTypes}
                             chatbotSettings={settings}
+                            chatbotId={chatbotId}
                             onClose={onClose}
                         />
                     )}

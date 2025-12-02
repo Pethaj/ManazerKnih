@@ -222,7 +222,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
     };
 
     // Funkce pro toggle funkcí chatbota s logikou závislostí
-    const toggleChatbotFunction = (chatbotId: string, feature: 'product_recommendations' | 'product_button_recommendations' | 'book_database') => {
+    const toggleChatbotFunction = (chatbotId: string, feature: 'product_recommendations' | 'product_button_recommendations' | 'book_database' | 'is_default_web_chatbot') => {
         const chatbot = chatbotSettings.find(c => c.chatbot_id === chatbotId);
         if (!chatbot) return;
 
@@ -237,6 +237,17 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                 allowed_categories: [],
                 allowed_publication_types: []
             };
+        }
+        
+        // Pokud se zapíná "Zobrazit na webu", vypni u všech ostatních
+        if (feature === 'is_default_web_chatbot' && updatedValue) {
+            console.log('🌐 Nastavuji jako výchozí webový chatbot - ruším označení u ostatních');
+            // Vypni is_default_web_chatbot u všech ostatních
+            chatbotSettings.forEach(c => {
+                if (c.chatbot_id !== chatbotId && c.is_default_web_chatbot) {
+                    updateLocalSettings(c.chatbot_id, { is_default_web_chatbot: false });
+                }
+            });
         }
 
         updateLocalSettings(chatbotId, updates);
@@ -502,6 +513,26 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                     </label>
                                                     <div style={styles.settingDescription}>
                                                         Vyhledávat v databázi lékařské literatury a dokumentů
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.is_default_web_chatbot || false}
+                                                            onChange={() => toggleChatbotFunction(chatbot.chatbot_id, 'is_default_web_chatbot')}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <circle cx="12" cy="12" r="10"></circle>
+                                                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                                                        </svg>
+                                                        Zobrazit v bublině na webu
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Tento chatbot se zobrazí v plovoucí bublině na medbase.cz (pouze jeden může být vybrán)
                                                     </div>
                                                 </div>
                                             </div>

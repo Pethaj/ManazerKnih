@@ -35,6 +35,8 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [progress, setProgress] = useState({ current: 0, total: 0, productName: '' });
   const [n8nProgress, setN8nProgress] = useState({ current: 0, total: 0, productName: '' });
+  const [itemsPerPage, setItemsPerPage] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Načti produkty z products tabulky + status embeddingů
   const loadProducts = useCallback(async () => {
@@ -123,6 +125,17 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
     return matchesSearch && matchesStatus;
   });
 
+  // Paginované produkty
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Reset na první stránku při změně filtru nebo vyhledávání
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, itemsPerPage]);
+
   // Statistiky
   const stats = {
     total: products.length,
@@ -132,13 +145,22 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
     error: products.filter(p => p.embedding_status === 'error').length,
   };
 
-  // Výběr všech/žádných
+  // Výběr všech/žádných na aktuální stránce
   const handleSelectAll = () => {
-    if (selectedProducts.size === filteredProducts.length) {
-      setSelectedProducts(new Set());
+    const currentPageIds = paginatedProducts.map(p => p.id);
+    const allSelected = currentPageIds.every(id => selectedProducts.has(id));
+    
+    const newSelected = new Set(selectedProducts);
+    
+    if (allSelected) {
+      // Odeber všechny z aktuální stránky
+      currentPageIds.forEach(id => newSelected.delete(id));
     } else {
-      setSelectedProducts(new Set(filteredProducts.map(p => p.id)));
+      // Přidej všechny z aktuální stránky
+      currentPageIds.forEach(id => newSelected.add(id));
     }
+    
+    setSelectedProducts(newSelected);
   };
 
   // Přepnutí výběru jednotlivého produktu
@@ -519,7 +541,7 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
                 style={styles.selectAllButton}
                 onClick={handleSelectAll}
               >
-                {selectedProducts.size === filteredProducts.length ? 'Zrušit výběr' : 'Vybrat vše'}
+                {paginatedProducts.length > 0 && paginatedProducts.every(p => selectedProducts.has(p.id)) ? 'Zrušit výběr stránky' : 'Vybrat stránku'}
               </button>
               
               <button
@@ -537,6 +559,75 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
               >
                 {n8nProcessing ? 'Odesílá se...' : `N8N Embedding (${selectedProducts.size})`}
               </button>
+            </div>
+          </div>
+
+          {/* Paginace a počet záznamů */}
+          <div style={styles.paginationRow}>
+            <div style={styles.paginationInfo}>
+              Zobrazeno: {startIndex + 1} - {Math.min(endIndex, filteredProducts.length)} z {filteredProducts.length}
+            </div>
+            
+            <div style={styles.paginationControls}>
+              <label style={styles.paginationLabel}>
+                Záznamů na stránku:
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  style={styles.paginationSelect}
+                >
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={500}>500</option>
+                  <option value={1000}>1000</option>
+                </select>
+              </label>
+
+              <div style={styles.paginationButtons}>
+                <button
+                  style={{
+                    ...styles.paginationButton,
+                    opacity: currentPage === 1 ? 0.5 : 1,
+                  }}
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  {'<<'}
+                </button>
+                <button
+                  style={{
+                    ...styles.paginationButton,
+                    opacity: currentPage === 1 ? 0.5 : 1,
+                  }}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  {'<'}
+                </button>
+                <span style={styles.pageNumber}>
+                  Stránka {currentPage} z {totalPages || 1}
+                </span>
+                <button
+                  style={{
+                    ...styles.paginationButton,
+                    opacity: currentPage === totalPages ? 0.5 : 1,
+                  }}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  {'>'}
+                </button>
+                <button
+                  style={{
+                    ...styles.paginationButton,
+                    opacity: currentPage === totalPages ? 0.5 : 1,
+                  }}
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  {'>>'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -588,7 +679,7 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
                     <th style={styles.tableHeaderCell}>
                       <input
                         type="checkbox"
-                        checked={selectedProducts.size === filteredProducts.length && filteredProducts.length > 0}
+                        checked={paginatedProducts.length > 0 && paginatedProducts.every(p => selectedProducts.has(p.id))}
                         onChange={handleSelectAll}
                         style={styles.checkbox}
                       />
@@ -602,7 +693,7 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map((product) => (
+                  {paginatedProducts.map((product) => (
                     <tr key={product.id} style={styles.tableRow}>
                       <td style={styles.tableCell}>
                         <input
@@ -640,7 +731,7 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
                 </tbody>
               </table>
               
-              {filteredProducts.length === 0 && (
+              {paginatedProducts.length === 0 && (
                 <div style={styles.noResults}>
                   Žádné produkty nenalezeny.
                 </div>
@@ -931,6 +1022,69 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '40px',
     color: '666',
     fontStyle: 'italic',
+  },
+
+  paginationRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: '16px',
+    paddingTop: '16px',
+    borderTop: '1px solid #e0e0e0',
+  },
+
+  paginationInfo: {
+    fontSize: '14px',
+    color: '#666',
+    fontWeight: '500',
+  },
+
+  paginationControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  },
+
+  paginationLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    color: '#666',
+  },
+
+  paginationSelect: {
+    padding: '6px 10px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    cursor: 'pointer',
+    backgroundColor: 'white',
+  },
+
+  paginationButtons: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+
+  paginationButton: {
+    padding: '6px 12px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    backgroundColor: 'white',
+    color: '#333',
+    fontSize: '14px',
+    fontWeight: '500',
+    transition: 'all 0.2s',
+  },
+
+  pageNumber: {
+    fontSize: '14px',
+    color: '#333',
+    fontWeight: '500',
+    padding: '0 8px',
   },
 };
 

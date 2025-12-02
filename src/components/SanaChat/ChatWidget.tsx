@@ -38,6 +38,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         use_feed_1?: boolean;
         use_feed_2?: boolean;
     } | null>(null);
+    const [chatbotId, setChatbotId] = useState<string>('sana_chat'); // 🆕 Pro markdown rendering
     const [isLoading, setIsLoading] = useState(true);
 
     // Načtení nastavení SanaChat z databáze při prvním načtení
@@ -51,11 +52,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             }
 
             try {
-                console.log('🤖 Načítám nastavení pro SanaChat z databáze...');
-                const settings = await ChatbotSettingsService.getChatbotSettings('sana_chat');
+                console.log('🌐 Načítám výchozí webový chatbot z databáze...');
+                // 🆕 Načti výchozí webový chatbot (is_default_web_chatbot = true)
+                const settings = await ChatbotSettingsService.getDefaultWebChatbot();
                 
                 if (settings) {
-                    console.log('✅ Nastavení SanaChat načteno:', settings);
+                    console.log('✅ Výchozí webový chatbot načten:', settings.chatbot_id, settings.chatbot_name);
+                    setChatbotId(settings.chatbot_id); // Uložíme ID pro markdown rendering
                     setChatbotSettings({
                         product_recommendations: settings.product_recommendations || false,
                         product_button_recommendations: settings.product_button_recommendations || false,
@@ -64,8 +67,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                         use_feed_2: settings.use_feed_2 !== undefined ? settings.use_feed_2 : true,
                     });
                 } else {
-                    console.warn('⚠️ Nastavení SanaChat nenalezeno, použiji defaultní hodnoty');
+                    console.warn('⚠️ Výchozí webový chatbot nenalezen, použiji defaultní hodnoty pro sana_chat');
                     // Defaultní nastavení pokud není v databázi
+                    setChatbotId('sana_chat');
                     setChatbotSettings({
                         product_recommendations: false,
                         product_button_recommendations: false,
@@ -112,6 +116,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                     <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
                         <FilteredSanaChat 
+                            chatbotId={chatbotId}
                             chatbotSettings={chatbotSettings} 
                             onClose={() => setIsOpen(false)}
                         />

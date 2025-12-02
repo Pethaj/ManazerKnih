@@ -557,7 +557,7 @@ const api = {
 
     // Funkce pro volání N8N webhooků při mazání knih
     async callDeleteWebhook(bookId: string): Promise<{success: boolean, message: string}> {
-        const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/ae6f98d7-53a8-40b2-9d24-ca2ddf7c82de';
+        const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/e871e7d6-ca10-4b9d-adc4-3b58ee2f8279';
         
         try {
             console.log(`🔗 Volám N8N webhook pro smazání knihy: ${bookId}`);
@@ -568,9 +568,7 @@ const api = {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    id: bookId,
-                    action: 'delete',
-                    timestamp: new Date().toISOString()
+                    file_id: bookId
                 })
             });
 
@@ -4846,6 +4844,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                     allFeatures: activeChatbot.features
                                 })}
                                 <FilteredSanaChat 
+                                    chatbotId={activeChatbot.id}
                                     onClose={() => setActiveChatbot(null)}
                                     chatbotSettings={{
                                         product_recommendations: activeChatbot.features.product_recommendations || false,
