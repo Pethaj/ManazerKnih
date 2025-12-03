@@ -78,6 +78,7 @@ interface Chatbot {
     features: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
+        inline_product_links?: boolean;  // 🆕 Inline produktové linky / screening
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
@@ -504,6 +505,25 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                     <label style={styles.settingLabel}>
                                                         <input
                                                             type="checkbox"
+                                                            checked={chatbot.inline_product_links || false}
+                                                            onChange={() => toggleChatbotFunction(chatbot.chatbot_id, 'inline_product_links')}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                                        </svg>
+                                                        Inline produktové linky
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Zobrazovat produktové linky přímo v textu odpovědi chatbota (ChatGPT styl)
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
                                                             checked={chatbot.book_database || false}
                                                             onChange={() => toggleChatbotFunction(chatbot.chatbot_id, 'book_database')}
                                                             style={styles.checkbox}
@@ -657,6 +677,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                                 features: {
                                                                     product_recommendations: chatbot.product_recommendations,
                                                                     product_button_recommendations: chatbot.product_button_recommendations,
+                                                                    inline_product_links: chatbot.inline_product_links,  // 🆕 PŘIDÁNO!
                                                                     book_database: chatbot.book_database,
                                                                     use_feed_1: chatbot.use_feed_1,
                                                                     use_feed_2: chatbot.use_feed_2

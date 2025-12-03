@@ -16,6 +16,7 @@ export interface ChatbotSettings {
   description?: string;
   product_recommendations: boolean;
   product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
+  inline_product_links?: boolean;  // 🆕 Inline produktové linky (ChatGPT styl)
   book_database: boolean;
   allowed_categories: string[];
   allowed_publication_types: string[];
@@ -57,6 +58,7 @@ export interface CreateChatbotSettingsData {
   description?: string;
   product_recommendations: boolean;
   product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
+  inline_product_links?: boolean;  // 🆕 Inline produktové linky (ChatGPT styl)
   book_database: boolean;
   allowed_categories: string[];
   allowed_publication_types: string[];
@@ -73,6 +75,7 @@ export interface UpdateChatbotSettingsData {
   description?: string;
   product_recommendations?: boolean;
   product_button_recommendations?: boolean;  // 🆕 Produktové doporučení na tlačítko
+  inline_product_links?: boolean;  // 🆕 Inline produktové linky (ChatGPT styl)
   book_database?: boolean;
   allowed_categories?: string[];
   allowed_publication_types?: string[];
@@ -91,6 +94,7 @@ export interface ChatbotFilters {
   labels: Label[];
   productRecommendations: boolean;
   productButtonRecommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
+  inlineProductLinks: boolean;  // 🆕 Inline produktové linky (ChatGPT styl)
   bookDatabase: boolean;
   useFeed1: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
   useFeed2: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
@@ -369,6 +373,7 @@ export class ChatbotSettingsService {
         labels,
         productRecommendations: settings.product_recommendations,
         productButtonRecommendations: settings.product_button_recommendations,
+        inlineProductLinks: settings.inline_product_links || false,  // 🆕 Inline produktové linky
         bookDatabase: settings.book_database,
         useFeed1: settings.use_feed_1 !== false, // default true
         useFeed2: settings.use_feed_2 !== false, // default true

@@ -70,3 +70,5 @@ FROM public.chatbot_settings
 WHERE chatbot_id IN ('sana_local_format', 'sana_chat', 'sana_2')
 ORDER BY chatbot_id;
 
+
+

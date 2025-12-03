@@ -198,3 +198,5 @@ Gratulujeme! Nyní máš:
 **Vytvořeno:** 2. prosince 2025  
 **Pro:** Sana Local Format chatbot - náhrada za původní Sana Chat
 
+
+

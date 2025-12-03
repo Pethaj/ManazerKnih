@@ -49,3 +49,5 @@ SELECT
 FROM public.chatbot_settings 
 WHERE chatbot_id = 'sana_2';
 
+
+

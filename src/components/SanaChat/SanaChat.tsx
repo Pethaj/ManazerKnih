@@ -4,10 +4,11 @@ import { supabase as supabaseClient } from '../../lib/supabase';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import ProductSyncAdmin from './ProductSync';
 import { ProductCarousel } from '../ProductCarousel';
 import { ProductRecommendationButton } from '../ProductRecommendationButton';
+import { ProductPill } from '../ProductPill';  // 🆕 Inline product buttons
 import { ProductRecommendation } from '../../services/productSearchService';
 import { generateProductResponse, convertChatHistoryToGPT } from '../../services/gptService';
 import { quickVectorSearchTest } from '../../services/vectorDiagnostics';
@@ -19,6 +20,19 @@ import { getHybridProductRecommendations, HybridProductRecommendation } from '..
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
 declare const html2canvas: any;
+
+// 🆕 Custom sanitize schema - přidáme product:// protokol do whitelist
+const customSanitizeSchema = structuredClone(defaultSchema);
+// Přidáme 'product' do povolených protokolů pro href
+if (customSanitizeSchema.protocols && customSanitizeSchema.protocols.href) {
+    customSanitizeSchema.protocols.href.push('product');
+} else if (customSanitizeSchema.protocols) {
+    customSanitizeSchema.protocols.href = ['http', 'https', 'mailto', 'product'];
+} else {
+    customSanitizeSchema.protocols = {
+        href: ['http', 'https', 'mailto', 'product']
+    };
+}
 
 // API functions for loading metadata
 const api = {
@@ -71,6 +85,7 @@ interface ChatMessage {
   text: string;
   sources?: Source[];
   productRecommendations?: ProductRecommendation[];
+  matchedProducts?: any[]; // 🆕 Matched produkty z name matching
 }
 
 // Rozhraní pro metadata filtrace
@@ -88,6 +103,7 @@ interface SanaChatProps {
   chatbotSettings?: {
     product_recommendations: boolean;
     product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
+    inline_product_links?: boolean;  // 🆕 Inline produktové linky (ChatGPT styl)
     book_database: boolean;
     use_feed_1?: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
     use_feed_2?: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
@@ -183,7 +199,7 @@ const FilterIcon: React.FC<IconProps> = (props) => (
 // --- CHAT SERVICE (from services/chatService.ts) ---
 const N8N_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/97dc857e-352b-47b4-91cb-bc134afc764c/chat';
 
-const sendMessageToAPI = async (message: string, sessionId: string, history: ChatMessage[], metadata?: ChatMetadata): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[] }> => {
+const sendMessageToAPI = async (message: string, sessionId: string, history: ChatMessage[], metadata?: ChatMetadata): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
         const payload: any = {
             sessionId: sessionId,
@@ -318,10 +334,120 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
             console.log('🖼️ Detekován HTML s obrázky v odpovědi - počet:', (finalBotText.match(/<img[^>]*>/gi) || []).length);
         }
 
+        // 🆕 PRODUCT NAME MATCHING - Screening produktů a matching proti databázi
+        let matchedProducts: any[] = [];
+        try {
+            // Import služeb dynamicky, aby se nenačítaly pokud nejsou potřeba
+            const { screenTextForProducts } = await import('../../services/inlineProductScreeningService');
+            const { matchProductNames } = await import('../../services/productNameMatchingService');
+            
+            console.log('🔍 Zahajuji screening a matching produktů z odpovědi...');
+            
+            // 1. Screening - extrakce názvů produktů z textu pomocí GPT
+            const screeningResult = await screenTextForProducts(finalBotText);
+            
+            if (screeningResult.success && screeningResult.products.length > 0) {
+                console.log(`📦 GPT identifikoval ${screeningResult.products.length} produktů/témat:`, screeningResult.products);
+                
+                // 2. Matching - vyhledání produktů v databázi
+                const matchingResult = await matchProductNames(screeningResult.products);
+                
+                if (matchingResult.success && matchingResult.matches.length > 0) {
+                    console.log(`✅ Nalezeno ${matchingResult.matches.length} produktů v databázi`);
+                    matchedProducts = matchingResult.matches;
+                    
+                    // 🆕 PŘIDAT PRODUKTY INLINE PŘÍMO DO TEXTU
+                    // Odstraň duplicity (stejný product_code)
+                    const uniqueProducts = matchingResult.matches.filter((product, index, self) =>
+                        index === self.findIndex((p) => p.product_code === product.product_code)
+                    );
+                    
+                    console.log('🔍 Vkládám produktové tlačítka přímo do textu na konec vět...');
+                    
+                    // Pro každý produkt najdeme výskyt v textu a vložíme tlačítko HNED ZA NÍM
+                    uniqueProducts.forEach((product) => {
+                        const searchTerms = [
+                            product.matched_from, // Původní název z GPT
+                            product.pinyin_name,   // Pinyin název
+                            product.product_name   // Název produktu
+                        ].filter(Boolean);
+                        
+                        console.log(`  🔎 Hledám "${product.matched_from}" v textu...`);
+                        
+                        let inserted = false;
+                        for (const term of searchTerms) {
+                            // Escapujeme speciální znaky v term
+                            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            
+                            // Najdeme výskyt term v textu
+                            const termRegex = new RegExp(`\\b${escapedTerm}\\b`, 'i');
+                            const match = finalBotText.match(termRegex);
+                            
+                            if (match && !inserted) {
+                                const matchStart = match.index!;
+                                let matchEnd = matchStart + match[0].length;
+                                
+                                // 🆕 DŮLEŽITÉ: Musíme přeskočit markdown formátování za názvem produktu
+                                // Hledáme **, *, ___, __, _ apod. které ukončují bold/italic
+                                let afterMatch = finalBotText.substring(matchEnd);
+                                let markdownEndOffset = 0;
+                                
+                                // Zkontroluj, jestli následuje ** (bold)
+                                if (afterMatch.startsWith('**')) {
+                                    markdownEndOffset = 2;
+                                }
+                                // Zkontroluj, jestli následuje * (italic)
+                                else if (afterMatch.startsWith('*')) {
+                                    markdownEndOffset = 1;
+                                }
+                                // Zkontroluj, jestli následuje __ (bold)
+                                else if (afterMatch.startsWith('__')) {
+                                    markdownEndOffset = 2;
+                                }
+                                // Zkontroluj, jestli následuje _ (italic)
+                                else if (afterMatch.startsWith('_')) {
+                                    markdownEndOffset = 1;
+                                }
+                                
+                                // Posun pozici za markdown markup
+                                matchEnd += markdownEndOffset;
+                                
+                                // 🆕 Vytvoříme speciální marker pro produkt
+                                // Formát: <<<PRODUCT:{code}|||{url}|||{name}|||{pinyin}>>>
+                                const productMarker = ` <<<PRODUCT:${product.product_code}|||${product.url}|||${product.product_name}|||${product.pinyin_name}>>>`;
+                                
+                                // Vložíme marker hned za název produktu (a za markdown markup)
+                                finalBotText = finalBotText.slice(0, matchEnd) + productMarker + finalBotText.slice(matchEnd);
+                                
+                                console.log(`    ✅ Marker vložen hned za "${term}" na pozici ${matchEnd} (markdown offset: ${markdownEndOffset})`);
+                                console.log(`    📝 Marker:`, productMarker);
+                                inserted = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!inserted) {
+                            console.log(`    ⚠️ Nenalezen výskyt "${product.matched_from}"`);
+                        }
+                    });
+                    
+                    console.log('✅ Produktové tlačítka vložena do textu');
+                } else {
+                    console.log('⚠️ Žádné produkty nebyly namatchovány v databázi');
+                }
+            } else {
+                console.log('ℹ️ GPT neidentifikoval žádné produkty v odpovědi');
+            }
+        } catch (screeningError) {
+            // Screening chyba není kritická - nezpůsobí selhání celé odpovědi
+            console.error('⚠️ Chyba při screeningu/matchingu produktů (nekritická):', screeningError);
+        }
+
         return {
             text: finalBotText,
             sources: responsePayload?.sources || [],
             productRecommendations: undefined,
+            matchedProducts: matchedProducts, // 🆕 Přidáme matched produkty pro inline zobrazení
         };
     } catch (error) {
         console.error('❌ Celková chyba v sendMessageToAPI:', error);
@@ -357,6 +483,53 @@ const SourcePill: React.FC<{ source: Source }> = ({ source }) => (
     </a>
 );
 
+// 🆕 Komponenta pro inline produktové tlačítko (ChatGPT style)
+const ProductPill: React.FC<{ 
+    productName: string; 
+    pinyinName: string;
+    url: string; 
+    similarity?: number;
+}> = ({ productName, pinyinName, url, similarity }) => {
+    const [isHovered, setIsHovered] = React.useState(false);
+    
+    return (
+        <a 
+            href={url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="relative overflow-hidden inline-flex items-center h-8 px-4 rounded-full bg-transparent text-gray-700 text-sm font-medium border border-gray-300 transition-all duration-300 cursor-pointer ml-1"
+            title={similarity ? `${pinyinName} - Shoda: ${(similarity * 100).toFixed(0)}%` : pinyinName}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            style={{
+                position: 'relative',
+                overflow: 'hidden',
+                color: isHovered ? '#fff' : '#374151',
+                borderColor: isHovered ? 'transparent' : '#d1d5db',
+            }}
+        >
+            {/* Modrý gradient background - slides in on hover */}
+            <div 
+                style={{
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: 'inherit',
+                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', // Modrý gradient podle aplikace
+                    transform: isHovered ? 'scaleX(1)' : 'scaleX(0)',
+                    transformOrigin: '0 50%',
+                    transition: 'all 0.475s',
+                    zIndex: 0,
+                }}
+            />
+            <span className="relative z-10">{productName}</span>
+        </a>
+    );
+};
+
 const TypingIndicator: React.FC = () => (
     <div className="flex items-start gap-3 max-w-4xl mx-auto justify-start">
         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-bewit-blue flex items-center justify-center text-white">
@@ -378,6 +551,7 @@ const Message: React.FC<{
     chatbotSettings?: { 
         product_recommendations: boolean; 
         product_button_recommendations: boolean; 
+        inline_product_links?: boolean;  // 🆕 Inline produktové linky
         book_database: boolean; 
         use_feed_1?: boolean; 
         use_feed_2?: boolean; 
@@ -388,6 +562,8 @@ const Message: React.FC<{
 }> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery, chatbotId }) => {
     const isUser = message.role === 'user';
     const usesMarkdown = chatbotId === 'sana_local_format';  // 🆕 Sana Local Format používá markdown
+    
+    // 🆕 State pro inline produktové linky
     
     // Vylepšené zpracování HTML pro lepší zobrazení obrázků a formátování
     const processMessageText = (text: string): string => {
@@ -440,6 +616,148 @@ const Message: React.FC<{
         return processedText;
     };
     
+    // 🆕 Funkce pro rendering textu s inline produktovými linky
+    /**
+     * 🆕 Renderuje text s inline product buttons
+     * Parsuje text s product markery: <<<PRODUCT:code|||url|||name|||pinyin>>>
+     * a vytváří pole React elementů: [ReactMarkdown, ProductPill, ReactMarkdown, ...]
+     */
+    const renderTextWithProductButtons = () => {
+        const text = message.text || '';
+        
+        console.log('🎨 renderTextWithProductButtons - začínám parsování');
+        console.log('📝 Text délka:', text.length);
+        console.log('🔍 Hledám markery ve formátu: <<<PRODUCT:...');
+        
+        // Regex pro vyhledání product markerů
+        // Formát: <<<PRODUCT:code|||url|||name|||pinyin>>>
+        const productMarkerRegex = /<<<PRODUCT:([^|]+)\|\|\|([^|]+)\|\|\|([^|]+)\|\|\|([^>]+)>>>/g;
+        
+        const segments: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match;
+        let segmentIndex = 0;
+        
+        // Najdeme všechny product markery v textu
+        while ((match = productMarkerRegex.exec(text)) !== null) {
+            console.log('✅ Nalezen product marker:', match[0]);
+            const matchStart = match.index;
+            const matchEnd = match.index + match[0].length;
+            
+            // Text před product markerem - renderujeme přes ReactMarkdown
+            if (matchStart > lastIndex) {
+                const textSegment = text.substring(lastIndex, matchStart);
+                segments.push(
+                    <ReactMarkdown
+                        key={`text-${segmentIndex}`}
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
+                        components={{
+                            h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                            h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                            h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                            p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                            strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                            a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                            ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                            ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                            li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                            code: ({node, inline, ...props}: any) => 
+                                inline ? (
+                                    <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                ) : (
+                                    <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                ),
+                        }}
+                    >
+                        {textSegment}
+                    </ReactMarkdown>
+                );
+            }
+            
+            // Product button - parsujeme data z markeru
+            const [, productCode, productUrl, productName, productPinyin] = match;
+            console.log('🔘 Vytvářím ProductPill:', { productCode, productName, productPinyin });
+            segments.push(
+                <ProductPill
+                    key={`product-${segmentIndex}`}
+                    productName={productName}
+                    pinyinName={productPinyin}
+                    url={productUrl}
+                />
+            );
+            
+            lastIndex = matchEnd;
+            segmentIndex++;
+        }
+        
+        // Zbytek textu po posledním markeru
+        if (lastIndex < text.length) {
+            const textSegment = text.substring(lastIndex);
+            segments.push(
+                <ReactMarkdown
+                    key={`text-${segmentIndex}`}
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
+                    components={{
+                        h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                        h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                        h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                        p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                        strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                        a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                        li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                        code: ({node, inline, ...props}: any) => 
+                            inline ? (
+                                <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                            ) : (
+                                <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                            ),
+                    }}
+                >
+                    {textSegment}
+                </ReactMarkdown>
+            );
+        }
+        
+        console.log(`📊 Celkem nalezeno ${segments.length / 2} product markerů`);
+        console.log(`📦 Vytvořeno ${segments.length} segmentů (text + buttony)`);
+        
+        // Pokud nebyl nalezen žádný marker, vrátíme celý text přes ReactMarkdown
+        if (segments.length === 0) {
+            console.log('⚠️ Žádné product markery nenalezeny - renderuji normální markdown');
+            return (
+                <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
+                    components={{
+                        h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                        h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                        h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                        p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                        strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                        a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                        li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                        code: ({node, inline, ...props}: any) => 
+                            inline ? (
+                                <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                            ) : (
+                                <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                            ),
+                    }}
+                >
+                    {text}
+                </ReactMarkdown>
+            );
+        }
+        
+        return <>{segments}</>;
+    };
+    
     const sanitizedHtml = processMessageText(message.text || '');
     
     return (
@@ -451,12 +769,17 @@ const Message: React.FC<{
             )}
             <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                 <div className={`px-4 py-3 rounded-2xl max-w-xl md:max-w-2xl lg:max-w-3xl shadow-sm ${isUser ? 'bg-bewit-blue text-white rounded-br-none' : 'bg-white text-bewit-dark border border-slate-200 rounded-bl-none'}`}>
-                    {/* 🆕 SANA 2: ReactMarkdown rendering pro markdown formát */}
-                    {usesMarkdown && !isUser ? (
+                    {/* 🆕 PRODUCT BUTTONS INLINE: Pro Sana 2 s product markery */}
+                    {!isUser && usesMarkdown && message.text?.includes('<<<PRODUCT:') ? (
+                        <div className="markdown-content">
+                            {renderTextWithProductButtons()}
+                        </div>
+                    ) : /* 🆕 SANA 2: ReactMarkdown rendering pro markdown formát */
+                    usesMarkdown && !isUser ? (
                         <div className="markdown-content">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                                rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
                                 components={{
                                     h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
                                     h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
@@ -573,6 +896,7 @@ const ChatWindow: React.FC<{
     chatbotSettings?: { 
         product_recommendations: boolean; 
         product_button_recommendations: boolean; 
+        inline_product_links?: boolean;  // 🆕 Inline produktové linky
         book_database: boolean; 
         use_feed_1?: boolean; 
         use_feed_2?: boolean; 
@@ -773,6 +1097,7 @@ const Header: React.FC<{
     chatbotSettings?: { 
         product_recommendations: boolean; 
         product_button_recommendations: boolean; 
+        inline_product_links?: boolean;  // 🆕 Inline produktové linky
         book_database: boolean; 
         use_feed_1?: boolean; 
         use_feed_2?: boolean; 
@@ -837,6 +1162,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     chatbotSettings = { 
         product_recommendations: false, 
         product_button_recommendations: false, 
+        inline_product_links: false,  // 🆕 Inline produktové linky
         book_database: true,
         use_feed_1: true,
         use_feed_2: true
@@ -985,7 +1311,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                     text: webhookResult.text, 
                     sources: webhookResult.sources || [],
                     // NIKDY nepředávat produktová doporučení pokud je zapnutá pouze databáze knih
-                    productRecommendations: undefined
+                    productRecommendations: undefined,
+                    matchedProducts: webhookResult.matchedProducts || [] // 🆕 Přidáme matched produkty
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
@@ -1086,13 +1413,14 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
-            const { text: botText, sources, productRecommendations } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata);
+            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata);
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
                 role: 'bot', 
                 text: botText, 
                 sources: sources,
-                productRecommendations: productRecommendations
+                productRecommendations: productRecommendations,
+                matchedProducts: matchedProducts // 🆕 Přidáme matched produkty
             };
             setMessages(prev => [...prev, botMessage]);
         } catch (error) {
@@ -1166,6 +1494,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
     chatbotSettings = { 
         product_recommendations: false, 
         product_button_recommendations: false, 
+        inline_product_links: false,  // 🆕 Inline produktové linky
         book_database: true,
         use_feed_1: true,
         use_feed_2: true
@@ -1295,7 +1624,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     text: webhookResult.text, 
                     sources: webhookResult.sources || [],
                     // NIKDY nepředávat produktová doporučení pokud je zapnutá pouze databáze knih
-                    productRecommendations: undefined
+                    productRecommendations: undefined,
+                    matchedProducts: webhookResult.matchedProducts || [] // 🆕 Přidáme matched produkty
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
@@ -1397,13 +1727,14 @@ const SanaChat: React.FC<SanaChatProps> = ({
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
-            const { text: botText, sources, productRecommendations } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata);
+            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata);
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
                 role: 'bot', 
                 text: botText, 
                 sources: sources,
-                productRecommendations: productRecommendations
+                productRecommendations: productRecommendations,
+                matchedProducts: matchedProducts // 🆕 Přidáme matched produkty
             };
             setMessages(prev => [...prev, botMessage]);
         } catch (error) {
@@ -1498,6 +1829,7 @@ interface FilteredSanaChatProps {
     chatbotSettings?: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;
+        inline_product_links?: boolean;  // 🆕 Inline produktové linky
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
@@ -1510,6 +1842,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     chatbotSettings = { 
         product_recommendations: false, 
         product_button_recommendations: false, 
+        inline_product_links: false,
         book_database: true,
         use_feed_1: true,
         use_feed_2: true

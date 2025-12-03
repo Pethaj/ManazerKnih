@@ -21,6 +21,7 @@ interface ChatWidgetProps {
     chatbotSettings?: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;
+        inline_product_links?: boolean;  // 🆕 Inline produktové linky / screening
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
@@ -34,6 +35,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     const [chatbotSettings, setChatbotSettings] = useState<{
         product_recommendations: boolean;
         product_button_recommendations: boolean;
+        inline_product_links?: boolean;  // 🆕 Inline produktové linky / screening
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
@@ -62,6 +64,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     setChatbotSettings({
                         product_recommendations: settings.product_recommendations || false,
                         product_button_recommendations: settings.product_button_recommendations || false,
+                        inline_product_links: settings.inline_product_links || false,  // 🆕 Inline produktové linky / screening
                         book_database: settings.book_database !== undefined ? settings.book_database : true,
                         use_feed_1: settings.use_feed_1 !== undefined ? settings.use_feed_1 : true,
                         use_feed_2: settings.use_feed_2 !== undefined ? settings.use_feed_2 : true,
@@ -73,6 +76,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     setChatbotSettings({
                         product_recommendations: false,
                         product_button_recommendations: false,
+                        inline_product_links: false,  // 🆕 Inline produktové linky / screening
                         book_database: true,
                         use_feed_1: true,
                         use_feed_2: true,

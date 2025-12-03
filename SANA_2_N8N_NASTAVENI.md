@@ -254,3 +254,5 @@ Pokud stále nefunguje, zkontroluj:
 **Vytvořeno:** 2. prosince 2025  
 **Pro:** Sana 2 chatbot - Markdown rendering setup
 
+
+

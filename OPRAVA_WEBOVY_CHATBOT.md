@@ -208,3 +208,5 @@ Napiš: **"Co jsou Wany?"**
 **Vytvořeno:** 2. prosince 2025  
 **Status:** ✅ OPRAVENO - Web nyní respektuje nastavení v administraci!
 
+
+

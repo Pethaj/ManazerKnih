@@ -4849,6 +4849,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                     chatbotSettings={{
                                         product_recommendations: activeChatbot.features.product_recommendations || false,
                                         product_button_recommendations: activeChatbot.features.product_button_recommendations || false,
+                                        inline_product_links: activeChatbot.features.inline_product_links || false,  // 🆕 Inline produktové linky / screening
                                         book_database: activeChatbot.features.book_database || false,
                                         use_feed_1: activeChatbot.features.use_feed_1 !== undefined ? activeChatbot.features.use_feed_1 : true,
                                         use_feed_2: activeChatbot.features.use_feed_2 !== undefined ? activeChatbot.features.use_feed_2 : true

@@ -227,3 +227,5 @@ Nyní máš:
 **Vytvořeno:** 2. prosince 2025  
 **Status:** ✅ Připraveno k nasazení
 
+
+

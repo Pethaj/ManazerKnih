@@ -305,3 +305,5 @@ Stačí:
 **Verze:** 1.0.0  
 **Status:** ✅ Připraveno k nasazení
 
+
+

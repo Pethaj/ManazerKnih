@@ -54,3 +54,5 @@ FROM public.chatbot_settings
 WHERE is_active = true
 ORDER BY is_default_web_chatbot DESC, chatbot_name;
 
+
+

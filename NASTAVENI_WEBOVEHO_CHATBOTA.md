@@ -241,3 +241,5 @@ WHERE chatbot_id = 'sana_local_format';
 **Vytvořeno:** 2. prosince 2025  
 **Status:** ✅ Připraveno k nasazení
 
+
+
