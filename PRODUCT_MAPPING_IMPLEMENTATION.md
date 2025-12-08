@@ -228,3 +228,5 @@ Měl by se zobrazit:
 **Edge Functions:** 2 (screen-products, generate-embedding)
 
 
+
+

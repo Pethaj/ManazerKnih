@@ -31,3 +31,5 @@ FROM public.chatbot_settings
 WHERE chatbot_id LIKE '%sana%' OR chatbot_id LIKE '%bewit%';
 
 
+
+

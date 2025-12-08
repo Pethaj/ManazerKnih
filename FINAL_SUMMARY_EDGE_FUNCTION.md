@@ -225,3 +225,5 @@ Použil jsem MCP (Model Context Protocol) pro:
 **Status:** ✅ PŘIPRAVENO K TESTOVÁNÍ
 
 
+
+

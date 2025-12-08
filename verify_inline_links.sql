@@ -21,3 +21,5 @@ FROM public.chatbot_settings
 ORDER BY created_at DESC;
 
 
+
+

@@ -223,3 +223,5 @@ Po úspěšném otestování:
 **Status:** ✅ Krok 1 dokončen - Screening funguje a zobrazuje výsledky v console
 
 
+
+

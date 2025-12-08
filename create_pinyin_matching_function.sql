@@ -40,3 +40,5 @@ GRANT EXECUTE ON FUNCTION public.get_products_with_pinyin_names() TO authenticat
 -- SELECT * FROM get_products_with_pinyin_names() LIMIT 10;
 
 
+
+

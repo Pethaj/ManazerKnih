@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Inline Product Buttons - Diagnostika</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            color: #333;
+        }
+        h1 {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #764ba2;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        .test-section {
+            background: #f9fafb;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .log {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .log-line {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+        .log-error {
+            color: #fca5a5;
+        }
+        .log-success {
+            color: #86efac;
+        }
+        .log-warning {
+            color: #fcd34d;
+        }
+        .log-info {
+            color: #93c5fd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Diagnostika Inline Product Buttons</h1>
+        <p>Tento nástroj zkontroluje, proč se tlačítka nezobrazují v chatu.</p>
+
+        <div class="test-section">
+            <h2>1️⃣ Test Edge Function (screen-products)</h2>
+            <p>Kontroluji, jestli funguje detekce produktů v textu...</p>
+            <div id="test1-status"><span class="status pending">⏳ Čeká na spuštění</span></div>
+            <button id="btn-test1" onclick="testScreening()">Spustit test</button>
+            <div id="test1-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>2️⃣ Test SQL funkce (get_products_with_pinyin_names)</h2>
+            <p>Kontroluji, jestli existuje databázová funkce pro matching produktů...</p>
+            <div id="test2-status"><span class="status pending">⏳ Čeká na spuštění</span></div>
+            <button id="btn-test2" onclick="testMatching()">Spustit test</button>
+            <div id="test2-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>3️⃣ Test kompletního workflow</h2>
+            <p>Simuluje celý proces: text → screening → matching → vložení markerů</p>
+            <div id="test3-status"><span class="status pending">⏳ Čeká na spuštění</span></div>
+            <button id="btn-test3" onclick="testFullWorkflow()">Spustit test</button>
+            <div id="test3-result"></div>
+        </div>
+
+        <h2>📋 Detailní log</h2>
+        <div id="log" class="log">
+            <div class="log-info">⏳ Čekám na spuštění testů...</div>
+        </div>
+
+        <h2>💡 Co dělat, když něco nefunguje?</h2>
+        <ul>
+            <li><strong>Test 1 selhává:</strong> Edge Function není nasazená nebo nemá API klíč. Zkontroluj Supabase dashboard → Edge Functions.</li>
+            <li><strong>Test 2 selhává:</strong> SQL funkce neexistuje. Spusť <code>create_pinyin_matching_function.sql</code> v SQL editoru.</li>
+            <li><strong>Test 3 selhává:</strong> Některý z předchozích testů selhal, oprav nejdřív ty.</li>
+        </ul>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+        
+        // ⚠️ ZMĚŇ TYTO HODNOTY NA TVOJE SUPABASE CREDENTIALS
+        const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+        
+        window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Logging helper
+        window.addLog = function(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const logLine = document.createElement('div');
+            logLine.className = `log-line log-${type}`;
+            
+            const emoji = {
+                error: '❌',
+                success: '✅',
+                warning: '⚠️',
+                info: 'ℹ️'
+            }[type] || '';
+            
+            logLine.textContent = `${emoji} ${new Date().toLocaleTimeString()} - ${message}`;
+            logDiv.appendChild(logLine);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+        
+        // Test 1: Edge Function
+        window.testScreening = async function() {
+            const btn = document.getElementById('btn-test1');
+            const status = document.getElementById('test1-status');
+            const result = document.getElementById('test1-result');
+            
+            btn.disabled = true;
+            status.innerHTML = '<span class="status pending">⏳ Testování...</span>';
+            addLog('🔍 Zahajuji test Edge Function...', 'info');
+            
+            try {
+                const testText = "Doporučuji wan 009 - Čistý dech, který pomáhá s nosní průchodností a Te Xiao Bi Min Gan Wan na alergie.";
+                
+                addLog(`📝 Test text: "${testText}"`, 'info');
+                addLog('📡 Volám supabase.functions.invoke("screen-products")...', 'info');
+                
+                const { data, error } = await window.supabase.functions.invoke('screen-products', {
+                    body: { text: testText }
+                });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                if (!data || !data.success) {
+                    throw new Error(data?.error || 'Edge Function nevrátila úspěšnou odpověď');
+                }
+                
+                addLog(`✅ Edge Function funguje! Nalezeno ${data.products.length} produktů`, 'success');
+                addLog(`📦 Produkty: ${JSON.stringify(data.products)}`, 'success');
+                
+                status.innerHTML = '<span class="status success">✅ Funguje</span>';
+                result.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                
+            } catch (error) {
+                addLog(`❌ Edge Function selhala: ${error.message}`, 'error');
+                status.innerHTML = '<span class="status error">❌ Nefunguje</span>';
+                result.innerHTML = `<pre style="color: #fca5a5;">${error.message}</pre>`;
+            } finally {
+                btn.disabled = false;
+            }
+        };
+        
+        // Test 2: SQL Function
+        window.testMatching = async function() {
+            const btn = document.getElementById('btn-test2');
+            const status = document.getElementById('test2-status');
+            const result = document.getElementById('test2-result');
+            
+            btn.disabled = true;
+            status.innerHTML = '<span class="status pending">⏳ Testování...</span>';
+            addLog('🔍 Zahajuji test SQL funkce...', 'info');
+            
+            try {
+                addLog('📡 Volám supabase.rpc("get_products_with_pinyin_names")...', 'info');
+                
+                const { data, error } = await window.supabase.rpc('get_products_with_pinyin_names');
+                
+                if (error) {
+                    throw error;
+                }
+                
+                if (!data || data.length === 0) {
+                    throw new Error('SQL funkce vrátila prázdná data');
+                }
+                
+                addLog(`✅ SQL funkce funguje! Načteno ${data.length} produktů`, 'success');
+                addLog(`📦 Prvních 5 produktů: ${data.slice(0, 5).map(p => p.product_name).join(', ')}`, 'success');
+                
+                status.innerHTML = '<span class="status success">✅ Funguje</span>';
+                result.innerHTML = `<pre>${JSON.stringify(data.slice(0, 5), null, 2)}</pre>`;
+                
+            } catch (error) {
+                addLog(`❌ SQL funkce selhala: ${error.message}`, 'error');
+                status.innerHTML = '<span class="status error">❌ Nefunguje</span>';
+                result.innerHTML = `<pre style="color: #fca5a5;">${error.message}\n\nNAPRAVA: Spusť tento SQL v Supabase SQL Editoru:\n\n${getSqlFix()}</pre>`;
+            } finally {
+                btn.disabled = false;
+            }
+        };
+        
+        function getSqlFix() {
+            return `-- Vytvoř SQL funkci pro matching
+CREATE OR REPLACE FUNCTION public.get_products_with_pinyin_names()
+RETURNS TABLE (
+  id BIGINT,
+  product_code VARCHAR,
+  product_name VARCHAR,
+  description_short TEXT,
+  pinyin_name TEXT,
+  url TEXT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    pf2.id,
+    pf2.product_code,
+    pf2.product_name,
+    pf2.description_short,
+    trim(regexp_replace(
+      (regexp_match(pf2.description_short, '^\\*\\*([^*]+)\\*\\*'))[1],
+      '^[0-9]+\\s*[–-]?\\s*',
+      ''
+    )) as pinyin_name,
+    pf2.url
+  FROM public.product_feed_2 pf2
+  WHERE pf2.description_short ~ '^\\*\\*[^*]+\\*\\*'
+    AND pf2.url IS NOT NULL
+  ORDER BY pf2.id;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION public.get_products_with_pinyin_names() TO anon;
+GRANT EXECUTE ON FUNCTION public.get_products_with_pinyin_names() TO authenticated;`;
+        }
+        
+        // Test 3: Full workflow
+        window.testFullWorkflow = async function() {
+            const btn = document.getElementById('btn-test3');
+            const status = document.getElementById('test3-status');
+            const result = document.getElementById('test3-result');
+            
+            btn.disabled = true;
+            status.innerHTML = '<span class="status pending">⏳ Testování...</span>';
+            addLog('🔍 Zahajuji kompletní test workflow...', 'info');
+            
+            try {
+                const testText = "Pro nosní průchodnost doporučuji wan 009 - Čistý dech. Je to skvělý produkt na rýmu.";
+                
+                // Krok 1: Screening
+                addLog('📝 KROK 1: Screening produktů v textu...', 'info');
+                const { data: screenData, error: screenError } = await window.supabase.functions.invoke('screen-products', {
+                    body: { text: testText }
+                });
+                
+                if (screenError || !screenData?.success) {
+                    throw new Error(`Screening selhal: ${screenError?.message || screenData?.error}`);
+                }
+                
+                addLog(`✅ Screening OK: ${screenData.products.length} produktů nalezeno`, 'success');
+                
+                if (screenData.products.length === 0) {
+                    throw new Error('GPT neidentifikoval žádné produkty v textu');
+                }
+                
+                // Krok 2: Matching
+                addLog('📝 KROK 2: Matching produktů v databázi...', 'info');
+                const { data: allProducts, error: matchError } = await window.supabase.rpc('get_products_with_pinyin_names');
+                
+                if (matchError) {
+                    throw new Error(`Matching selhal: ${matchError.message}`);
+                }
+                
+                addLog(`✅ Načteno ${allProducts.length} produktů z databáze`, 'success');
+                
+                // Najdeme matches
+                const matches = [];
+                for (const gptProduct of screenData.products) {
+                    for (const dbProduct of allProducts) {
+                        if (
+                            gptProduct.toLowerCase().includes(dbProduct.pinyin_name?.toLowerCase()) ||
+                            dbProduct.pinyin_name?.toLowerCase().includes(gptProduct.toLowerCase()) ||
+                            dbProduct.product_name?.toLowerCase().includes(gptProduct.toLowerCase())
+                        ) {
+                            matches.push({
+                                matched_from: gptProduct,
+                                product: dbProduct
+                            });
+                            break;
+                        }
+                    }
+                }
+                
+                if (matches.length === 0) {
+                    throw new Error('Žádný z identifikovaných produktů nebyl nalezen v databázi');
+                }
+                
+                addLog(`✅ Matching OK: ${matches.length} produktů namatchováno`, 'success');
+                
+                // Krok 3: Vložení markerů
+                addLog('📝 KROK 3: Vkládání product markerů do textu...', 'info');
+                let finalText = testText;
+                
+                for (const match of matches) {
+                    const marker = ` <<<PRODUCT:${match.product.product_code}|||${match.product.url}|||${match.product.product_name}|||${match.product.pinyin_name}>>>`;
+                    
+                    // Najdeme výskyt v textu
+                    const regex = new RegExp(`\\b${match.matched_from}\\b`, 'i');
+                    const matchResult = finalText.match(regex);
+                    
+                    if (matchResult) {
+                        const matchEnd = matchResult.index + matchResult[0].length;
+                        finalText = finalText.slice(0, matchEnd) + marker + finalText.slice(matchEnd);
+                        addLog(`  ✅ Marker vložen za "${match.matched_from}"`, 'success');
+                    }
+                }
+                
+                addLog('✅ WORKFLOW KOMPLETNÍ! Tlačítka by se měla zobrazit.', 'success');
+                
+                status.innerHTML = '<span class="status success">✅ Vše funguje</span>';
+                result.innerHTML = `
+                    <h3>📊 Výsledek:</h3>
+                    <p><strong>Nalezené produkty:</strong> ${matches.map(m => m.product.product_name).join(', ')}</p>
+                    <h4>Text s markery:</h4>
+                    <pre>${finalText}</pre>
+                    <h4>Produkty:</h4>
+                    <pre>${JSON.stringify(matches, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                addLog(`❌ Workflow selhal: ${error.message}`, 'error');
+                status.innerHTML = '<span class="status error">❌ Nefunguje</span>';
+                result.innerHTML = `<pre style="color: #fca5a5;">${error.message}</pre>`;
+            } finally {
+                btn.disabled = false;
+            }
+        };
+        
+        addLog('✅ Diagnostický nástroj načten. Klikni na tlačítka pro spuštění testů.', 'success');
+        
+        // Auto-check config
+        if (SUPABASE_URL === 'https://YOUR_PROJECT.supabase.co') {
+            addLog('⚠️ VAROVÁNÍ: Nezapomeň změnit SUPABASE_URL a SUPABASE_ANON_KEY v kódu!', 'warning');
+        }
+    </script>
+</body>
+</html>
+
+
+

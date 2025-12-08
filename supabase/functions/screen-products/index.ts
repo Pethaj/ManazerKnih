@@ -1,59 +1,48 @@
 // supabase/functions/screen-products/index.ts
-// Edge Function pro screening produktů v textu pomocí OpenRouter GPT-4o-mini
-// Identifikuje produkty a témata z čínské medicíny
+// ============================================================================
+// MINIMÁLNÍ EDGE FUNCTION - POUZE PROXY PRO OPENROUTER API
+// ============================================================================
+// Tato funkce POUZE:
+// 1. Přijme request z frontendu (systemPrompt, userPrompt, model, temperature)
+// 2. Zavolá OpenRouter API s těmito parametry
+// 3. Vrátí surovou odpověď
+// 
+// ⚠️ ŽÁDNÁ BUSINESS LOGIKA TADY!
+// Veškeré prompty, parsování, rozhodování je na frontendu.
+// ============================================================================
 
-// === ENV (OpenRouter API klíč uložen v Supabase Secrets) ===
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// Model pro screening
-const MODEL = "openai/gpt-4o-mini"; // Levný, rychlý model
+// ============================================================================
+// INTERFACES
+// ============================================================================
 
-interface ScreeningRequest {
-  text: string;
+interface OpenRouterRequest {
+  systemPrompt: string;
+  userPrompt: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
 }
 
-interface ScreeningResponse {
+interface OpenRouterResponse {
   success: boolean;
-  products: string[];
+  response: string;
   error?: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
-// === Prompt pro screening ===
-const SCREENING_PROMPT = `Jsi odborný asistent pro analýzu textu v oblasti čínské medicíny a přírodní medicíny.
-
-TVŮJ ÚKOL:
-Analyzuj poskytnutý text a identifikuj všechny zmínky o:
-- Konkrétních produktech (např. "009 - Čistý dech", "Bewit Levandule")
-- Tématech týkajících se čínské medicíny (TČM)
-- Bylinných směsích, wan (丸)
-- Přírodních/alternativních léčebných metodách
-- Ingrediencích a léčivých bylinách
-- Terapeutických přístupech z oblasti přírodní medicíny
-
-DŮLEŽITÁ PRAVIDLA:
-1. Vyhledávej POUZE skutečné zmínky v textu (nevymýšlej)
-2. Pokud text nemá žádné relevantní produkty/témata, vrať prázdný seznam
-3. Každý produkt/téma zapiš jako samostatnou položku
-4. Používej stručné názvy (např. "bolest hlavy - bylinky", "wan na imunitu")
-5. Ignoruj obecné zdravotní rady bez konkrétního produktového zaměření
-
-FORMÁT ODPOVĚDI:
-Vrať POUZE validní JSON array (bez jakéhokoliv dalšího textu) ve formátu:
-["produkt 1", "produkt 2", "téma 3"]
-
-PŘÍKLADY:
-Text: "Pro bolest hlavy doporučuji wan 009 - Čistý dech, který pomáhá s průchodností nosních dírek."
-Odpověď: ["009 - Čistý dech", "bolest hlavy", "nosní průchodnost"]
-
-Text: "Dobrý den, jak se máte dnes?"
-Odpověď: []
-
-Text: "Bewit Levandule 15ml je skvělý produkt na uklidnění mysli a podporu spánku."
-Odpověď: ["Bewit Levandule", "uklidnění mysli", "podpora spánku"]`;
-
-// === Hlavní handler ===
+// ============================================================================
+// HLAVNÍ HANDLER
+// ============================================================================
 Deno.serve(async (req) => {
+  const startTime = Date.now();
+  
   // CORS headers
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -73,133 +62,75 @@ Deno.serve(async (req) => {
     }
 
     // Parsování requestu
-    const body: ScreeningRequest = await req.json();
-    const { text } = body;
+    const body: OpenRouterRequest = await req.json();
+    const { systemPrompt, userPrompt, model, temperature, maxTokens } = body;
 
-    console.log(`🔍 Product screening request - text length: ${text?.length || 0} znaků`);
+    console.log("═".repeat(70));
+    console.log("🔐 OpenRouter API Proxy");
+    console.log("═".repeat(70));
+    console.log(`📡 Model: ${model || 'default'}`);
+    console.log(`🌡️ Temperature: ${temperature ?? 0.3}`);
+    console.log(`📝 System prompt length: ${systemPrompt?.length || 0}`);
+    console.log(`📝 User prompt length: ${userPrompt?.length || 0}`);
 
-    if (!text) {
-      throw new Error("Chybí povinné pole: text");
+    // Validace
+    if (!systemPrompt || !userPrompt) {
+      throw new Error("Chybí systemPrompt nebo userPrompt");
     }
-
-    // Validace textu
-    if (text.trim().length === 0) {
-      console.log("⚠️ Prázdný text, vracím prázdný seznam");
-      return new Response(
-        JSON.stringify({
-          success: true,
-          products: [],
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    if (text.trim().length < 20) {
-      console.log("⚠️ Text příliš krátký pro screening");
-      return new Response(
-        JSON.stringify({
-          success: true,
-          products: [],
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    console.log(`📡 Volám OpenRouter API s modelem: ${MODEL}`);
-    console.log(`📝 Text preview: "${text.substring(0, 150)}..."`);
 
     // Zavoláme OpenRouter API
+    console.log(`📡 Volám OpenRouter API...`);
+    
     const response = await fetch(OPENROUTER_API_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://medbase.bewit.love",
-        "X-Title": "MedBase - Product Screening",
+        "X-Title": "MedBase - Wany Chat Agent",
       },
       body: JSON.stringify({
-        model: MODEL,
+        model: model || "anthropic/claude-3-haiku",  // ✅ OPRAVENO: Správný model ID
         messages: [
-          { role: "system", content: SCREENING_PROMPT },
-          { role: "user", content: `Analyzuj tento text a identifikuj produkty/témata:\n\n${text}` }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
         ],
-        max_tokens: 500,
-        temperature: 0.3,
+        max_tokens: maxTokens || 1500,
+        temperature: temperature ?? 0.3,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      console.error("❌ OpenRouter API error:", { status: response.status, errorData });
-      throw new Error(
-        `OpenRouter API chyba: ${response.status} - ${errorData?.error?.message || response.statusText}`
-      );
+      console.error("❌ OpenRouter API chyba:", errorData);
+      throw new Error(`OpenRouter API chyba: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log("✅ OpenRouter response received");
+    const responseText = data.choices?.[0]?.message?.content?.trim();
 
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      throw new Error("Neplatná struktura odpovědi z OpenRouter API");
-    }
-
-    const responseText = data.choices[0].message.content?.trim();
     if (!responseText) {
       throw new Error("OpenRouter vrátil prázdnou odpověď");
     }
 
-    console.log(`📄 Response text: ${responseText}`);
+    const duration = Date.now() - startTime;
 
-    // Parsujeme JSON odpověď
-    let jsonText = responseText;
-
-    // Odebereme markdown code blocky pokud existují
-    const jsonMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*\])\s*```/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[1];
+    console.log("═".repeat(70));
+    console.log(`✅ OpenRouter API Success`);
+    console.log(`📄 Response length: ${responseText.length} znaků`);
+    console.log(`⏱️ Duration: ${duration}ms`);
+    if (data.usage) {
+      console.log(`💰 Tokens: ${data.usage.total_tokens} (prompt: ${data.usage.prompt_tokens}, completion: ${data.usage.completion_tokens})`);
     }
+    console.log("═".repeat(70));
 
-    let products: string[];
-    try {
-      products = JSON.parse(jsonText);
-
-      // Ověříme, že je to array
-      if (!Array.isArray(products)) {
-        throw new Error("Odpověď není array");
-      }
-
-      // Filtrujeme pouze stringy
-      products = products.filter(item => typeof item === "string" && item.trim().length > 0);
-
-    } catch (parseError) {
-      console.error("❌ Chyba při parsování JSON:", parseError);
-      console.error("📄 Odpověď:", responseText);
-      throw new Error(`Nepodařilo se parsovat JSON odpověď: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
-    }
-
-    console.log(`✅ Screening dokončen: ${products.length} produktů/témat nalezeno`);
-    if (products.length > 0) {
-      console.log("📦 Nalezené produkty/témata:", products);
-    }
-
-    // Vrátíme úspěšnou odpověď
+    // Vrátíme surovou odpověď
     return new Response(
       JSON.stringify({
         success: true,
-        products: products,
-      }),
+        response: responseText,
+        usage: data.usage
+      } as OpenRouterResponse),
       {
         status: 200,
         headers: {
@@ -215,9 +146,9 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        products: [],
+        response: "",
         error: error instanceof Error ? error.message : "Neznámá chyba",
-      }),
+      } as OpenRouterResponse),
       {
         status: 500,
         headers: {
@@ -228,5 +159,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-

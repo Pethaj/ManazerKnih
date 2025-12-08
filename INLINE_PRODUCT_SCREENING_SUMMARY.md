@@ -191,3 +191,5 @@ Detaily viz `INLINE_SCREENING_TESTING.md`
 **Status:** ✅ Implementováno a připraveno k testování
 
 
+
+

@@ -375,12 +375,16 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
               <ProductSyncAdmin />
             </div>
           ) : (
-            <SanaChatContent 
-              selectedCategories={selectedCategories}
-              selectedLabels={selectedLabels}
-              selectedPublicationTypes={selectedPublicationTypes}
-              chatbotSettings={chatbotSettings}
-            />
+            <>
+              {console.log(`🔧 FilteredSanaChatWithSettings předává chatbotId: "${chatbotId}" do SanaChatContent`)}
+              <SanaChatContent 
+                selectedCategories={selectedCategories}
+                selectedLabels={selectedLabels}
+                selectedPublicationTypes={selectedPublicationTypes}
+                chatbotSettings={chatbotSettings}
+                chatbotId={chatbotId}
+              />
+            </>
           )}
         </div>
       </div>

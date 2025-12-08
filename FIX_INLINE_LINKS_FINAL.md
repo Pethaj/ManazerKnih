@@ -147,3 +147,5 @@ Po restartu aplikace by screening měl fungovat pro všechny chatboty, které ma
 **Root cause:** `inline_product_links` chyběl ve `features` objektu při otevírání chatu
 
 
+
+

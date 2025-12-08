@@ -176,3 +176,5 @@ Měl bys vidět:
 **Testováno**: ❌ Ne (čeká na uživatele)
 
 
+
+

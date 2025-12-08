@@ -9,6 +9,7 @@ import ProductSyncAdmin from './ProductSync';
 import { ProductCarousel } from '../ProductCarousel';
 import { ProductRecommendationButton } from '../ProductRecommendationButton';
 import { ProductPill } from '../ProductPill';  // 🆕 Inline product buttons
+import { ProductFunnelMessage } from '../ProductFunnelMessage';  // 🆕 Product Funnel UI
 import { ProductRecommendation } from '../../services/productSearchService';
 import { generateProductResponse, convertChatHistoryToGPT } from '../../services/gptService';
 import { quickVectorSearchTest } from '../../services/vectorDiagnostics';
@@ -16,6 +17,10 @@ import { runCompleteVectorTest } from '../../services/testVectorSearch';
 import { requestProductRecommendations, convertWebhookProductsToCarousel } from '../../services/webhookProductService';
 import { performCombinedSearch } from '../../services/combinedSearchService';
 import { getHybridProductRecommendations, HybridProductRecommendation } from '../../services/hybridProductService';
+// 🆕 Intent Routing pro Wany Chat (routing agent - rozhoduje směr: chat vs funnel)
+import { routeUserIntent, extractProductsFromHistory, hasRecommendationPrompt } from '../../services/intentRoutingService';
+// FunnelProduct typ pro metadata ve zprávě
+import type { FunnelProduct } from '../../services/productFunnelService';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -86,6 +91,10 @@ interface ChatMessage {
   sources?: Source[];
   productRecommendations?: ProductRecommendation[];
   matchedProducts?: any[]; // 🆕 Matched produkty z name matching
+  // 🆕 Product Funnel data (pro Wany Chat)
+  isFunnelMessage?: boolean;
+  funnelProducts?: FunnelProduct[];
+  symptomList?: string[];
 }
 
 // Rozhraní pro metadata filtrace
@@ -107,6 +116,7 @@ interface SanaChatProps {
     book_database: boolean;
     use_feed_1?: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
     use_feed_2?: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
+    webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
@@ -197,10 +207,17 @@ const FilterIcon: React.FC<IconProps> = (props) => (
 );
 
 // --- CHAT SERVICE (from services/chatService.ts) ---
-const N8N_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/97dc857e-352b-47b4-91cb-bc134afc764c/chat';
+// Default webhook URL (fallback pro starší chatboty bez nastaveného webhook_url)
+const DEFAULT_N8N_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/97dc857e-352b-47b4-91cb-bc134afc764c/chat';
 
-const sendMessageToAPI = async (message: string, sessionId: string, history: ChatMessage[], metadata?: ChatMetadata): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
+const sendMessageToAPI = async (message: string, sessionId: string, history: ChatMessage[], metadata?: ChatMetadata, webhookUrl?: string, chatbotId?: string): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
+        // 🔥 HARDCODED: Wany-chat má svůj vlastní webhook
+        let N8N_WEBHOOK_URL = webhookUrl || DEFAULT_N8N_WEBHOOK_URL;
+        if (chatbotId === 'vany_chat') {
+            N8N_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/22856d03-acea-4174-89ae-1b6f0c8ede71/chat';
+        }
+        
         const payload: any = {
             sessionId: sessionId,
             action: "sendMessage",
@@ -215,6 +232,7 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
 
         // Detailní logování před odesláním
         console.log('🚀 Odesílám požadavek na N8N webhook...');
+        console.log('🔗 Webhook URL:', N8N_WEBHOOK_URL);
         console.log('📤 Payload size:', JSON.stringify(payload).length, 'bytes');
         console.log('📤 Session ID:', sessionId);
         console.log('📤 Message length:', message.length);
@@ -336,25 +354,57 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
 
         // 🆕 PRODUCT NAME MATCHING - Screening produktů a matching proti databázi
         let matchedProducts: any[] = [];
+        
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log('🔍 INLINE PRODUCT BUTTONS - DIAGNOSTIKA');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log('📝 Text délka:', finalBotText.length, 'znaků');
+        console.log('📄 Text preview:', finalBotText.substring(0, 200) + '...');
+        console.log('═══════════════════════════════════════════════════════════');
+        
         try {
             // Import služeb dynamicky, aby se nenačítaly pokud nejsou potřeba
             const { screenTextForProducts } = await import('../../services/inlineProductScreeningService');
             const { matchProductNames } = await import('../../services/productNameMatchingService');
             
-            console.log('🔍 Zahajuji screening a matching produktů z odpovědi...');
+            console.log('✅ Služby úspěšně importovány');
+            console.log('🔍 Zahajuji screening produktů z odpovědi...');
             
             // 1. Screening - extrakce názvů produktů z textu pomocí GPT
             const screeningResult = await screenTextForProducts(finalBotText);
+            
+            console.log('📊 Screening výsledek:', {
+                success: screeningResult.success,
+                productCount: screeningResult.products?.length || 0,
+                products: screeningResult.products,
+                error: screeningResult.error
+            });
             
             if (screeningResult.success && screeningResult.products.length > 0) {
                 console.log(`📦 GPT identifikoval ${screeningResult.products.length} produktů/témat:`, screeningResult.products);
                 
                 // 2. Matching - vyhledání produktů v databázi
+                console.log('🔍 Zahajuji matching v databázi...');
                 const matchingResult = await matchProductNames(screeningResult.products);
+                
+                console.log('📊 Matching výsledek:', {
+                    success: matchingResult.success,
+                    matchCount: matchingResult.matches?.length || 0,
+                    unmatchedCount: matchingResult.unmatched?.length || 0,
+                    unmatched: matchingResult.unmatched,
+                    error: matchingResult.error
+                });
                 
                 if (matchingResult.success && matchingResult.matches.length > 0) {
                     console.log(`✅ Nalezeno ${matchingResult.matches.length} produktů v databázi`);
                     matchedProducts = matchingResult.matches;
+                    
+                    console.log('📦 Matched produkty:', matchingResult.matches.map(p => ({
+                        matched_from: p.matched_from,
+                        product_name: p.product_name,
+                        pinyin_name: p.pinyin_name,
+                        similarity: p.similarity
+                    })));
                     
                     // 🆕 PŘIDAT PRODUKTY INLINE PŘÍMO DO TEXTU
                     // Odstraň duplicity (stejný product_code)
@@ -432,15 +482,25 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
                     });
                     
                     console.log('✅ Produktové tlačítka vložena do textu');
+                    console.log('📝 Finální text s markery (preview):',finalBotText.substring(0, 300) + '...');
+                    console.log('═══════════════════════════════════════════════════════════');
                 } else {
                     console.log('⚠️ Žádné produkty nebyly namatchovány v databázi');
+                    console.log('═══════════════════════════════════════════════════════════');
                 }
             } else {
                 console.log('ℹ️ GPT neidentifikoval žádné produkty v odpovědi');
+                console.log('💡 TIP: Zkus se zeptat na konkrétní produkt nebo čínský název');
+                console.log('═══════════════════════════════════════════════════════════');
             }
         } catch (screeningError) {
             // Screening chyba není kritická - nezpůsobí selhání celé odpovědi
-            console.error('⚠️ Chyba při screeningu/matchingu produktů (nekritická):', screeningError);
+            console.error('❌ CHYBA při screeningu/matchingu produktů:', screeningError);
+            console.error('📊 Detaily chyby:', {
+                message: screeningError instanceof Error ? screeningError.message : String(screeningError),
+                stack: screeningError instanceof Error ? screeningError.stack : undefined
+            });
+            console.log('═══════════════════════════════════════════════════════════');
         }
 
         return {
@@ -554,14 +614,15 @@ const Message: React.FC<{
         inline_product_links?: boolean;  // 🆕 Inline produktové linky
         book_database: boolean; 
         use_feed_1?: boolean; 
-        use_feed_2?: boolean; 
+        use_feed_2?: boolean;
+        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
     };
     sessionId?: string;
     lastUserQuery?: string;
     chatbotId?: string;  // 🆕 Pro rozlišení Sana 2 (markdown rendering)
 }> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery, chatbotId }) => {
     const isUser = message.role === 'user';
-    const usesMarkdown = chatbotId === 'sana_local_format';  // 🆕 Sana Local Format používá markdown
+    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat';  // 🆕 Sana Local Format a Vany Chat používají markdown
     
     // 🆕 State pro inline produktové linky
     
@@ -668,6 +729,16 @@ const Message: React.FC<{
                                 ) : (
                                     <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
                                 ),
+                            table: ({node, ...props}) => (
+                                <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                                    <table className="min-w-full border-collapse bg-white" {...props} />
+                                </div>
+                            ),
+                            thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
+                            tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
+                            tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                            th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
+                            td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
                         }}
                     >
                         {textSegment}
@@ -715,6 +786,16 @@ const Message: React.FC<{
                             ) : (
                                 <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
                             ),
+                        table: ({node, ...props}) => (
+                            <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                                <table className="min-w-full border-collapse bg-white" {...props} />
+                            </div>
+                        ),
+                        thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
+                        tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
+                        tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                        th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
+                        td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
                     }}
                 >
                     {textSegment}
@@ -748,6 +829,16 @@ const Message: React.FC<{
                             ) : (
                                 <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
                             ),
+                        table: ({node, ...props}) => (
+                            <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                                <table className="min-w-full border-collapse bg-white" {...props} />
+                            </div>
+                        ),
+                        thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
+                        tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
+                        tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                        th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
+                        td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
                     }}
                 >
                     {text}
@@ -768,6 +859,14 @@ const Message: React.FC<{
                 </div>
             )}
             <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                {/* 🎯 FUNNEL MESSAGE: Speciální grafický design pro produktový funnel */}
+                {!isUser && message.isFunnelMessage ? (
+                    <ProductFunnelMessage
+                        funnelText={message.text || ''}
+                        selectedProducts={message.funnelProducts || []}
+                        symptomList={message.symptomList || []}
+                    />
+                ) : (
                 <div className={`px-4 py-3 rounded-2xl max-w-xl md:max-w-2xl lg:max-w-3xl shadow-sm ${isUser ? 'bg-bewit-blue text-white rounded-br-none' : 'bg-white text-bewit-dark border border-slate-200 rounded-bl-none'}`}>
                     {/* 🆕 PRODUCT BUTTONS INLINE: Pro Sana 2 s product markery */}
                     {!isUser && usesMarkdown && message.text?.includes('<<<PRODUCT:') ? (
@@ -810,12 +909,16 @@ const Message: React.FC<{
                                     pre: ({node, ...props}) => <pre className="bg-slate-100 p-3 rounded-lg my-2 overflow-x-auto" {...props} />,
                                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-bewit-blue pl-4 my-2 italic text-slate-600" {...props} />,
                                     hr: ({node, ...props}) => <hr className="my-4 border-slate-200" {...props} />,
-                                    table: ({node, ...props}) => <table className="min-w-full border-collapse my-2" {...props} />,
-                                    thead: ({node, ...props}) => <thead className="bg-slate-100" {...props} />,
-                                    tbody: ({node, ...props}) => <tbody {...props} />,
-                                    tr: ({node, ...props}) => <tr className="border-b border-slate-200" {...props} />,
-                                    th: ({node, ...props}) => <th className="px-4 py-2 text-left font-bold" {...props} />,
-                                    td: ({node, ...props}) => <td className="px-4 py-2" {...props} />,
+                                    table: ({node, ...props}) => (
+                                        <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                                            <table className="min-w-full border-collapse bg-white" {...props} />
+                                        </div>
+                                    ),
+                                    thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
+                                    tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
+                                    tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
+                                    td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
                                 }}
                             >
                                 {message.text || ''}
@@ -855,8 +958,34 @@ const Message: React.FC<{
                         </div>
                     )}
                     
+                    {/* 🆕 Upozornění na příliš mnoho produktů - když je více než 2 napárované produkty */}
+                    {!isUser && (() => {
+                        // Spočítáme produkty z matchedProducts nebo z product markerů v textu
+                        const matchedCount = message.matchedProducts?.length || 0;
+                        const markerCount = (message.text?.match(/<<<PRODUCT:/g) || []).length;
+                        const productCount = Math.max(matchedCount, markerCount);
+                        
+                        if (productCount > 2) {
+                            return (
+                                <div className="mt-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
+                                    <div className="flex items-start gap-2">
+                                        <span className="text-amber-500 text-lg flex-shrink-0">💡</span>
+                                        <p className="text-sm text-amber-800">
+                                            <strong>Potřebujete přesnější doporučení?</strong>
+                                            <br />
+                                            <span className="text-amber-700">
+                                                Napište nám více o svých symptomech nebo potřebách, abychom mohli produkty lépe zacílit přímo pro vás.
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
+                    
                     {/* Standardní zdroje uvnitř bubble (pro ostatní chatboty) */}
-                    {/* Zdroje UVNITŘ bubble - pro všechny chatboty (včetně Sana Local Format) */}
+                    {/* Zdroje UVNITŘ bubble - pro všechny chatboty (včetně Sana Local Format) - VŽDY NAPOSLED */}
                     {!isUser && message.sources && message.sources.length > 0 && (
                         <div className={`mt-4 pt-4 border-t ${isUser ? 'border-t-white/30' : 'border-t-slate-200'}`}>
                             <h4 className={`text-xs font-semibold mb-2 uppercase tracking-wider ${isUser ? 'text-white/80' : 'text-slate-500'}`}>
@@ -872,6 +1001,7 @@ const Message: React.FC<{
                         </div>
                     )}
                 </div>
+                )}
             </div>
             {!isUser && (
                  <div className="flex flex-col space-y-1 self-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -899,7 +1029,8 @@ const ChatWindow: React.FC<{
         inline_product_links?: boolean;  // 🆕 Inline produktové linky
         book_database: boolean; 
         use_feed_1?: boolean; 
-        use_feed_2?: boolean; 
+        use_feed_2?: boolean;
+        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
     };
     sessionId?: string;
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
@@ -1100,7 +1231,8 @@ const Header: React.FC<{
         inline_product_links?: boolean;  // 🆕 Inline produktové linky
         book_database: boolean; 
         use_feed_1?: boolean; 
-        use_feed_2?: boolean; 
+        use_feed_2?: boolean;
+        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
     };
     onClose?: () => void;
 }> = ({ onNewChat, onExportPdf, selectedLanguage, onLanguageChange, onToggleFilters, isFilterPanelVisible, onToggleProductRecommendations, chatbotSettings, onClose }) => (
@@ -1170,6 +1302,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose
 }) => {
+    // 🚨 EXTREME DIAGNOSTIKA #2 - SANACHATCONTENT
+    console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #FF0000; color: #FFFFFF; font-size: 20px; font-weight: bold;');
+    console.log('%c🚨 SANACHATCONTENT COMPONENT LOADED', 'background: #FF0000; color: #FFFFFF; font-size: 16px; font-weight: bold;');
+    console.log(`%c🔍 chatbotId prop: "${chatbotId}" (type: ${typeof chatbotId})`, 'background: #FFFF00; color: #000; font-size: 14px;');
+    console.log(`%c🔍 chatbotId === 'vany_chat': ${chatbotId === 'vany_chat'}`, 'background: #FFFF00; color: #000; font-size: 14px;');
+    console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #FF0000; color: #FFFFFF; font-size: 20px; font-weight: bold;');
+
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [sessionId, setSessionId] = useState<string>('');
@@ -1215,7 +1354,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             console.log('🎯 Chatbot settings v SanaChatContent:', {
                 book_database: chatbotSettings.book_database,
                 product_recommendations: chatbotSettings.product_recommendations,
-                willUseCombinedSearch: chatbotSettings.book_database && chatbotSettings.product_recommendations
+                willUseCombinedSearch: chatbotSettings.book_database && chatbotSettings.product_recommendations,
+                webhook_url: chatbotSettings.webhook_url
             });
             
             // Připravíme metadata pro filtry
@@ -1232,6 +1372,247 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
+            
+            // ═══════════════════════════════════════════════════════════════
+            // 🔀 INTENT ROUTING PRO WANY CHAT (vany_chat) - MUSÍ BÝT PRVNÍ!
+            // ═══════════════════════════════════════════════════════════════
+            console.log(`🔍 Checking Intent Routing: chatbotId = "${chatbotId}" (type: ${typeof chatbotId})`);
+            console.log(`🔍 Comparison: chatbotId === 'vany_chat' → ${chatbotId === 'vany_chat'}`);
+            
+            if (chatbotId === 'vany_chat') {
+                console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #8B5CF6; font-weight: bold;');
+                console.log('%c🔀 WANY CHAT - SPOUŠTÍM INTENT ROUTING', 'color: #8B5CF6; font-weight: bold; font-size: 14px;');
+                console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #8B5CF6; font-weight: bold;');
+                
+                // Získáme poslední zprávu bota
+                const lastBotMessage = messages.filter(m => m.role === 'bot').pop();
+                const lastBotText = lastBotMessage?.text || '';
+                
+                // Zkontrolujeme zda obsahuje výzvu k přesnějšímu doporučení
+                const hasPrompt = hasRecommendationPrompt(lastBotText);
+                console.log(`💡 Předchozí zpráva obsahuje výzvu: ${hasPrompt ? 'ANO ✓' : 'NE'}`);
+                
+                // Extrahujeme produkty z historie
+                const conversationHistory = messages.map(m => ({ role: m.role, text: m.text }));
+                const recommendedProducts = extractProductsFromHistory(conversationHistory);
+                console.log(`📦 Produkty v historii: ${recommendedProducts.length}`);
+                
+                // Zavoláme intent routing (LLM rozhodne)
+                console.log('%c📡 Volám Intent Router (LLM model)...', 'color: #8B5CF6;');
+                const intentResult = await routeUserIntent(
+                    text.trim(),
+                    conversationHistory,
+                    lastBotText,
+                    recommendedProducts
+                );
+                
+                console.log(`✅ Intent Router odpověděl: ${intentResult.intent}`);
+                console.log(`📝 Důvod: ${intentResult.reasoning}`);
+                if (intentResult.symptomList && intentResult.symptomList.length > 0) {
+                    console.log(`🩺 Extrahované symptomy: ${intentResult.symptomList.join(', ')}`);
+                }
+                
+                // Diagnostika rozhodnutí
+                const shouldBeFunnel = intentResult.intent === 'funnel';
+                const hasProducts = recommendedProducts.length > 0;
+                console.log(`%c🔍 DIAGNOSTIKA ROZHODNUTÍ:`, 'color: #FF6B6B; font-weight: bold;');
+                console.log(`   Intent = ${intentResult.intent} (shouldBeFunnel: ${shouldBeFunnel})`);
+                console.log(`   Products = ${recommendedProducts.length} (hasProducts: ${hasProducts})`);
+                console.log(`   Spustit FUNNEL? ${shouldBeFunnel && hasProducts ? '✅ ANO' : '❌ NE'}`);
+                
+                if (!shouldBeFunnel && hasProducts && intentResult.symptomList && intentResult.symptomList.length > 0) {
+                    console.log('%c⚠️ POZOR: Intent Router rozhodl CHAT, ale jsou zde symptomy a produkty!', 'color: #FF6B6B; font-weight: bold; font-size: 14px;');
+                    console.log('%c   Toto by měl být FUNNEL - možná chyba v routeru.', 'color: #FF6B6B;');
+                }
+                
+                // FUNNEL MODE: Spustit produktový funnel přes N8N webhook
+                if (intentResult.intent === 'funnel' && recommendedProducts.length > 0) {
+                    // ═══════════════════════════════════════════════════════════════
+                    // 🎯 PRODUCT FUNNEL MODE - PŘÍPRAVA DAT PRO N8N WEBHOOK
+                    // ═══════════════════════════════════════════════════════════════
+                    
+                    console.log('%c╔═══════════════════════════════════════════════════════════════════╗', 'background: #10B981; color: white; font-weight: bold; font-size: 16px;');
+                    console.log('%c║         🎯 SPUŠTĚNÍ PRODUKTOVÉHO FUNNELU (N8N WEBHOOK)           ║', 'background: #10B981; color: white; font-weight: bold; font-size: 16px;');
+                    console.log('%c╚═══════════════════════════════════════════════════════════════════╝', 'background: #10B981; color: white; font-weight: bold; font-size: 16px;');
+                    
+                    // === 1. SEZNAM SYMPTOMŮ ===
+                    const symptoms = intentResult.symptomList && intentResult.symptomList.length > 0 
+                        ? intentResult.symptomList 
+                        : [text.trim()];
+                    
+                    console.log('%c┌───────────────────────────────────────────────────────────────────┐', 'color: #F59E0B;');
+                    console.log('%c│ 📋 SEZNAM SYMPTOMŮ/PROBLÉMŮ                                      │', 'color: #F59E0B; font-weight: bold; font-size: 14px;');
+                    console.log('%c├───────────────────────────────────────────────────────────────────┤', 'color: #F59E0B;');
+                    symptoms.forEach((symptom, index) => {
+                        console.log(`%c│   ${index + 1}. ${symptom}`, 'color: #F59E0B;');
+                    });
+                    console.log('%c└───────────────────────────────────────────────────────────────────┘', 'color: #F59E0B;');
+                    
+                    // === 2. SEZNAM PRODUKTŮ Z PRODUCT PILLS ===
+                    console.log('%c┌───────────────────────────────────────────────────────────────────┐', 'color: #8B5CF6;');
+                    console.log('%c│ 📦 SEZNAM PRODUKTŮ (z Product Pills v předchozí konverzaci)      │', 'color: #8B5CF6; font-weight: bold; font-size: 14px;');
+                    console.log('%c├───────────────────────────────────────────────────────────────────┤', 'color: #8B5CF6;');
+                    console.log(`%c│   Celkem produktů: ${recommendedProducts.length}`, 'color: #8B5CF6;');
+                    console.log('%c│', 'color: #8B5CF6;');
+                    recommendedProducts.forEach((product, index) => {
+                        console.log(`%c│   ${index + 1}. ${product.product_name}`, 'color: #8B5CF6; font-weight: bold;');
+                        console.log(`%c│      Kód: ${product.product_code || 'N/A'}`, 'color: #8B5CF6;');
+                        if (product.description) {
+                            console.log(`%c│      Popis: ${product.description.substring(0, 80)}...`, 'color: #8B5CF6;');
+                        }
+                    });
+                    console.log('%c└───────────────────────────────────────────────────────────────────┘', 'color: #8B5CF6;');
+                    
+                    // === 3. SYSTEM PROMPT PRO FUNNEL ===
+                    const FUNNEL_SYSTEM_PROMPT = `Jsi expert na tradiční čínskou medicínu (TČM) a produkty BEWIT.
+
+## TVŮJ ÚKOL
+Na základě symptomů uživatele vyber PŘESNĚ 2 NEJLEPŠÍ produkty z poskytnutého seznamu a vytvoř detailní doporučení.
+
+## PRAVIDLA
+1. Vyber PŘESNĚ 2 produkty, které nejlépe odpovídají symptomům
+2. Pro každý produkt vysvětli PROČ je vhodný pro dané symptomy
+3. Uveď jak produkt používat (dávkování, aplikace)
+4. Buď konkrétní a praktický
+5. Piš v češtině, přátelským tónem
+
+## FORMÁT ODPOVĚDI
+Vytvoř krásně formátovanou odpověď v markdown s doporučením obou vybraných produktů.`;
+
+                    console.log('%c┌───────────────────────────────────────────────────────────────────┐', 'color: #3B82F6;');
+                    console.log('%c│ 🤖 SYSTEM PROMPT PRO FUNNEL                                      │', 'color: #3B82F6; font-weight: bold; font-size: 14px;');
+                    console.log('%c├───────────────────────────────────────────────────────────────────┤', 'color: #3B82F6;');
+                    FUNNEL_SYSTEM_PROMPT.split('\n').forEach(line => {
+                        console.log(`%c│ ${line}`, 'color: #3B82F6;');
+                    });
+                    console.log('%c└───────────────────────────────────────────────────────────────────┘', 'color: #3B82F6;');
+                    
+                    // === 4. SESTAVENÍ chatInput PRO FUNNEL ===
+                    // Formát IDENTICKÝ jako běžný chat, jen obsah je strukturovaný
+                    
+                    // Seznam produktů - formátujeme přehledně s pinyin názvy pokud jsou dostupné
+                    const productList = recommendedProducts.map(p => {
+                        if (p.description) {
+                            // Máme pinyin název (z Product Pills)
+                            return `${p.product_name} (${p.description})`;
+                        }
+                        return p.product_name;
+                    });
+                    
+                    // Pouze unikátní názvy pro přehlednost
+                    const uniqueProductNames = [...new Set(productList)];
+                    const productNamesString = uniqueProductNames.join(', ');
+                    
+                    // Seznam symptomů
+                    const symptomsList = symptoms.join(', ');
+                    
+                    // Sestavíme chatInput ve formátu, který N8N očekává
+                    const funnelChatInput = `Vybrané produkty: ${productNamesString}
+
+Toto jsou symptomy zákazníka: ${symptomsList}
+
+Doporuč mi které z těchto produktů (${productNamesString}) se nejlépe hodí na dané symptomy. Vyber 2 nejlepší a detailně je rozepiš - proč jsou vhodné a jak je používat.`;
+
+                    // Přidáme jazykovou instrukci
+                    const instruction = languageInstructions[selectedLanguage];
+                    const funnelChatInputWithLang = `${funnelChatInput} ${instruction}`;
+                    
+                    // === 5. KOMPLETNÍ PAYLOAD PRO N8N WEBHOOK ===
+                    // IDENTICKÁ struktura jako běžný chat!
+                    const WANY_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/22856d03-acea-4174-89ae-1b6f0c8ede71/chat';
+                    
+                    // Očistíme historii - N8N potřebuje POUZE id, role, text
+                    // Odstraníme markery a všechna extra pole (matchedProducts, sources, atd.)
+                    const cleanedHistory = newMessages.slice(0, -1).map(msg => ({
+                        id: msg.id,
+                        role: msg.role,
+                        text: msg.text.replace(/<<<PRODUCT:[^>]+>>>/g, '').trim()
+                    }));
+                    
+                    const funnelPayload = {
+                        sessionId: sessionId,
+                        action: "sendMessage",
+                        chatInput: funnelChatInputWithLang,
+                        chatHistory: cleanedHistory,
+                        metadata: {
+                            categories: selectedCategories,
+                            labels: selectedLabels,
+                            publication_types: selectedPublicationTypes
+                        }
+                    };
+                    
+                    console.log('%c╔═══════════════════════════════════════════════════════════════════╗', 'background: #EF4444; color: white; font-weight: bold; font-size: 14px;');
+                    console.log('%c║ 📡 ODESÍLÁM FUNNEL DO N8N WEBHOOKU                               ║', 'background: #EF4444; color: white; font-weight: bold; font-size: 14px;');
+                    console.log('%c╚═══════════════════════════════════════════════════════════════════╝', 'background: #EF4444; color: white; font-weight: bold; font-size: 14px;');
+                    console.log('%c🔗 Webhook URL:', 'color: #EF4444; font-weight: bold;', WANY_WEBHOOK_URL);
+                    console.log('%c📝 chatInput (co jde do N8N):', 'color: #EF4444; font-weight: bold;');
+                    console.log(funnelChatInputWithLang);
+                    console.log('%c📦 Kompletní Payload:', 'color: #EF4444; font-weight: bold;');
+                    console.log(JSON.stringify(funnelPayload, null, 2));
+                    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #EF4444; font-weight: bold;');
+                    
+                    // === 6. VOLÁNÍ N8N WEBHOOKU ===
+                    try {
+                        const response = await fetch(WANY_WEBHOOK_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(funnelPayload)
+                        });
+                        
+                        console.log('%c📥 N8N FUNNEL response status:', 'color: #10B981; font-weight: bold;', response.status, response.statusText);
+                        
+                        if (!response.ok) {
+                            throw new Error(`N8N webhook error: ${response.status} ${response.statusText}`);
+                        }
+                        
+                        const data = await response.json();
+                        console.log('%c📥 N8N FUNNEL response data:', 'color: #10B981; font-weight: bold;');
+                        console.log(data);
+                        
+                        // Zpracování odpovědi z N8N
+                        let responsePayload = Array.isArray(data) ? data[0] : data;
+                        if (responsePayload?.json) responsePayload = responsePayload.json;
+                        
+                        const botText = responsePayload?.output || responsePayload?.html || responsePayload?.text || responsePayload?.response || 'Nepodařilo se získat odpověď.';
+                        
+                        // Připravíme produkty pro funnel UI - MAX 2 produkty
+                        // recommendedProducts obsahuje data z Product Pills včetně URL
+                        const funnelProductsWithDetails: FunnelProduct[] = recommendedProducts
+                            .slice(0, 2) // ⚠️ MAX 2 PRODUKTY
+                            .map(p => ({
+                                product_code: p.product_code,
+                                product_name: p.product_name,
+                                description: p.description,
+                                // URL produktu - z extrakce nebo fallback
+                                url: p.url || `https://bewit.love/produkt/${p.product_code}`
+                            }));
+
+                        console.log('%c📦 Funnel produkty pro UI (max 2):', 'color: #3B82F6; font-weight: bold;', funnelProductsWithDetails);
+                        
+                        const botMessage: ChatMessage = {
+                            id: (Date.now() + 1).toString(),
+                            role: 'bot',
+                            text: botText,
+                            sources: responsePayload?.sources || [],
+                            isFunnelMessage: true,
+                            funnelProducts: funnelProductsWithDetails,
+                            symptomList: symptoms
+                        };
+                        
+                        setMessages(prev => [...prev, botMessage]);
+                        setIsLoading(false);
+                        return; // ⚠️ UKONČIT - FUNNEL MODE ZPRACOVÁN
+                        
+                    } catch (funnelError) {
+                        console.error('%c❌ FUNNEL N8N WEBHOOK ERROR:', 'color: #EF4444; font-weight: bold;', funnelError);
+                        // Fallback na standardní chat mode
+                        console.log('%c🔄 Fallback na standardní chat mode...', 'color: #FFA500; font-weight: bold;');
+                    }
+                }
+                
+                // CHAT MODE: Pokračovat normálním webhook flow (níže)
+                console.log('%c💬 POKRAČUJI STANDARDNÍM CHAT MODE', 'color: #FFA500; font-weight: bold;');
+            }
             
             // === KOMBINOVANÉ VYHLEDÁVÁNÍ - OBA ZDROJE NAJEDNOU ===
             if (chatbotSettings.book_database && chatbotSettings.product_recommendations) {
@@ -1303,7 +1684,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             else if (chatbotSettings.book_database) {
                 console.log('📚 Používám pouze webhook pro databázi knih - IGNORUJI produktová doporučení...');
                 
-                const webhookResult = await sendMessageToAPI(promptForBackend, sessionId, newMessages.slice(0, -1), currentMetadata);
+                const webhookResult = await sendMessageToAPI(promptForBackend, sessionId, newMessages.slice(0, -1), currentMetadata, chatbotSettings.webhook_url, chatbotId);
                 
                 const botMessage: ChatMessage = { 
                     id: (Date.now() + 1).toString(), 
@@ -1413,7 +1794,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
-            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata);
+            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata, chatbotSettings.webhook_url, chatbotId);
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
                 role: 'bot', 
@@ -1502,6 +1883,12 @@ const SanaChat: React.FC<SanaChatProps> = ({
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose
 }) => {
+    // 🚨 EXTREME DIAGNOSTIKA #1 - SANACHAT WRAPPER
+    console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #0000FF; color: #FFFFFF; font-size: 20px; font-weight: bold;');
+    console.log('%c🚨 SANACHAT WRAPPER LOADED', 'background: #0000FF; color: #FFFFFF; font-size: 16px; font-weight: bold;');
+    console.log(`%c🔍 chatbotId prop: "${chatbotId}" (type: ${typeof chatbotId})`, 'background: #00FFFF; color: #000; font-size: 14px;');
+    console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #0000FF; color: #FFFFFF; font-size: 20px; font-weight: bold;');
+    
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [sessionId, setSessionId] = useState<string>('');
@@ -1528,7 +1915,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
             console.log('🎯 Chatbot settings v SanaChat:', {
                 book_database: chatbotSettings.book_database,
                 product_recommendations: chatbotSettings.product_recommendations,
-                willUseCombinedSearch: chatbotSettings.book_database && chatbotSettings.product_recommendations
+                willUseCombinedSearch: chatbotSettings.book_database && chatbotSettings.product_recommendations,
+                webhook_url: chatbotSettings.webhook_url,
+                chatbotId: chatbotId
             });
             
             // Připravíme metadata pro filtry
@@ -1543,8 +1932,6 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 currentMetadata.publication_types = selectedPublicationTypes;
             }
             
-            const instruction = languageInstructions[selectedLanguage];
-            const promptForBackend = `${text.trim()} ${instruction}`;
             
             // === KOMBINOVANÉ VYHLEDÁVÁNÍ - OBA ZDROJE NAJEDNOU ===
             if (chatbotSettings.book_database && chatbotSettings.product_recommendations) {
@@ -1616,7 +2003,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
             else if (chatbotSettings.book_database) {
                 console.log('📚 Používám pouze webhook pro databázi knih - IGNORUJI produktová doporučení...');
                 
-                const webhookResult = await sendMessageToAPI(promptForBackend, sessionId, newMessages.slice(0, -1), currentMetadata);
+                const webhookResult = await sendMessageToAPI(promptForBackend, sessionId, newMessages.slice(0, -1), currentMetadata, chatbotSettings.webhook_url, chatbotId);
                 
                 const botMessage: ChatMessage = { 
                     id: (Date.now() + 1).toString(), 
@@ -1727,7 +2114,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
-            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata);
+            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata, chatbotSettings.webhook_url, chatbotId);
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
                 role: 'bot', 
@@ -1833,6 +2220,7 @@ interface FilteredSanaChatProps {
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
+        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
     };
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;

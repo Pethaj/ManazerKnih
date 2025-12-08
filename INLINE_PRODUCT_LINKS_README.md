@@ -276,3 +276,5 @@ Systém je plně funkční a připravený k použití. Pro produkční nasazení
 **Status:** ✅ Implementováno a připraveno k testování
 
 
+
+

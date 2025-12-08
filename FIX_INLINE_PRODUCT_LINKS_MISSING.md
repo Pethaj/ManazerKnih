@@ -174,3 +174,5 @@ Po restartu aplikace by měl screening fungovat správně.
 **Změny:** Přidán `inline_product_links` do chatbotSettings
 
 
+
+

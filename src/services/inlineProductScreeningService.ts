@@ -25,7 +25,30 @@ export interface ScreeningResult {
   error?: string;
 }
 
-// Prompt je nyní v Edge Function - není potřeba zde
+// ============================================================================
+// SYSTEM PROMPT PRO PRODUCT SCREENING
+// ============================================================================
+
+const SYSTEM_PROMPT = `Jsi expert na tradiční čínskou medicínu a přírodní léčbu BEWIT.
+
+Tvým úkolem je identifikovat v textu:
+1. **Názvy produktů/wanů** (čínské bylinné směsi)
+2. **Pinyin názvy** (romanizovaná čínština)
+3. **Zdravotní témata** relevantní pro BEWIT produkty
+
+**PRAVIDLA:**
+- Hledej POUZE produkty/témata zmíněné V TEXTU
+- Nevymýšlej si názvy, které v textu nejsou
+- Zahrň jak pinyin názvy (např. "Shi Xiao Wan") tak české názvy
+- Pro témata použij široké pojmy (např. "bolest hlavy", "trávení")
+
+**VÝSTUP:**
+Vrať POUZE validní JSON pole stringů bez markdown, bez vysvětlení:
+["produkt1", "produkt2", "téma1"]
+
+**PŘÍKLAD:**
+Text: "Pro bolest hlavy doporučuji Chuan Xiong Cha Tiao Wan..."
+Výstup: ["Chuan Xiong Cha Tiao Wan", "bolest hlavy"]`;
 
 // ============================================================================
 // HLAVNÍ FUNKCE
@@ -63,9 +86,15 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
     
     console.log('📡 Volám Supabase Edge Function...');
     
-    // Zavoláme Supabase Edge Function
+    // ✅ OPRAVENO: Posíláme systemPrompt a userPrompt místo { text }
     const { data, error } = await supabase.functions.invoke(EDGE_FUNCTION_URL, {
-      body: { text: text }
+      body: {
+        systemPrompt: SYSTEM_PROMPT,
+        userPrompt: `Analyzuj následující text a extrahuj názvy produktů/wanů a zdravotní témata:\n\n${text}`,
+        model: 'anthropic/claude-3-haiku',
+        temperature: 0.1,
+        maxTokens: 500
+      }
     });
     
     if (error) {
@@ -83,7 +112,32 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
       throw new Error(data.error || 'Edge Function vrátila chybu');
     }
     
-    const products = data.products || [];
+    // ✅ OPRAVENO: Parsujeme `response` místo `products`
+    // Edge Function vrací JSON string v `response` poli
+    let products: string[] = [];
+    
+    try {
+      const responseText = data.response || '';
+      console.log('📄 Raw response:', responseText);
+      
+      // Odstranit markdown code blocks pokud jsou
+      let jsonText = responseText.trim();
+      const jsonMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/) || responseText.match(/(\[[\s\S]*\])/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[1];
+      }
+      
+      products = JSON.parse(jsonText);
+      
+      if (!Array.isArray(products)) {
+        console.error('⚠️ Response není pole, používám prázdné pole');
+        products = [];
+      }
+    } catch (parseError) {
+      console.error('❌ Chyba při parsování JSON:', parseError);
+      console.error('📄 Response text:', data.response);
+      products = [];
+    }
     
     console.log(`✅ Screening dokončen: ${products.length} produktů/témat nalezeno`);
     if (products.length > 0) {
@@ -92,7 +146,8 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
     
     return {
       success: true,
-      products: products
+      products: products,
+      rawResponse: data.response
     };
     
   } catch (error) {

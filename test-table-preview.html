@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Náhled formátování tabulek v chatech</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bewit-blue': '#0066cc',
+                        'bewit-dark': '#1a1a1a',
+                        'bewit-gray': '#f5f5f5'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-bewit-gray p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-bewit-dark mb-8">📊 Náhled formátování tabulek v chatech</h1>
+        
+        <!-- Chat bubble simulace -->
+        <div class="flex items-start gap-3 mb-8">
+            <!-- Bot ikona -->
+            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-bewit-blue flex items-center justify-center text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                    <path d="M12 2C6.477 2 2 6.477 2 12h10c5.523 0 10-4.477 10-10C17.523 2 12 2 12 2z"/>
+                </svg>
+            </div>
+            
+            <!-- Chat bubble -->
+            <div class="flex-1 bg-white rounded-2xl rounded-bl-none shadow-sm border border-slate-200 px-4 py-3">
+                <h2 class="text-xl font-bold mt-2 mb-2">Složení směsi Wanů 004</h2>
+                <p class="my-2">Tato směs obsahuje různé byliny, přičemž každá z nich hraje významnou roli:</p>
+                
+                <!-- TABULKA 1: Jednoduchá tabulka -->
+                <div class="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                    <table class="min-w-full border-collapse bg-white">
+                        <thead class="bg-gradient-to-r from-bewit-blue to-blue-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Složka</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Množství (g)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Chuan Xiong (Ligusticum sinense)</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">5 g</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Bo He (Mentha arvensis)</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">6 g</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Bai Zhi (Angelica dahurica)</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">6 g</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Man Jing Zi (Vitex trifolia)</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">6 g</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Qiang Huo (Notopterygium incisum)</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">6 g</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Gan Cao (Glycyrrhiza uralensis)</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">3 g</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <h3 class="text-lg font-bold mt-4 mb-2">Dávkování</h3>
+                <p class="my-2">Doporučené denní dávky podle typu použití:</p>
+                
+                <!-- TABULKA 2: Složitější tabulka -->
+                <div class="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                    <table class="min-w-full border-collapse bg-white">
+                        <thead class="bg-gradient-to-r from-bewit-blue to-blue-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Typ použití</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Dávka</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Frekvence</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Poznámka</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Preventivní</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">8 kuliček</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">3× denně</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Na lačno</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Akutní</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">10-12 kuliček</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">4× denně</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">S teplou vodou</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Podpůrná léčba</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">6 kuliček</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">2× denně</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">Po jídle</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <p class="my-2 text-sm text-slate-600"><strong>Upozornění:</strong> Konzultujte použití s odborníkem na tradiční čínskou medicínu.</p>
+            </div>
+        </div>
+        
+        <!-- Další příklad - Porovnání produktů -->
+        <div class="flex items-start gap-3">
+            <!-- Bot ikona -->
+            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-bewit-blue flex items-center justify-center text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                    <path d="M12 2C6.477 2 2 6.477 2 12h10c5.523 0 10-4.477 10-10C17.523 2 12 2 12 2z"/>
+                </svg>
+            </div>
+            
+            <!-- Chat bubble -->
+            <div class="flex-1 bg-white rounded-2xl rounded-bl-none shadow-sm border border-slate-200 px-4 py-3">
+                <h2 class="text-xl font-bold mt-2 mb-2">Porovnání produktů BEWIT</h2>
+                <p class="my-2">Zde je přehled nejvíce doporučovaných produktů pro Vaše požadavky:</p>
+                
+                <!-- TABULKA 3: Porovnání produktů -->
+                <div class="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                    <table class="min-w-full border-collapse bg-white">
+                        <thead class="bg-gradient-to-r from-bewit-blue to-blue-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Produkt</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Cena</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Dostupnost</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Hodnocení</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap"><strong>Bewit LoveYOU</strong></td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">890 Kč</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap"><span class="text-green-600">✓ Skladem</span></td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">⭐⭐⭐⭐⭐</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap"><strong>Bewit Immune</strong></td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">750 Kč</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap"><span class="text-green-600">✓ Skladem</span></td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">⭐⭐⭐⭐</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap"><strong>Bewit Detox</strong></td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">650 Kč</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap"><span class="text-orange-500">⚠ Na objednávku</span></td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">⭐⭐⭐⭐</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap"><strong>Bewit Harmony</strong></td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">820 Kč</td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap"><span class="text-green-600">✓ Skladem</span></td>
+                                <td class="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">⭐⭐⭐⭐⭐</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <p class="my-2">Všechny produkty jsou dostupné na <a href="#" class="text-bewit-blue hover:underline">bewit.cz</a></p>
+            </div>
+        </div>
+        
+        <!-- Informace -->
+        <div class="mt-8 bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+            <h3 class="text-lg font-bold mb-3">ℹ️ Jak to funguje</h3>
+            <ul class="list-disc list-inside space-y-2 text-slate-700">
+                <li>Tabulky jsou automaticky detekovány z markdown nebo HTML formátu</li>
+                <li>Aplikuje se moderní designový styl s gradientem v hlavičce</li>
+                <li>Hover efekt na řádcích pro lepší UX</li>
+                <li>Responsive design s automatickým horizontal scrollem</li>
+                <li>Funguje ve všech chat komponentách (SanaChat, ProductChat, atd.)</li>
+            </ul>
+        </div>
+        
+        <div class="mt-4 text-center text-sm text-slate-500">
+            <p>📁 Tento soubor: <code class="bg-slate-100 px-2 py-1 rounded">test-table-preview.html</code></p>
+            <p class="mt-1">Otevřete v prohlížeči pro náhled</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -46,3 +46,5 @@ Edge Function je nasazena s API klíčem z Supabase secrets pomocí MCP.
 **Krok 1 HOTOV! Až budeš chtít Krok 2 (mapování na produkty), dej vědět!** 🚀
 
 
+
+

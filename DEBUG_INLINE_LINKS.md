@@ -201,3 +201,5 @@ GROUP BY cs.chatbot_id, cs.chatbot_name, cs.inline_product_links;
 **Důležité:** Mock embedding service zatím vrací prázdné vektory! Pro produkci implementuj skutečné volání OpenAI API.
 
 
+
+

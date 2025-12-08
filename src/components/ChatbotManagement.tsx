@@ -82,6 +82,7 @@ interface Chatbot {
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
+        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
     };
 }
 
@@ -680,7 +681,8 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                                     inline_product_links: chatbot.inline_product_links,  // 🆕 PŘIDÁNO!
                                                                     book_database: chatbot.book_database,
                                                                     use_feed_1: chatbot.use_feed_1,
-                                                                    use_feed_2: chatbot.use_feed_2
+                                                                    use_feed_2: chatbot.use_feed_2,
+                                                                    webhook_url: chatbot.webhook_url  // 🆕 Webhook URL pro tento chatbot
                                                                 }
                                                             })}
                                                         >

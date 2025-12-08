@@ -23,6 +23,7 @@ export interface ChatbotSettings {
   allowed_labels: string[];
   is_active: boolean;
   is_default_web_chatbot?: boolean;  // 🆕 Zobrazit v bublině na webu
+  webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
   // Nová nastavení pro feed zdroje
   use_feed_1?: boolean;
   use_feed_2?: boolean;
@@ -64,6 +65,7 @@ export interface CreateChatbotSettingsData {
   allowed_publication_types: string[];
   allowed_labels: string[];
   is_active: boolean;
+  webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
   // Nová nastavení pro feed zdroje
   use_feed_1?: boolean;
   use_feed_2?: boolean;
@@ -82,6 +84,7 @@ export interface UpdateChatbotSettingsData {
   allowed_labels?: string[];
   is_active?: boolean;
   is_default_web_chatbot?: boolean;  // 🆕 Zobrazit v bublině na webu
+  webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
   // Nová nastavení pro feed zdroje
   use_feed_1?: boolean;
   use_feed_2?: boolean;
@@ -113,6 +116,12 @@ export class ChatbotSettingsService {
         console.error('Chyba při načítání nastavení chatbotů:', error);
         throw error;
       }
+
+      // 🔍 DEBUG: Vypiš webhook_url pro každý chatbot
+      console.log('🔍 DEBUG getAllChatbotSettings:');
+      data?.forEach(chatbot => {
+        console.log(`  - ${chatbot.chatbot_id}: webhook_url = ${chatbot.webhook_url || 'NENÍ NASTAVENO'}`);
+      });
 
       return data || [];
     } catch (error) {

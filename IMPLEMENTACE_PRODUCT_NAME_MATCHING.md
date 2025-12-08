@@ -447,3 +447,5 @@ supabase functions deploy screen-products
 **Testováno:** ❌ Čeká na SQL funkci v DB
 
 
+
+

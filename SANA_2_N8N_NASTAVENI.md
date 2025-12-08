@@ -256,3 +256,5 @@ Pokud stále nefunguje, zkontroluj:
 
 
 
+
+
