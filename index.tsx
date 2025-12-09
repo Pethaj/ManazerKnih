@@ -4852,7 +4852,9 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                         inline_product_links: activeChatbot.features.inline_product_links || false,  // 🆕 Inline produktové linky / screening
                                         book_database: activeChatbot.features.book_database || false,
                                         use_feed_1: activeChatbot.features.use_feed_1 !== undefined ? activeChatbot.features.use_feed_1 : true,
-                                        use_feed_2: activeChatbot.features.use_feed_2 !== undefined ? activeChatbot.features.use_feed_2 : true
+                                        use_feed_2: activeChatbot.features.use_feed_2 !== undefined ? activeChatbot.features.use_feed_2 : true,
+                                        enable_product_router: activeChatbot.features.enable_product_router !== undefined ? activeChatbot.features.enable_product_router : true,  // 🆕 Produktový router
+                                        enable_manual_funnel: activeChatbot.features.enable_manual_funnel || false  // 🆕 Manuální funnel
                                     }}
                                 />
                             </div>

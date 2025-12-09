@@ -12,7 +12,7 @@ import { supabase } from '../lib/supabase';
 // KONFIGURACE
 // ============================================================================
 
-const EDGE_FUNCTION_URL = 'screen-products'; // Supabase Edge Function
+const EDGE_FUNCTION_URL = 'openrouter-proxy'; // Supabase Edge Function (používá fungující proxy)
 
 // ============================================================================
 // INTERFACES

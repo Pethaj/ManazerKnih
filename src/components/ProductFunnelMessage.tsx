@@ -49,13 +49,35 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
   console.log('%c🎯 ProductFunnelMessage render', 'color: #3B82F6; font-weight: bold;');
   console.log('   Products:', selectedProducts.length);
   console.log('   Products data:', selectedProducts);
+  
+  // Diagnostika obrázků
+  selectedProducts.forEach((p, idx) => {
+    console.log(`   📦 Product ${idx + 1}: ${p.product_name}`);
+    console.log(`      thumbnail: ${p.thumbnail || 'CHYBÍ'}`);
+    console.log(`      url: ${p.url || 'CHYBÍ'}`);
+    console.log(`      price: ${p.price || 'CHYBÍ'}`);
+  });
 
   // Max 2 produkty
   const topProducts = selectedProducts.slice(0, 2);
 
   const getImageUrl = (product: FunnelProduct): string => {
-    if (product.thumbnail) return product.thumbnail;
-    // Fallback - prázdný string, zobrazí se placeholder emoji
+    // 1. Priorita: thumbnail z product_feed_2 databáze
+    if (product.thumbnail && product.thumbnail.length > 0) {
+      console.log(`   🖼️ Používám thumbnail z DB: ${product.thumbnail}`);
+      return product.thumbnail;
+    }
+    
+    // 2. Fallback: zkusíme odvodit z URL produktu
+    if (product.url && product.url.includes('bewit.love')) {
+      // Zkusíme standardní BEWIT pattern pro obrázky
+      const fallbackUrl = product.url.replace('/produkt/', '/media/products/') + '/image.jpg';
+      console.log(`   🖼️ Zkouším fallback URL: ${fallbackUrl}`);
+      return fallbackUrl;
+    }
+    
+    // 3. Žádný obrázek - zobrazí se placeholder emoji
+    console.log(`   ⚠️ Žádný obrázek pro: ${product.product_name}`);
     return '';
   };
 
@@ -66,28 +88,20 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
     }
   };
 
+  // Převést escape sekvence \n na skutečné odřádkování
+  const processedText = funnelText
+    ? funnelText.replace(/\\n/g, '\n')  // \n jako text → skutečný newline
+    : '';
+
   return (
     <div className="funnel-message-wrapper">
       {/* Text - stejné formátování jako běžný chat */}
-      <div className="funnel-text-content markdown-content">
+      <div className="funnel-text-content">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeRaw, rehypeSanitize]}
-          components={{
-            h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
-            h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
-            h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
-            p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
-            strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
-            em: ({node, ...props}) => <em className="italic" {...props} />,
-            ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
-            ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
-            li: ({node, ...props}) => <li className="ml-4" {...props} />,
-            a: ({node, ...props}) => <a className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-            hr: ({node, ...props}) => <hr className="my-4 border-slate-200" {...props} />,
-          }}
         >
-          {funnelText || ''}
+          {processedText}
         </ReactMarkdown>
       </div>
 
@@ -151,6 +165,117 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
           color: #1e293b;
           line-height: 1.7;
           font-size: 14px;
+        }
+
+        /* Markdown formátování - stejné jako v běžném chatu */
+        .funnel-text-content h1 {
+          font-size: 1.5rem;
+          font-weight: 700;
+          margin-top: 1rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .funnel-text-content h2 {
+          font-size: 1.25rem;
+          font-weight: 700;
+          margin-top: 0.75rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .funnel-text-content h3 {
+          font-size: 1.125rem;
+          font-weight: 700;
+          margin-top: 0.5rem;
+          margin-bottom: 0.25rem;
+        }
+
+        .funnel-text-content h4 {
+          font-size: 1rem;
+          font-weight: 700;
+          margin-top: 0.5rem;
+          margin-bottom: 0.25rem;
+        }
+
+        .funnel-text-content p {
+          margin-top: 0.5rem;
+          margin-bottom: 0.5rem;
+          line-height: 1.7;
+        }
+
+        .funnel-text-content strong {
+          font-weight: 700;
+        }
+
+        .funnel-text-content em {
+          font-style: italic;
+        }
+
+        .funnel-text-content ul {
+          list-style-type: disc;
+          list-style-position: inside;
+          margin-top: 0.5rem;
+          margin-bottom: 0.5rem;
+          padding-left: 1rem;
+        }
+
+        .funnel-text-content ol {
+          list-style-type: decimal;
+          list-style-position: inside;
+          margin-top: 0.5rem;
+          margin-bottom: 0.5rem;
+          padding-left: 1rem;
+        }
+
+        .funnel-text-content li {
+          margin-left: 1rem;
+          margin-top: 0.25rem;
+          margin-bottom: 0.25rem;
+        }
+
+        .funnel-text-content a {
+          color: #3B82F6;
+          text-decoration: none;
+        }
+
+        .funnel-text-content a:hover {
+          text-decoration: underline;
+        }
+
+        .funnel-text-content hr {
+          margin-top: 1rem;
+          margin-bottom: 1rem;
+          border-color: #e2e8f0;
+        }
+
+        .funnel-text-content code {
+          background-color: #f1f5f9;
+          padding: 0.125rem 0.25rem;
+          border-radius: 0.25rem;
+          font-family: monospace;
+          font-size: 0.875rem;
+        }
+
+        .funnel-text-content pre {
+          background-color: #f1f5f9;
+          padding: 0.75rem;
+          border-radius: 0.5rem;
+          overflow-x: auto;
+          margin-top: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .funnel-text-content pre code {
+          background-color: transparent;
+          padding: 0;
+        }
+
+        .funnel-text-content blockquote {
+          border-left: 4px solid #3B82F6;
+          padding-left: 1rem;
+          margin-left: 0;
+          margin-top: 0.5rem;
+          margin-bottom: 0.5rem;
+          color: #64748b;
         }
 
         /* Produktové dlaždice */

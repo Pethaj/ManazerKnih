@@ -25,14 +25,17 @@ import { supabase } from '../lib/supabase';
 export interface ConversationMessage {
   role: 'user' | 'bot';
   text: string;
+  hasCallout?: boolean;  // 🆕 Flag pro žlutý callout (více než 2 produkty)
 }
 
 export interface RecommendedProduct {
   product_code: string;
   product_name: string;
   description?: string;
-  url?: string;          // URL produktu (z Product Pills)
-  thumbnail?: string;    // URL obrázku produktu
+  url?: string;          // URL produktu (z Product Pills nebo product_feed_2)
+  thumbnail?: string;    // URL obrázku produktu (z product_feed_2)
+  price?: number;        // Cena produktu (z product_feed_2)
+  currency?: string;     // Měna (z product_feed_2)
 }
 
 export interface IntentRouterRequest {
@@ -44,7 +47,7 @@ export interface IntentRouterRequest {
 
 export interface IntentRouterResponse {
   success: boolean;
-  intent: 'chat' | 'funnel';
+  intent: 'chat' | 'funnel' | 'update_funnel';
   confidence: number;
   reasoning: string;
   symptomList: string[];
@@ -65,63 +68,68 @@ const MAX_TOKENS = 500;
 // SYSTEM PROMPT PRO INTENT ROUTING
 // ============================================================================
 
-const INTENT_ROUTING_SYSTEM_PROMPT = `Jsi expertní routing agent pro chatbot zaměřený na čínskou medicínu a přírodní produkty BEWIT (wany).
+const INTENT_ROUTING_SYSTEM_PROMPT = `Jsi routing agent pro BEWIT chatbot. Rozhoduješ POUZE mezi dvěma módy:
 
-## TVŮJ ÚKOL
-Analyzuj uživatelovu zprávu a rozhodni mezi CHAT a FUNNEL.
+## MÓDY
 
-## KLÍČOVÉ PRAVIDLO - PRIORITA FUNNELU
-⚠️ DŮLEŽITÉ: Pokud uživatel POPISUJE SYMPTOMY nebo ZDRAVOTNÍ PROBLÉMY → VŽDY zvol FUNNEL!
+### CHAT (výchozí)
+Informační režim - odpovídání na dotazy, konverzace.
+Vše jde přes N8N webhook jako běžný chat.
 
-### FUNNEL (produktový funnel) - PREFEROVANÁ VOLBA při symptomech
-Použij FUNNEL když uživatel:
-- Popisuje JAKÉKOLIV zdravotní symptomy (bolest, únava, nevolnost, sucho, horečka...)
-- Uvádí více problémů najednou (např. "bolest hlavy, sucho v ústech")
-- Žádá o personalizované doporučení na základě svých potíží
-- Popisuje své zdravotní obtíže vlastními slovy
+### FUNNEL  
+Produktový režim - doporučování wanů na základě symptomů.
+Spouští se POUZE když uživatel EXPLICITNĚ REAGUJE na výzvu k doporučení.
 
-Příklady pro FUNNEL:
-- "Bolí mě hlava" → FUNNEL
-- "bolest hlavy, sucho v ustech" → FUNNEL  
-- "Mám problém se spaním a úzkostí" → FUNNEL
-- "Cítím se unavený a mám rýmu" → FUNNEL
-- "Trápí mě klouby a záda" → FUNNEL
+### UPDATE_FUNNEL
+Aktualizace existujícího funnelu - uživatel chce změnit/rozšířit doporučení.
 
-### CHAT (běžný chat)
-Použij CHAT POUZE když uživatel:
-- Se ptá na INFORMACE o produktech (cena, dostupnost, použití)
-- Děkuje nebo zdraví
-- Žádá o vysvětlení něčeho
-- Klade obecnou otázku bez popisu symptomů
+## KLÍČOVÉ PRAVIDLO
 
-Příklady pro CHAT:
-- "Jak to mám použít?" → CHAT
-- "Kolik to stojí?" → CHAT
-- "Děkuji za informace" → CHAT
-- "Co je to wan?" → CHAT
+⚠️ FUNNEL se spustí POUZE pokud:
+1. V historii je zpráva obsahující "Potřebujete přesnější doporučení?" (žlutý callout)
+2. A uživatel na tuto výzvu ODPOVÍDÁ (popisuje symptomy, říká "ano", upřesňuje potíže)
+
+Pokud žlutý callout v historii NENÍ → vždy CHAT (i když uživatel popisuje symptomy!)
+
+## ROZHODOVÁNÍ
+
+1. Je v historii "Potřebujete přesnější doporučení?"?
+   - NE → **CHAT** (vždy!)
+   - ANO → pokračuj na bod 2
+
+2. Reaguje uživatel na výzvu? (popisuje symptomy, říká ano, upřesňuje)
+   - ANO → **FUNNEL** + extrahuj symptomy
+   - NE (ptá se na něco jiného) → **CHAT**
+
+3. Jsou již produkty doporučené a uživatel chce změnu?
+   - ANO → **UPDATE_FUNNEL**
 
 ## VÝSTUP
-Vrať POUZE validní JSON objekt (bez markdown, bez \`\`\`):
+Vrať POUZE JSON:
 {
-  "intent": "chat" | "funnel",
-  "confidence": 0.0 - 1.0,
-  "reasoning": "Stručné vysvětlení rozhodnutí",
+  "intent": "chat" | "funnel" | "update_funnel",
+  "confidence": 0.0-1.0,
+  "reasoning": "Krátké vysvětlení",
   "symptomList": ["symptom1", "symptom2"]
 }
 
 ## PŘÍKLADY
 
-User: "jak to mám použít?"
-→ {"intent": "chat", "confidence": 0.95, "reasoning": "Dotaz na použití produktu, žádné symptomy.", "symptomList": []}
+Historie: (bez callout)
+Zpráva: "bolí mě hlava"
+→ {"intent": "chat", "confidence": 0.99, "reasoning": "Žádná výzva k doporučení v historii.", "symptomList": []}
 
-User: "bolest hlavy, sucho v ustech"
-→ {"intent": "funnel", "confidence": 0.98, "reasoning": "Uživatel popisuje zdravotní symptomy - bolest hlavy a sucho v ústech.", "symptomList": ["bolest hlavy", "sucho v ústech"]}
+Historie: "...Potřebujete přesnější doporučení?..."
+Zpráva: "ano, bolí mě hlava a mám závratě"
+→ {"intent": "funnel", "confidence": 0.99, "reasoning": "Uživatel reaguje na výzvu a popisuje symptomy.", "symptomList": ["bolest hlavy", "závratě"]}
 
-User: "Bolí mě hlava a mám horečku"
-→ {"intent": "funnel", "confidence": 0.99, "reasoning": "Jasný popis zdravotních symptomů.", "symptomList": ["bolest hlavy", "horečka"]}
+Historie: "...Potřebujete přesnější doporučení?..."
+Zpráva: "kolik to stojí?"
+→ {"intent": "chat", "confidence": 0.95, "reasoning": "Uživatel se ptá na informace, ne na doporučení.", "symptomList": []}
 
-User: "jake wany jsou nejlepsi na bolest"
-→ {"intent": "chat", "confidence": 0.85, "reasoning": "Obecný dotaz na produkty, bez konkrétních osobních symptomů.", "symptomList": []}`;
+Historie: (produkty již doporučeny)
+Zpráva: "dej mi jiné produkty"
+→ {"intent": "update_funnel", "confidence": 0.95, "reasoning": "Uživatel chce změnit doporučení.", "symptomList": []}`;
 
 // ============================================================================
 // HLAVNÍ FUNKCE
@@ -165,32 +173,31 @@ export async function routeUserIntent(
       };
     }
 
-    // Kontrola, zda předchozí zpráva obsahuje výzvu k přesnějšímu doporučení
-    const hasPrompt = hasRecommendationPrompt(lastBotMessage);
-    console.log(`💡 Obsahuje výzvu "Potřebujete přesnější doporučení?": ${hasPrompt ? 'ANO ✓' : 'NE'}`);
-
-    // Sestavíme user prompt s kontextem
-    let userPrompt = `UŽIVATELOVA ZPRÁVA:\n"${userMessage}"\n`;
+    // Detekce klíčových podmínek
+    const hasProductsInHistory = (recommendedProducts?.length || 0) > 0;
     
-    if (lastBotMessage) {
-      userPrompt += `\n\nPOSLEDNÍ ODPOVĚĎ BOTA:\n${lastBotMessage.substring(0, 500)}`;
-    }
+    // 🆕 Detekce žlutého calloutu v historii - kontrolujeme FLAG místo textu!
+    const hasRecommendationCallout = conversationHistory?.some(msg => 
+      msg.role === 'bot' && msg.hasCallout === true
+    ) || false;
     
-    if (recommendedProducts && recommendedProducts.length > 0) {
-      userPrompt += `\n\nDOPORUČENÉ PRODUKTY:\n`;
-      recommendedProducts.slice(0, 5).forEach((p, i) => {
-        userPrompt += `${i + 1}. ${p.product_name}\n`;
-      });
-    }
+    console.log(`🟡 Žlutý callout v historii: ${hasRecommendationCallout ? 'ANO ✓' : 'NE'}`);
+    console.log(`📦 Produkty již doporučeny: ${hasProductsInHistory ? 'ANO ✓' : 'NE'}`);
+    
+    // User prompt s kontextem pro LLM
+    let userPrompt = `## AKTUÁLNÍ ZPRÁVA UŽIVATELE
+"${userMessage}"
 
-    if (conversationHistory && conversationHistory.length > 0) {
-      userPrompt += `\n\nPOSLEDNÍ ZPRÁVY:\n`;
-      conversationHistory.slice(-3).forEach((msg) => {
-        userPrompt += `${msg.role.toUpperCase()}: ${msg.text.substring(0, 150)}\n`;
-      });
-    }
+## KONTEXT
+- Žlutý callout "Potřebujete přesnější doporučení?" v historii: ${hasRecommendationCallout ? 'ANO' : 'NE'}
+- Produkty již byly doporučeny: ${hasProductsInHistory ? 'ANO' : 'NE'}
 
-    userPrompt += `\n\nAnalyzuj záměr a vrať JSON odpověď.`;
+## HISTORIE (poslední zprávy)
+${conversationHistory && conversationHistory.length > 0 
+  ? conversationHistory.slice(-4).map(m => `${m.role.toUpperCase()}: ${m.text.substring(0, 150)}${m.text.length > 150 ? '...' : ''}`).join('\n')
+  : '(prázdná)'}
+
+Rozhodni o intentu podle pravidel.`;
 
     console.log('%c───────────────────────────────────────────────────────────────────', 'color: #8B5CF6;');
     console.log('%c📡 VOLÁM OPENROUTER API (přes Edge Function)...', 'color: #8B5CF6; font-weight: bold;');
@@ -227,8 +234,13 @@ export async function routeUserIntent(
     const responseText = data.response;
     console.log('📄 AI Response:', responseText);
 
-    // PARSOVÁNÍ ODPOVĚDI (to je naše logika, ne Edge Function)
-    let result: { intent: 'chat' | 'funnel'; confidence: number; reasoning: string; symptomList?: string[] };
+    // PARSOVÁNÍ ODPOVĚDI
+    let result: { 
+      intent: 'chat' | 'funnel' | 'update_funnel'; 
+      confidence: number; 
+      reasoning: string; 
+      symptomList?: string[];
+    };
     try {
       let jsonText = responseText;
       
@@ -238,8 +250,9 @@ export async function routeUserIntent(
       
       result = JSON.parse(jsonText);
       
-      // Validace
-      if (!['chat', 'funnel'].includes(result.intent)) {
+      // Validace intentů - pouze 3 možnosti
+      const validIntents = ['chat', 'funnel', 'update_funnel'];
+      if (!validIntents.includes(result.intent)) {
         console.log('%c⚠️ Neplatný intent, nastavuji na CHAT', 'color: orange;');
         result.intent = 'chat';
       }
@@ -264,11 +277,11 @@ export async function routeUserIntent(
     console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #10B981; font-weight: bold;');
     console.log('%c✅ INTENT ROUTING - VÝSLEDEK', 'color: #10B981; font-weight: bold; font-size: 14px;');
     console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #10B981; font-weight: bold;');
-    console.log(`%c🎯 INTENT: ${result.intent.toUpperCase()}`, `color: ${result.intent === 'funnel' ? '#F59E0B' : '#10B981'}; font-weight: bold; font-size: 16px;`);
+    console.log(`%c🎯 INTENT: ${result.intent.toUpperCase()}`, `color: ${result.intent === 'funnel' || result.intent === 'update_funnel' ? '#F59E0B' : '#10B981'}; font-weight: bold; font-size: 16px;`);
     console.log(`📊 Confidence: ${(result.confidence * 100).toFixed(1)}%`);
     console.log(`📝 Reasoning: ${result.reasoning}`);
     
-    if (result.intent === 'funnel' && result.symptomList && result.symptomList.length > 0) {
+    if ((result.intent === 'funnel' || result.intent === 'update_funnel') && result.symptomList && result.symptomList.length > 0) {
       console.log(`%c🩺 Extrahované symptomy: ${result.symptomList.join(', ')}`, 'color: #F59E0B;');
     }
     
@@ -393,4 +406,213 @@ export function extractProductsFromHistory(
   }
 
   return products;
+}
+
+/**
+ * Obohacení funnel produktů o kompletní metadata z product_feed_2
+ * Toto zajistí, že obrázky a další data budou správně načteny z databáze
+ * 
+ * @param products - Produkty extrahované z historie (mají jen základní info)
+ * @returns Obohacené produkty s obrázky, cenami a URL z product_feed_2
+ */
+export async function enrichFunnelProductsFromDatabase(
+  products: RecommendedProduct[]
+): Promise<RecommendedProduct[]> {
+  if (!products || products.length === 0) {
+    console.log('%c⚠️ Žádné produkty k obohacení', 'color: orange;');
+    return [];
+  }
+
+  console.log('%c🔍 Obohacuji funnel produkty z product_feed_2...', 'color: #8B5CF6; font-weight: bold;');
+  console.log(`   Počet produktů: ${products.length}`);
+  console.log(`   Product codes: ${products.map(p => p.product_code).join(', ')}`);
+
+  try {
+    // Získáme product_codes a URLs pro dotaz
+    const productCodes = products
+      .map(p => p.product_code)
+      .filter(code => code && code.length > 0);
+    
+    const productUrls = products
+      .map(p => p.url)
+      .filter(url => url && url.length > 0);
+
+    console.log(`   📊 Product codes: ${productCodes.length}, URLs: ${productUrls.length}`);
+
+    // Pokud nemáme ani product_codes ani URLs, použijeme fallback
+    if (productCodes.length === 0 && productUrls.length === 0) {
+      console.log('%c⚠️ Žádné platné product_codes ani URLs, zkouším hledání podle názvu', 'color: orange;');
+      return await enrichByProductName(products);
+    }
+
+    // 🔧 OPRAVA: Dotaz na product_feed_2 podle URL nebo product_code
+    // Použijeme .or() pro hledání podle URL nebo product_code
+    let query = supabase
+      .from('product_feed_2')
+      .select('product_code, product_name, description_short, description_long, url, thumbnail, price, currency, availability');
+    
+    // Sestavíme OR podmínku pro URL nebo product_code
+    const orConditions: string[] = [];
+    
+    if (productUrls.length > 0) {
+      orConditions.push(`url.in.(${productUrls.map(url => `"${url}"`).join(',')})`);
+    }
+    
+    if (productCodes.length > 0) {
+      orConditions.push(`product_code.in.(${productCodes.map(code => `"${code}"`).join(',')})`);
+    }
+    
+    if (orConditions.length > 0) {
+      query = query.or(orConditions.join(','));
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('%c❌ Chyba při načítání z product_feed_2:', 'color: #EF4444;', error);
+      // Zkusíme fallback podle názvu
+      return await enrichByProductName(products);
+    }
+
+    if (!data || data.length === 0) {
+      console.log('%c⚠️ Žádná data nenalezena podle product_code, zkouším podle názvu', 'color: orange;');
+      return await enrichByProductName(products);
+    }
+
+    console.log(`%c✅ Načteno ${data.length} produktů z product_feed_2`, 'color: #10B981;');
+
+    // Spojíme data - obohacení původních produktů o metadata z DB
+    // 🔧 OPRAVA: Prioritizujeme URL matching (URL je unikátní identifikátor!)
+    const enrichedProducts: RecommendedProduct[] = products.map(product => {
+      console.log(`   🔍 Hledám produkt: ${product.product_name}`);
+      console.log(`      product_code: ${product.product_code}`);
+      console.log(`      url: ${product.url}`);
+      
+      // 1. Priorita: Matching podle URL (URL je unikátní!)
+      let dbData = null;
+      if (product.url) {
+        dbData = data.find(d => d.url === product.url);
+        if (dbData) {
+          console.log(`   ✅ Nalezeno podle URL: ${dbData.product_name}`);
+        }
+      }
+      
+      // 2. Fallback: Matching podle product_code
+      if (!dbData) {
+        dbData = data.find(d => d.product_code === product.product_code);
+        if (dbData) {
+          console.log(`   ✅ Nalezeno podle product_code: ${dbData.product_name}`);
+        }
+      }
+      
+      if (dbData) {
+        console.log(`      → thumbnail: ${dbData.thumbnail ? 'ANO' : 'CHYBÍ'}`);
+        console.log(`      → price: ${dbData.price || 'CHYBÍ'}`);
+        return {
+          product_code: dbData.product_code,
+          product_name: dbData.product_name || product.product_name,
+          description: product.description || dbData.description_short,
+          url: dbData.url || product.url,
+          thumbnail: dbData.thumbnail || undefined,
+          price: dbData.price,
+          currency: dbData.currency || 'CZK'
+        };
+      } else {
+        console.log(`   ⚠️ ${product.product_name} → nenalezeno v DB (ani podle URL ani podle code)`);
+        return product;
+      }
+    });
+
+    return enrichedProducts;
+
+  } catch (error) {
+    console.error('%c❌ Chyba při obohacování produktů:', 'color: #EF4444;', error);
+    return products; // Vrátíme původní produkty
+  }
+}
+
+/**
+ * Fallback funkce - hledá produkty podle URL nebo názvu (částečná shoda)
+ * 🔧 OPRAVA: Prioritizuje URL matching před name matching
+ */
+async function enrichByProductName(
+  products: RecommendedProduct[]
+): Promise<RecommendedProduct[]> {
+  console.log('%c🔍 Fallback: Hledám produkty podle URL nebo názvu...', 'color: #F59E0B;');
+  
+  const enrichedProducts: RecommendedProduct[] = [];
+
+  for (const product of products) {
+    try {
+      console.log(`   🔍 Hledám: ${product.product_name}`);
+      console.log(`      URL: ${product.url || 'CHYBÍ'}`);
+      
+      let data = null;
+      let error = null;
+      
+      // 1. PRIORITA: Hledání podle URL (nejpřesnější!)
+      if (product.url) {
+        const urlResult = await supabase
+          .from('product_feed_2')
+          .select('product_code, product_name, description_short, url, thumbnail, price, currency')
+          .eq('url', product.url)
+          .single();
+        
+        if (!urlResult.error && urlResult.data) {
+          console.log(`   ✅ Nalezeno podle URL: ${urlResult.data.product_name}`);
+          data = urlResult.data;
+        } else {
+          console.log(`   ⚠️ Nenalezeno podle URL, zkouším název...`);
+        }
+      }
+      
+      // 2. FALLBACK: Hledání podle názvu (pokud URL selhalo)
+      if (!data) {
+        // Extrahujeme číslo produktu z názvu (např. "009" z "009 - Čistý dech")
+        const numberMatch = product.product_name.match(/^(\d{3})/);
+        
+        let query = supabase
+          .from('product_feed_2')
+          .select('product_code, product_name, description_short, url, thumbnail, price, currency');
+
+        if (numberMatch) {
+          // Hledáme podle čísla na začátku názvu
+          query = query.ilike('product_name', `${numberMatch[1]}%`);
+        } else {
+          // Hledáme podle celého názvu
+          query = query.ilike('product_name', `%${product.product_name}%`);
+        }
+
+        const nameResult = await query.limit(1).single();
+        data = nameResult.data;
+        error = nameResult.error;
+        
+        if (!error && data) {
+          console.log(`   ✅ Nalezeno podle názvu: ${data.product_name}`);
+        }
+      }
+
+      if (data) {
+        console.log(`      → thumbnail: ${data.thumbnail ? 'ANO' : 'CHYBÍ'}`);
+        console.log(`      → price: ${data.price || 'CHYBÍ'}`);
+        enrichedProducts.push({
+          product_code: data.product_code,
+          product_name: data.product_name,
+          description: product.description || data.description_short,
+          url: data.url || product.url,
+          thumbnail: data.thumbnail || undefined,
+          price: data.price,
+          currency: data.currency || 'CZK'
+        });
+      } else {
+        console.log(`   ⚠️ Nenalezeno ani podle URL ani podle názvu: ${product.product_name}`);
+        enrichedProducts.push(product);
+      }
+    } catch (err) {
+      console.log(`   ❌ Chyba při hledání: ${product.product_name}`, err);
+      enrichedProducts.push(product);
+    }
+  }
+
+  return enrichedProducts;
 }

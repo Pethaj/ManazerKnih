@@ -70,6 +70,9 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     allowed_publication_types: chatbotSettings?.allowed_publication_types || [],
     allowed_labels: chatbotSettings?.allowed_labels || [],
     is_active: chatbotSettings?.is_active ?? true,
+    // 🆕 Nastavení produktového routeru a manuálního funnelu
+    enable_product_router: chatbotSettings?.enable_product_router ?? true,
+    enable_manual_funnel: chatbotSettings?.enable_manual_funnel ?? false,
   });
 
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
@@ -238,6 +241,43 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
                 className="mr-2"
               />
               <span className="text-sm text-gray-700">Chatbot je aktivní</span>
+            </label>
+          </div>
+        </div>
+
+        {/* 🆕 Nastavení produktového routeru a funnelu */}
+        <div className="border-t pt-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Produktový funnel</h3>
+          <div className="space-y-4">
+            <label className="flex items-start">
+              <input
+                type="checkbox"
+                checked={formData.enable_product_router}
+                onChange={(e) => setFormData(prev => ({ ...prev, enable_product_router: e.target.checked }))}
+                className="mr-2 mt-1"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700 font-medium">Aktivovat produktový router</span>
+                <span className="text-xs text-gray-500">
+                  Automatické směrování dotazů do produktového funnelu na základě symptomů. 
+                  Když je vypnuto, vše jde jako standardní chat.
+                </span>
+              </div>
+            </label>
+            <label className="flex items-start">
+              <input
+                type="checkbox"
+                checked={formData.enable_manual_funnel}
+                onChange={(e) => setFormData(prev => ({ ...prev, enable_manual_funnel: e.target.checked }))}
+                className="mr-2 mt-1"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700 font-medium">Manuální funnel spouštěč</span>
+                <span className="text-xs text-gray-500">
+                  Místo žlutého calloutu zobrazí tlačítko pro manuální zadání symptomů. 
+                  Uživatel sám rozhodne, kdy chce doporučit produkty.
+                </span>
+              </div>
             </label>
           </div>
         </div>
@@ -492,6 +532,30 @@ const ChatbotSettingsManager: React.FC = () => {
               <div>Kategorie: {chatbot.allowed_categories.length} povolených</div>
               <div>Typy publikací: {chatbot.allowed_publication_types.length} povolených</div>
               <div>Štítky: {chatbot.allowed_labels.length} povolených</div>
+            </div>
+
+            {/* 🆕 Nastavení produktového routeru a funnelu */}
+            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex items-center">
+                <span className="font-medium text-gray-700">Produktový router:</span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                  chatbot.enable_product_router !== false
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {chatbot.enable_product_router !== false ? 'Aktivní' : 'Vypnuto'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-gray-700">Manuální funnel:</span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                  chatbot.enable_manual_funnel === true
+                    ? 'bg-amber-100 text-amber-800' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {chatbot.enable_manual_funnel === true ? 'Aktivní' : 'Vypnuto'}
+                </span>
+              </div>
             </div>
           </div>
         ))}

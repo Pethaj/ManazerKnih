@@ -10,6 +10,7 @@ import { ProductCarousel } from '../ProductCarousel';
 import { ProductRecommendationButton } from '../ProductRecommendationButton';
 import { ProductPill } from '../ProductPill';  // 🆕 Inline product buttons
 import { ProductFunnelMessage } from '../ProductFunnelMessage';  // 🆕 Product Funnel UI
+import { ManualFunnelButton } from '../ManualFunnelButton';  // 🆕 Manuální funnel spouštěč
 import { ProductRecommendation } from '../../services/productSearchService';
 import { generateProductResponse, convertChatHistoryToGPT } from '../../services/gptService';
 import { quickVectorSearchTest } from '../../services/vectorDiagnostics';
@@ -18,7 +19,7 @@ import { requestProductRecommendations, convertWebhookProductsToCarousel } from 
 import { performCombinedSearch } from '../../services/combinedSearchService';
 import { getHybridProductRecommendations, HybridProductRecommendation } from '../../services/hybridProductService';
 // 🆕 Intent Routing pro Wany Chat (routing agent - rozhoduje směr: chat vs funnel)
-import { routeUserIntent, extractProductsFromHistory, hasRecommendationPrompt } from '../../services/intentRoutingService';
+import { routeUserIntent, extractProductsFromHistory, enrichFunnelProductsFromDatabase, RecommendedProduct } from '../../services/intentRoutingService';
 // FunnelProduct typ pro metadata ve zprávě
 import type { FunnelProduct } from '../../services/productFunnelService';
 
@@ -95,6 +96,10 @@ interface ChatMessage {
   isFunnelMessage?: boolean;
   funnelProducts?: FunnelProduct[];
   symptomList?: string[];
+  // Intent type pro update funnel
+  isUpdateFunnel?: boolean;        // Uživatel chce změnit výběr v existujícím funnelu
+  // 🆕 Flag pro žlutý callout (více než 2 produkty)
+  hasCallout?: boolean;             // True = zobrazil se žlutý callout "Potřebujete přesnější doporučení?"
 }
 
 // Rozhraní pro metadata filtrace
@@ -117,6 +122,8 @@ interface SanaChatProps {
     use_feed_1?: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
     use_feed_2?: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
     webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
+    enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí automatického produktového routeru
+    enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
@@ -210,7 +217,16 @@ const FilterIcon: React.FC<IconProps> = (props) => (
 // Default webhook URL (fallback pro starší chatboty bez nastaveného webhook_url)
 const DEFAULT_N8N_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/97dc857e-352b-47b4-91cb-bc134afc764c/chat';
 
-const sendMessageToAPI = async (message: string, sessionId: string, history: ChatMessage[], metadata?: ChatMetadata, webhookUrl?: string, chatbotId?: string): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
+const sendMessageToAPI = async (
+    message: string, 
+    sessionId: string, 
+    history: ChatMessage[], 
+    metadata?: ChatMetadata, 
+    webhookUrl?: string, 
+    chatbotId?: string,
+    intent?: 'chat' | 'funnel' | 'update_funnel',  // 🆕 Intent pro N8N routing
+    detectedSymptoms?: string[]  // 🆕 Symptomy pro N8N (i když je intent chat)
+): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
         // 🔥 HARDCODED: Wany-chat má svůj vlastní webhook
         let N8N_WEBHOOK_URL = webhookUrl || DEFAULT_N8N_WEBHOOK_URL;
@@ -223,7 +239,13 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
             action: "sendMessage",
             chatInput: message,
             chatHistory: history,
+            intent: intent || 'chat',  // 🆕 Posíláme intent do N8N
         };
+        
+        // 🆕 Pokud byly detekovány symptomy, přidáme je do payloadu (i pro chat intent)
+        if (detectedSymptoms && detectedSymptoms.length > 0) {
+            payload.detectedSymptoms = detectedSymptoms;
+        }
 
         // Přidej metadata pouze pokud obsahují zaškrtnuté filtry
         if (metadata && Object.keys(metadata).length > 0) {
@@ -238,6 +260,7 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
         console.log('📤 Message length:', message.length);
         console.log('📤 History length:', history.length);
         console.log('📤 Metadata:', metadata);
+        console.log('🎯 Intent:', intent || 'chat');
         const response = await fetch(N8N_WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -616,11 +639,17 @@ const Message: React.FC<{
         use_feed_1?: boolean; 
         use_feed_2?: boolean;
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
+        enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
+        enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
     };
     sessionId?: string;
     lastUserQuery?: string;
     chatbotId?: string;  // 🆕 Pro rozlišení Sana 2 (markdown rendering)
-}> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery, chatbotId }) => {
+    // 🆕 Props pro manuální funnel
+    recommendedProducts?: RecommendedProduct[];  // Produkty extrahované z historie
+    chatHistory?: Array<{ id: string; role: string; text: string; }>;  // Historie konverzace
+    metadata?: { categories: string[]; labels: string[]; publication_types: string[]; };  // Metadata
+}> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] } }) => {
     const isUser = message.role === 'user';
     const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat';  // 🆕 Sana Local Format a Vany Chat používají markdown
     
@@ -958,31 +987,38 @@ const Message: React.FC<{
                         </div>
                     )}
                     
-                    {/* 🆕 Upozornění na příliš mnoho produktů - když je více než 2 napárované produkty */}
-                    {!isUser && (() => {
-                        // Spočítáme produkty z matchedProducts nebo z product markerů v textu
-                        const matchedCount = message.matchedProducts?.length || 0;
-                        const markerCount = (message.text?.match(/<<<PRODUCT:/g) || []).length;
-                        const productCount = Math.max(matchedCount, markerCount);
-                        
-                        if (productCount > 2) {
-                            return (
-                                <div className="mt-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-amber-500 text-lg flex-shrink-0">💡</span>
-                                        <p className="text-sm text-amber-800">
-                                            <strong>Potřebujete přesnější doporučení?</strong>
-                                            <br />
-                                            <span className="text-amber-700">
-                                                Napište nám více o svých symptomech nebo potřebách, abychom mohli produkty lépe zacílit přímo pro vás.
-                                            </span>
-                                        </p>
-                                    </div>
+                    {/* 🆕 Žlutý callout NEBO manuální funnel tlačítko - zobrazí se když zpráva má flag hasCallout = true */}
+                    {/* 🔍 DEBUG: Logování enable_manual_funnel */}
+                    {!isUser && message.hasCallout && console.log('🎯 CALLOUT DECISION:', {
+                        hasCallout: message.hasCallout,
+                        enable_manual_funnel: chatbotSettings?.enable_manual_funnel,
+                        chatbotSettings: chatbotSettings
+                    })}
+                    {!isUser && message.hasCallout && (
+                        chatbotSettings?.enable_manual_funnel ? (
+                            /* 🆕 Manuální funnel spouštěč - tlačítko místo calloutu */
+                            <ManualFunnelButton
+                                recommendedProducts={recommendedProducts}
+                                sessionId={sessionId || ''}
+                                metadata={metadata}
+                                chatHistory={chatHistory}
+                            />
+                        ) : (
+                            /* Původní žlutý callout */
+                            <div className="mt-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
+                                <div className="flex items-start gap-2">
+                                    <span className="text-amber-500 text-lg flex-shrink-0">💡</span>
+                                    <p className="text-sm text-amber-800">
+                                        <strong>Potřebujete přesnější doporučení?</strong>
+                                        <br />
+                                        <span className="text-amber-700">
+                                            Napište nám více o svých symptomech nebo potřebách, abychom mohli produkty lépe zacílit přímo pro vás.
+                                        </span>
+                                    </p>
                                 </div>
-                            );
-                        }
-                        return null;
-                    })()}
+                            </div>
+                        )
+                    )}
                     
                     {/* Standardní zdroje uvnitř bubble (pro ostatní chatboty) */}
                     {/* Zdroje UVNITŘ bubble - pro všechny chatboty (včetně Sana Local Format) - VŽDY NAPOSLED */}
@@ -1031,10 +1067,15 @@ const ChatWindow: React.FC<{
         use_feed_1?: boolean; 
         use_feed_2?: boolean;
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
+        enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
+        enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
     };
     sessionId?: string;
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
-}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings, sessionId, chatbotId }) => {
+    selectedCategories?: string[];  // 🆕 Pro manuální funnel metadata
+    selectedLabels?: string[];      // 🆕 Pro manuální funnel metadata
+    selectedPublicationTypes?: string[];  // 🆕 Pro manuální funnel metadata
+}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings, sessionId, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [] }) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -1134,6 +1175,20 @@ const ChatWindow: React.FC<{
                         .reverse()
                         .find(m => m.role === 'user')?.text || '';
                     
+                    // 🆕 Pro ManualFunnelButton - extrahujeme produkty z celé historie
+                    const historyForFunnel = messages.slice(0, index + 1).map(m => ({
+                        id: m.id,
+                        role: m.role,
+                        text: m.text,
+                        hasCallout: m.hasCallout
+                    }));
+                    const recommendedProductsForFunnel = extractProductsFromHistory(historyForFunnel);
+                    const chatHistoryForFunnel = historyForFunnel.map(m => ({
+                        id: m.id,
+                        role: m.role,
+                        text: m.text.replace(/<<<PRODUCT:[^>]+>>>/g, '').trim()
+                    }));
+                    
                     return (
                         <Message 
                             key={msg.id} 
@@ -1143,6 +1198,14 @@ const ChatWindow: React.FC<{
                             sessionId={sessionId}
                             lastUserQuery={lastUserQuery}
                             chatbotId={chatbotId}
+                            // 🆕 Props pro ManualFunnelButton
+                            recommendedProducts={recommendedProductsForFunnel}
+                            chatHistory={chatHistoryForFunnel}
+                            metadata={{
+                                categories: selectedCategories,
+                                labels: selectedLabels,
+                                publication_types: selectedPublicationTypes
+                            }}
                         />
                     );
                 })}
@@ -1297,7 +1360,9 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         inline_product_links: false,  // 🆕 Inline produktové linky
         book_database: true,
         use_feed_1: true,
-        use_feed_2: true
+        use_feed_2: true,
+        enable_product_router: true,   // 🆕 Defaultně zapnutý
+        enable_manual_funnel: false    // 🆕 Defaultně vypnutý
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose
@@ -1379,32 +1444,59 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             console.log(`🔍 Checking Intent Routing: chatbotId = "${chatbotId}" (type: ${typeof chatbotId})`);
             console.log(`🔍 Comparison: chatbotId === 'vany_chat' → ${chatbotId === 'vany_chat'}`);
             
-            if (chatbotId === 'vany_chat') {
+            // 🆕 Kontrola enable_product_router - pokud je false, přeskočíme intent routing
+            const enableProductRouter = chatbotSettings?.enable_product_router !== false;
+            console.log(`🔀 Product Router enabled: ${enableProductRouter ? 'ANO' : 'NE'}`);
+            
+            if (chatbotId === 'vany_chat' && enableProductRouter) {
                 console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #8B5CF6; font-weight: bold;');
-                console.log('%c🔀 WANY CHAT - SPOUŠTÍM INTENT ROUTING', 'color: #8B5CF6; font-weight: bold; font-size: 14px;');
+                console.log('%c🔀 WANY CHAT - KONTROLA INTENT ROUTING', 'color: #8B5CF6; font-weight: bold; font-size: 14px;');
                 console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #8B5CF6; font-weight: bold;');
                 
                 // Získáme poslední zprávu bota
                 const lastBotMessage = messages.filter(m => m.role === 'bot').pop();
                 const lastBotText = lastBotMessage?.text || '';
                 
-                // Zkontrolujeme zda obsahuje výzvu k přesnějšímu doporučení
-                const hasPrompt = hasRecommendationPrompt(lastBotText);
-                console.log(`💡 Předchozí zpráva obsahuje výzvu: ${hasPrompt ? 'ANO ✓' : 'NE'}`);
+                // 🆕 KRITICKÉ: Intent routing se aktivuje POUZE pokud je žlutý callout v historii
+                // A ZÁROVEŇ není zapnutý manuální funnel (ten má vlastní logiku)
+                // Kontrolujeme FLAG hasCallout místo hledání textu!
+                const hasCallout = messages.some(m => m.role === 'bot' && m.hasCallout === true);
+                const enableManualFunnel = chatbotSettings?.enable_manual_funnel === true;
+                console.log(`🟡 Žlutý callout v historii: ${hasCallout ? 'ANO ✓' : 'NE'}`);
+                console.log(`🎯 Manuální funnel: ${enableManualFunnel ? 'AKTIVNÍ (přeskakuji auto routing)' : 'NEAKTIVNÍ'}`);
                 
-                // Extrahujeme produkty z historie
-                const conversationHistory = messages.map(m => ({ role: m.role, text: m.text }));
-                const recommendedProducts = extractProductsFromHistory(conversationHistory);
-                console.log(`📦 Produkty v historii: ${recommendedProducts.length}`);
-                
-                // Zavoláme intent routing (LLM rozhodne)
-                console.log('%c📡 Volám Intent Router (LLM model)...', 'color: #8B5CF6;');
-                const intentResult = await routeUserIntent(
-                    text.trim(),
-                    conversationHistory,
-                    lastBotText,
-                    recommendedProducts
-                );
+                // Pokud je zapnutý manuální funnel, nepouštíme automatický intent routing
+                // Uživatel musí použít tlačítko ManualFunnelButton
+                if (!hasCallout || enableManualFunnel) {
+                    // ❌ ŽÁDNÝ CALLOUT NEBO MANUÁLNÍ FUNNEL → Standardní chat, nepoužívat intent routing
+                    if (enableManualFunnel && hasCallout) {
+                        console.log('%c🎯 Manuální funnel aktivní → PŘESKAKUJI AUTOMATICKÝ ROUTING', 'color: #F59E0B; font-weight: bold;');
+                    } else {
+                        console.log('%c💬 Žádný callout → STANDARDNÍ CHAT (bez intent routingu)', 'color: #10B981; font-weight: bold;');
+                    }
+                    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #8B5CF6; font-weight: bold;');
+                    // Pokračujeme standardním flow níže (mimo tento blok)
+                } else {
+                    // ✅ CALLOUT DETEKOVÁN → Spustit intent routing
+                    console.log('%c🎯 Callout detekován → SPOUŠTÍM INTENT ROUTING', 'color: #F59E0B; font-weight: bold;');
+                    
+                    // Extrahujeme produkty z historie
+                    const conversationHistory = messages.map(m => ({ 
+                        role: m.role, 
+                        text: m.text,
+                        hasCallout: m.hasCallout // 🆕 Přidáme flag pro callout
+                    }));
+                    const recommendedProducts = extractProductsFromHistory(conversationHistory);
+                    console.log(`📦 Produkty v historii: ${recommendedProducts.length}`);
+                    
+                    // Zavoláme intent routing (LLM rozhodne)
+                    console.log('%c📡 Volám Intent Router (LLM model)...', 'color: #8B5CF6;');
+                    const intentResult = await routeUserIntent(
+                        text.trim(),
+                        conversationHistory,
+                        lastBotText,
+                        recommendedProducts
+                    );
                 
                 console.log(`✅ Intent Router odpověděl: ${intentResult.intent}`);
                 console.log(`📝 Důvod: ${intentResult.reasoning}`);
@@ -1412,21 +1504,31 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                     console.log(`🩺 Extrahované symptomy: ${intentResult.symptomList.join(', ')}`);
                 }
                 
-                // Diagnostika rozhodnutí
+                // Diagnostika rozhodnutí - ZJEDNODUŠENO: pouze chat/funnel/update_funnel
                 const shouldBeFunnel = intentResult.intent === 'funnel';
+                const shouldUpdateFunnel = intentResult.intent === 'update_funnel';
                 const hasProducts = recommendedProducts.length > 0;
+                
                 console.log(`%c🔍 DIAGNOSTIKA ROZHODNUTÍ:`, 'color: #FF6B6B; font-weight: bold;');
-                console.log(`   Intent = ${intentResult.intent} (shouldBeFunnel: ${shouldBeFunnel})`);
+                console.log(`   Intent = ${intentResult.intent}`);
                 console.log(`   Products = ${recommendedProducts.length} (hasProducts: ${hasProducts})`);
-                console.log(`   Spustit FUNNEL? ${shouldBeFunnel && hasProducts ? '✅ ANO' : '❌ NE'}`);
+                console.log(`   Action: ${
+                    shouldBeFunnel ? '🎯 FUNNEL MODE (symptomy po calloutu)' : 
+                    shouldUpdateFunnel ? '🔄 UPDATE FUNNEL (změna produktů)' :
+                    '💬 CHAT MODE'
+                }`);
                 
-                if (!shouldBeFunnel && hasProducts && intentResult.symptomList && intentResult.symptomList.length > 0) {
-                    console.log('%c⚠️ POZOR: Intent Router rozhodl CHAT, ale jsou zde symptomy a produkty!', 'color: #FF6B6B; font-weight: bold; font-size: 14px;');
-                    console.log('%c   Toto by měl být FUNNEL - možná chyba v routeru.', 'color: #FF6B6B;');
-                }
+                // ═══════════════════════════════════════════════════════════════
+                // 🔄 UPDATE FUNNEL - Uživatel chce změnit produkty v existujícím funnelu
+                // ═══════════════════════════════════════════════════════════════
+                // Pro update_funnel pokračujeme do N8N - ten rozhodne jak aktualizovat
+                // Intent se pošle jako součást payloadu do N8N
                 
-                // FUNNEL MODE: Spustit produktový funnel přes N8N webhook
-                if (intentResult.intent === 'funnel' && recommendedProducts.length > 0) {
+                // ═══════════════════════════════════════════════════════════════
+                // 🎯 FUNNEL MODE: Spustit produktový funnel přes N8N webhook
+                // ═══════════════════════════════════════════════════════════════
+                // 🆕 Podporujeme jak 'funnel' tak 'update_funnel'!
+                if ((intentResult.intent === 'funnel' || intentResult.intent === 'update_funnel') && recommendedProducts.length > 0) {
                     // ═══════════════════════════════════════════════════════════════
                     // 🎯 PRODUCT FUNNEL MODE - PŘÍPRAVA DAT PRO N8N WEBHOOK
                     // ═══════════════════════════════════════════════════════════════
@@ -1469,15 +1571,21 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
 ## TVŮJ ÚKOL
 Na základě symptomů uživatele vyber PŘESNĚ 2 NEJLEPŠÍ produkty z poskytnutého seznamu a vytvoř detailní doporučení.
 
+## ⚠️ KRITICKÉ PRAVIDLO - POUZE PRODUKTY ZE SEZNAMU!
+NESMÍŠ doporučovat žádné jiné produkty než ty, které jsou uvedeny v seznamu "Vybrané produkty"!
+Pokud v seznamu jsou např. "009 - Čistý dech" a "200 - Volné meridiány", MUSÍŠ pracovat POUZE s těmito produkty.
+NIKDY nedoporučuj produkty, které nejsou v seznamu - ani je nezmiňuj.
+
 ## PRAVIDLA
-1. Vyber PŘESNĚ 2 produkty, které nejlépe odpovídají symptomům
+1. Vyber PŘESNĚ 2 produkty z poskytnutého seznamu, které nejlépe odpovídají symptomům
 2. Pro každý produkt vysvětli PROČ je vhodný pro dané symptomy
 3. Uveď jak produkt používat (dávkování, aplikace)
 4. Buď konkrétní a praktický
 5. Piš v češtině, přátelským tónem
+6. NIKDY nedoporučuj produkty mimo poskytnutý seznam!
 
 ## FORMÁT ODPOVĚDI
-Vytvoř krásně formátovanou odpověď v markdown s doporučením obou vybraných produktů.`;
+Vytvoř krásně formátovanou odpověď v markdown s doporučením obou vybraných produktů z poskytnutého seznamu.`;
 
                     console.log('%c┌───────────────────────────────────────────────────────────────────┐', 'color: #3B82F6;');
                     console.log('%c│ 🤖 SYSTEM PROMPT PRO FUNNEL                                      │', 'color: #3B82F6; font-weight: bold; font-size: 14px;');
@@ -1507,11 +1615,17 @@ Vytvoř krásně formátovanou odpověď v markdown s doporučením obou vybran�
                     const symptomsList = symptoms.join(', ');
                     
                     // Sestavíme chatInput ve formátu, který N8N očekává
-                    const funnelChatInput = `Vybrané produkty: ${productNamesString}
+                    // ⚠️ DŮLEŽITÉ: Explicitně zdůrazňujeme, že se má pracovat POUZE s vybranými produkty
+                    const funnelChatInput = `⚠️ OMEZENÍ: Pracuj POUZE s těmito vybranými produkty, NEDOPORUČUJ žádné jiné!
 
-Toto jsou symptomy zákazníka: ${symptomsList}
+Vybrané produkty (POUZE TYTO): ${productNamesString}
 
-Doporuč mi které z těchto produktů (${productNamesString}) se nejlépe hodí na dané symptomy. Vyber 2 nejlepší a detailně je rozepiš - proč jsou vhodné a jak je používat.`;
+Symptomy zákazníka: ${symptomsList}
+
+ÚKOL: Z výše uvedených ${recommendedProducts.length} produktů (${productNamesString}) vyber 2 nejlepší pro dané symptomy.
+- Detailně rozepiš proč jsou vhodné
+- Uveď jak je používat
+- NEDOPORUČUJ žádné jiné produkty mimo tento seznam!`;
 
                     // Přidáme jazykovou instrukci
                     const instruction = languageInstructions[selectedLanguage];
@@ -1575,19 +1689,29 @@ Doporuč mi které z těchto produktů (${productNamesString}) se nejlépe hodí
                         
                         const botText = responsePayload?.output || responsePayload?.html || responsePayload?.text || responsePayload?.response || 'Nepodařilo se získat odpověď.';
                         
-                        // Připravíme produkty pro funnel UI - MAX 2 produkty
-                        // recommendedProducts obsahuje data z Product Pills včetně URL
-                        const funnelProductsWithDetails: FunnelProduct[] = recommendedProducts
-                            .slice(0, 2) // ⚠️ MAX 2 PRODUKTY
-                            .map(p => ({
-                                product_code: p.product_code,
-                                product_name: p.product_name,
-                                description: p.description,
-                                // URL produktu - z extrakce nebo fallback
-                                url: p.url || `https://bewit.love/produkt/${p.product_code}`
-                            }));
+                        // 🔄 OBOHACENÍ PRODUKTŮ Z DATABÁZE product_feed_2
+                        // Toto zajistí správné obrázky, ceny a URL z databáze
+                        console.log('%c🔄 Obohacuji funnel produkty z product_feed_2...', 'color: #8B5CF6; font-weight: bold;');
+                        
+                        // Vezmeme max 2 produkty a obohacíme je o data z databáze
+                        const productsToEnrich = recommendedProducts.slice(0, 2);
+                        const enrichedProducts = await enrichFunnelProductsFromDatabase(productsToEnrich);
+                        
+                        // Připravíme produkty pro funnel UI - s obohacenými daty
+                        const funnelProductsWithDetails: FunnelProduct[] = enrichedProducts.map(p => ({
+                            product_code: p.product_code,
+                            product_name: p.product_name,
+                            description: p.description,
+                            description_short: p.description,
+                            price: p.price,
+                            currency: p.currency || 'CZK',
+                            // URL a obrázek z databáze product_feed_2
+                            url: p.url || `https://bewit.love/produkt/${p.product_code}`,
+                            thumbnail: p.thumbnail  // 🖼️ OBRÁZEK Z DATABÁZE!
+                        }));
 
                         console.log('%c📦 Funnel produkty pro UI (max 2):', 'color: #3B82F6; font-weight: bold;', funnelProductsWithDetails);
+                        console.log('%c🖼️ Obrázky produktů:', 'color: #3B82F6;', funnelProductsWithDetails.map(p => ({ name: p.product_name, thumbnail: p.thumbnail })));
                         
                         const botMessage: ChatMessage = {
                             id: (Date.now() + 1).toString(),
@@ -1608,10 +1732,14 @@ Doporuč mi které z těchto produktů (${productNamesString}) se nejlépe hodí
                         // Fallback na standardní chat mode
                         console.log('%c🔄 Fallback na standardní chat mode...', 'color: #FFA500; font-weight: bold;');
                     }
+                } else {
+                    // CHAT MODE po intent routingu: Pokračovat normálním webhook flow (níže)
+                    console.log('%c💬 POKRAČUJI STANDARDNÍM CHAT MODE (intent byl CHAT)', 'color: #FFA500; font-weight: bold;');
                 }
+                }
+                // Konec if (hasCallout)
                 
-                // CHAT MODE: Pokračovat normálním webhook flow (níže)
-                console.log('%c💬 POKRAČUJI STANDARDNÍM CHAT MODE', 'color: #FFA500; font-weight: bold;');
+                // STANDARDNÍ CHAT pokračuje normálním flow (níže)
             }
             
             // === KOMBINOVANÉ VYHLEDÁVÁNÍ - OBA ZDROJE NAJEDNOU ===
@@ -1684,7 +1812,24 @@ Doporuč mi které z těchto produktů (${productNamesString}) se nejlépe hodí
             else if (chatbotSettings.book_database) {
                 console.log('📚 Používám pouze webhook pro databázi knih - IGNORUJI produktová doporučení...');
                 
-                const webhookResult = await sendMessageToAPI(promptForBackend, sessionId, newMessages.slice(0, -1), currentMetadata, chatbotSettings.webhook_url, chatbotId);
+                // Standardní chat - bez intent routingu (žádný callout v historii)
+                // N8N sám přidá žlutý callout pokud detekuje zdravotní symptomy
+                const webhookResult = await sendMessageToAPI(
+                    promptForBackend, 
+                    sessionId, 
+                    newMessages.slice(0, -1), 
+                    currentMetadata, 
+                    chatbotSettings.webhook_url, 
+                    chatbotId
+                );
+                
+                // 🆕 Spočítáme produkty pro detekci calloutu
+                // DŮLEŽITÉ: Počítáme POUZE skutečně vložené markery v textu, ne matchedProducts
+                // matchedProducts obsahuje produkty nalezené v DB, ale ne všechny musí být vloženy do textu
+                const markerCount = (webhookResult.text?.match(/<<<PRODUCT:/g) || []).length;
+                const shouldShowCallout = markerCount > 2;
+                
+                console.log(`🟡 Callout detekce: ${markerCount} vložených produktů v textu → callout = ${shouldShowCallout ? 'ANO' : 'NE'}`);
                 
                 const botMessage: ChatMessage = { 
                     id: (Date.now() + 1).toString(), 
@@ -1693,7 +1838,8 @@ Doporuč mi které z těchto produktů (${productNamesString}) se nejlépe hodí
                     sources: webhookResult.sources || [],
                     // NIKDY nepředávat produktová doporučení pokud je zapnutá pouze databáze knih
                     productRecommendations: undefined,
-                    matchedProducts: webhookResult.matchedProducts || [] // 🆕 Přidáme matched produkty
+                    matchedProducts: webhookResult.matchedProducts || [], // 🆕 Přidáme matched produkty
+                    hasCallout: shouldShowCallout // 🆕 Flag pro žlutý callout (více než 2 produkty)
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
@@ -1858,6 +2004,9 @@ Doporuč mi které z těchto produktů (${productNamesString}) se nejlépe hodí
                         chatbotSettings={chatbotSettings}
                         sessionId={sessionId}
                         chatbotId={chatbotId}
+                        selectedCategories={selectedCategories}
+                        selectedLabels={selectedLabels}
+                        selectedPublicationTypes={selectedPublicationTypes}
                      />
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
@@ -1878,7 +2027,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
         inline_product_links: false,  // 🆕 Inline produktové linky
         book_database: true,
         use_feed_1: true,
-        use_feed_2: true
+        use_feed_2: true,
+        enable_product_router: true,   // 🆕 Defaultně zapnutý
+        enable_manual_funnel: false    // 🆕 Defaultně vypnutý
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose
@@ -2005,6 +2156,14 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 
                 const webhookResult = await sendMessageToAPI(promptForBackend, sessionId, newMessages.slice(0, -1), currentMetadata, chatbotSettings.webhook_url, chatbotId);
                 
+                // 🆕 Spočítáme produkty pro detekci calloutu
+                // DŮLEŽITÉ: Počítáme POUZE skutečně vložené markery v textu, ne matchedProducts
+                // matchedProducts obsahuje produkty nalezené v DB, ale ne všechny musí být vloženy do textu
+                const markerCount = (webhookResult.text?.match(/<<<PRODUCT:/g) || []).length;
+                const shouldShowCallout = markerCount > 2;
+                
+                console.log(`🟡 Callout detekce: ${markerCount} vložených produktů v textu → callout = ${shouldShowCallout ? 'ANO' : 'NE'}`);
+                
                 const botMessage: ChatMessage = { 
                     id: (Date.now() + 1).toString(), 
                     role: 'bot', 
@@ -2012,7 +2171,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     sources: webhookResult.sources || [],
                     // NIKDY nepředávat produktová doporučení pokud je zapnutá pouze databáze knih
                     productRecommendations: undefined,
-                    matchedProducts: webhookResult.matchedProducts || [] // 🆕 Přidáme matched produkty
+                    matchedProducts: webhookResult.matchedProducts || [], // 🆕 Přidáme matched produkty
+                    hasCallout: shouldShowCallout // 🆕 Flag pro žlutý callout (více než 2 produkty)
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
@@ -2199,6 +2359,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
                                 chatbotSettings={chatbotSettings}
                                 sessionId={sessionId}
                                 chatbotId={chatbotId}
+                                selectedCategories={selectedCategories}
+                                selectedLabels={selectedLabels}
+                                selectedPublicationTypes={selectedPublicationTypes}
                              />
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
@@ -2233,7 +2396,9 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
         inline_product_links: false,
         book_database: true,
         use_feed_1: true,
-        use_feed_2: true
+        use_feed_2: true,
+        enable_product_router: true,   // 🆕 Defaultně zapnutý
+        enable_manual_funnel: false    // 🆕 Defaultně vypnutý
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose

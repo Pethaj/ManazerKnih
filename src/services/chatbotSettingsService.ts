@@ -27,6 +27,9 @@ export interface ChatbotSettings {
   // Nová nastavení pro feed zdroje
   use_feed_1?: boolean;
   use_feed_2?: boolean;
+  // 🆕 Nastavení produktového routeru a manuálního funnelu
+  enable_product_router?: boolean;  // Zapnutí/vypnutí automatického produktového routeru
+  enable_manual_funnel?: boolean;   // Zapnutí manuálního funnel spouštěče (tlačítko místo calloutu)
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -69,6 +72,9 @@ export interface CreateChatbotSettingsData {
   // Nová nastavení pro feed zdroje
   use_feed_1?: boolean;
   use_feed_2?: boolean;
+  // 🆕 Nastavení produktového routeru a manuálního funnelu
+  enable_product_router?: boolean;
+  enable_manual_funnel?: boolean;
 }
 
 // Interface pro aktualizaci chatbota
@@ -88,6 +94,9 @@ export interface UpdateChatbotSettingsData {
   // Nová nastavení pro feed zdroje
   use_feed_1?: boolean;
   use_feed_2?: boolean;
+  // 🆕 Nastavení produktového routeru a manuálního funnelu
+  enable_product_router?: boolean;
+  enable_manual_funnel?: boolean;
 }
 
 // Interface pro filtry chatbota
@@ -101,6 +110,9 @@ export interface ChatbotFilters {
   bookDatabase: boolean;
   useFeed1: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
   useFeed2: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
+  // 🆕 Nastavení produktového routeru a manuálního funnelu
+  enableProductRouter: boolean;  // Zapnutí/vypnutí automatického produktového routeru
+  enableManualFunnel: boolean;   // Zapnutí manuálního funnel spouštěče
 }
 
 export class ChatbotSettingsService {
@@ -386,6 +398,9 @@ export class ChatbotSettingsService {
         bookDatabase: settings.book_database,
         useFeed1: settings.use_feed_1 !== false, // default true
         useFeed2: settings.use_feed_2 !== false, // default true
+        // 🆕 Nastavení produktového routeru a manuálního funnelu
+        enableProductRouter: settings.enable_product_router !== false, // default true
+        enableManualFunnel: settings.enable_manual_funnel === true,    // default false
       };
     } catch (error) {
       console.error('Chyba při načítání filtrů chatbota:', error);

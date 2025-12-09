@@ -83,6 +83,8 @@ interface Chatbot {
         use_feed_1?: boolean;
         use_feed_2?: boolean;
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
+        enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
+        enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
     };
 }
 
@@ -165,6 +167,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                 console.log('🤖 Existující chatboti v databázi:');
                 settings.forEach(chatbot => {
                     console.log(`- ID: "${chatbot.chatbot_id}", Název: "${chatbot.chatbot_name}"`);
+                    console.log(`  🎯 enable_product_router: ${chatbot.enable_product_router}, enable_manual_funnel: ${chatbot.enable_manual_funnel}`);
                 });
                 
                 setChatbotSettings(settings);
@@ -224,7 +227,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
     };
 
     // Funkce pro toggle funkcí chatbota s logikou závislostí
-    const toggleChatbotFunction = (chatbotId: string, feature: 'product_recommendations' | 'product_button_recommendations' | 'book_database' | 'is_default_web_chatbot') => {
+    const toggleChatbotFunction = (chatbotId: string, feature: 'product_recommendations' | 'product_button_recommendations' | 'book_database' | 'is_default_web_chatbot' | 'inline_product_links') => {
         const chatbot = chatbotSettings.find(c => c.chatbot_id === chatbotId);
         if (!chatbot) return;
 
@@ -558,6 +561,54 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                 </div>
                                             </div>
                                             
+                                            {/* 🆕 Produktový funnel sekce */}
+                                            <div style={styles.chatbotSettings}>
+                                                <h4 style={styles.sectionSubtitle}>🎯 Produktový funnel</h4>
+                                                
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.enable_product_router !== false}
+                                                            onChange={() => updateLocalSettings(chatbot.chatbot_id, { 
+                                                                enable_product_router: !(chatbot.enable_product_router !== false) 
+                                                            })}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                                        </svg>
+                                                        Aktivovat produktový router
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Automatické směrování dotazů do produktového funnelu na základě symptomů. Když je vypnuto, vše jde jako standardní chat.
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.enable_manual_funnel === true}
+                                                            onChange={() => updateLocalSettings(chatbot.chatbot_id, { 
+                                                                enable_manual_funnel: !(chatbot.enable_manual_funnel === true) 
+                                                            })}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <circle cx="12" cy="12" r="10"></circle>
+                                                            <line x1="12" y1="8" x2="12" y2="16"></line>
+                                                            <line x1="8" y1="12" x2="16" y2="12"></line>
+                                                        </svg>
+                                                        Manuální funnel spouštěč
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Místo žlutého calloutu zobrazí tlačítko pro manuální zadání symptomů. Uživatel sám rozhodne, kdy chce doporučit produkty.
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
                                             {/* Filtrace kategorií - pouze pokud je povolena databáze knih */}
                                             <div style={styles.filterSection}>
                                                 <h4 style={styles.sectionSubtitle}>
@@ -682,7 +733,9 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                                     book_database: chatbot.book_database,
                                                                     use_feed_1: chatbot.use_feed_1,
                                                                     use_feed_2: chatbot.use_feed_2,
-                                                                    webhook_url: chatbot.webhook_url  // 🆕 Webhook URL pro tento chatbot
+                                                                    webhook_url: chatbot.webhook_url,  // 🆕 Webhook URL pro tento chatbot
+                                                                    enable_product_router: chatbot.enable_product_router,  // 🆕 Produktový router
+                                                                    enable_manual_funnel: chatbot.enable_manual_funnel  // 🆕 Manuální funnel
                                                                 }
                                                             })}
                                                         >

@@ -47,6 +47,8 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
     book_database: true,
     use_feed_1: true,
     use_feed_2: true,
+    enable_product_router: true,   // 🆕 Produktový router (defaultně zapnutý)
+    enable_manual_funnel: false,   // 🆕 Manuální funnel (defaultně vypnutý)
   });
   
   // State pro UI
@@ -91,10 +93,13 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
           book_database: filters.bookDatabase,
           use_feed_1: filters.useFeed1,
           use_feed_2: filters.useFeed2,
+          enable_product_router: filters.enableProductRouter,   // 🆕 Produktový router
+          enable_manual_funnel: filters.enableManualFunnel,     // 🆕 Manuální funnel
         };
         
         console.log('🔧 Nastavuji chatbotSettings:', newSettings);
         console.log('🔍 inline_product_links hodnota:', filters.inlineProductLinks);
+        console.log('🎯 enable_manual_funnel hodnota:', filters.enableManualFunnel);
         
         setChatbotSettings(newSettings);
         
@@ -135,6 +140,8 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
           book_database: true,
           use_feed_1: true,
           use_feed_2: true,
+          enable_product_router: true,   // 🆕 Produktový router (defaultně zapnutý)
+          enable_manual_funnel: false,   // 🆕 Manuální funnel (defaultně vypnutý)
         });
       } finally {
         setLoading(false);
