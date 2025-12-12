@@ -246,3 +246,10 @@ npm run build
 **Datum opravy:** 2024-12-09  
 **Status:** ✅ Opraveno a otestováno  
 **Dopad na CORE:** Nízký (oprava chyby v existující funkci)
+
+
+
+
+
+
+

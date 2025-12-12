@@ -39,8 +39,6 @@ export async function getHybridProductRecommendations(
   useFeed2: boolean = true
 ): Promise<HybridProductRecommendation[]> {
   try {
-    console.log('🔍 Spouštím hybridní vyhledávání produktů pro dotaz:', query);
-    console.log(`📋 Použité feedy: Feed1=${useFeed1}, Feed2=${useFeed2}`);
 
     // Pokud nejsou povoleny žádné feedy, vrátíme prázdný výsledek
     if (!useFeed1 && !useFeed2) {
@@ -53,7 +51,6 @@ export async function getHybridProductRecommendations(
     // Pro nyní použijeme jen textové vyhledávání nebo mock embedding
     const queryEmbedding = await generateEmbedding(query);
     
-    console.log('📊 Embedding vygenerován, délka vektoru:', queryEmbedding.length);
 
     let allResults: HybridProductRecommendation[] = [];
 
@@ -130,11 +127,9 @@ export async function getHybridProductRecommendations(
     }
 
     if (allResults.length === 0) {
-      console.log('ℹ️ Hybridní vyhledávání nenašlo žádné produkty');
       return [];
     }
 
-    console.log(`✅ Hybridní vyhledávání našlo ${allResults.length} produktů`);
     return allResults;
 
   } catch (error) {
@@ -169,11 +164,9 @@ async function getPureSemanticRecommendations(
     }
 
     if (!searchResults || searchResults.length === 0) {
-      console.log('ℹ️ Sémantické vyhledávání nenašlo žádné produkty');
       return [];
     }
 
-    console.log(`✅ Sémantické vyhledávání našlo ${searchResults.length} produktů`);
 
     return searchResults.map((result: any) => ({
       id: result.id || 0,

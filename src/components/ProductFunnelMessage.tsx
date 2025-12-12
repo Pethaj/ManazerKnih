@@ -46,25 +46,12 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
   selectedProducts,
   symptomList = []
 }) => {
-  console.log('%c🎯 ProductFunnelMessage render', 'color: #3B82F6; font-weight: bold;');
-  console.log('   Products:', selectedProducts.length);
-  console.log('   Products data:', selectedProducts);
-  
-  // Diagnostika obrázků
-  selectedProducts.forEach((p, idx) => {
-    console.log(`   📦 Product ${idx + 1}: ${p.product_name}`);
-    console.log(`      thumbnail: ${p.thumbnail || 'CHYBÍ'}`);
-    console.log(`      url: ${p.url || 'CHYBÍ'}`);
-    console.log(`      price: ${p.price || 'CHYBÍ'}`);
-  });
-
   // Max 2 produkty
   const topProducts = selectedProducts.slice(0, 2);
 
   const getImageUrl = (product: FunnelProduct): string => {
     // 1. Priorita: thumbnail z product_feed_2 databáze
     if (product.thumbnail && product.thumbnail.length > 0) {
-      console.log(`   🖼️ Používám thumbnail z DB: ${product.thumbnail}`);
       return product.thumbnail;
     }
     
@@ -72,12 +59,10 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
     if (product.url && product.url.includes('bewit.love')) {
       // Zkusíme standardní BEWIT pattern pro obrázky
       const fallbackUrl = product.url.replace('/produkt/', '/media/products/') + '/image.jpg';
-      console.log(`   🖼️ Zkouším fallback URL: ${fallbackUrl}`);
       return fallbackUrl;
     }
     
     // 3. Žádný obrázek - zobrazí se placeholder emoji
-    console.log(`   ⚠️ Žádný obrázek pro: ${product.product_name}`);
     return '';
   };
 
@@ -143,7 +128,7 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
                   onClick={(e) => handleBuyClick(e, product)}
                   disabled={!product.url}
                 >
-                  🛒 Koupit
+                  Koupit
                 </button>
               </div>
             </div>
@@ -355,7 +340,7 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
           margin-top: auto;
           width: 100%;
           padding: 10px 16px;
-          background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+          background: #28a745;
           color: white;
           font-weight: 600;
           font-size: 14px;
@@ -366,7 +351,7 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
         }
 
         .funnel-buy-button:hover {
-          background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+          background: #218838;
           transform: scale(1.02);
         }
 

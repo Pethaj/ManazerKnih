@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 // PDF.js je načten globálně z HTML (legacy build) - není třeba importovat
 import ChatWidget from './src/components/SanaChat/ChatWidget';
 import ChatbotManagement from './src/components/ChatbotManagement';
-import { FilteredSanaChat } from './src/components/SanaChat/SanaChat';
+import FilteredSanaChatWithSettings from './src/components/ChatbotSettings/FilteredSanaChatWithSettings';
 import { ILovePDFService } from './src/services/ilovepdfService';
 // OpenRouter Intelligent Metadata Service - inteligentní extrakce metadat (auto-detekce OCR)
 import * as openRouterMetadataService from './src/services/openRouterMetadataService';
@@ -4837,25 +4837,10 @@ const App = ({ currentUser }: { currentUser: User }) => {
                     <div style={styles.chatContainer}>
                         <div style={styles.chatContent}>
                             <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                {console.log('📋 Předávám nastavení do FilteredSanaChat:', {
-                                    product_recommendations: activeChatbot.features.product_recommendations,
-                                    product_button_recommendations: activeChatbot.features.product_button_recommendations,
-                                    book_database: activeChatbot.features.book_database,
-                                    allFeatures: activeChatbot.features
-                                })}
-                                <FilteredSanaChat 
+                                {console.log('📋 Předávám chatbotId do FilteredSanaChatWithSettings:', activeChatbot.id)}
+                                <FilteredSanaChatWithSettings 
                                     chatbotId={activeChatbot.id}
                                     onClose={() => setActiveChatbot(null)}
-                                    chatbotSettings={{
-                                        product_recommendations: activeChatbot.features.product_recommendations || false,
-                                        product_button_recommendations: activeChatbot.features.product_button_recommendations || false,
-                                        inline_product_links: activeChatbot.features.inline_product_links || false,  // 🆕 Inline produktové linky / screening
-                                        book_database: activeChatbot.features.book_database || false,
-                                        use_feed_1: activeChatbot.features.use_feed_1 !== undefined ? activeChatbot.features.use_feed_1 : true,
-                                        use_feed_2: activeChatbot.features.use_feed_2 !== undefined ? activeChatbot.features.use_feed_2 : true,
-                                        enable_product_router: activeChatbot.features.enable_product_router !== undefined ? activeChatbot.features.enable_product_router : true,  // 🆕 Produktový router
-                                        enable_manual_funnel: activeChatbot.features.enable_manual_funnel || false  // 🆕 Manuální funnel
-                                    }}
                                 />
                             </div>
                         </div>

@@ -52,7 +52,6 @@ async function extractTextFromPDF(
     const pdf = await loadingTask.promise;
     
     const numPages = Math.min(pdf.numPages, maxPages);
-    console.log(`📄 Extrahuji text z prvních ${numPages} stránek...`);
     
     let fullText = '';
     
@@ -72,9 +71,8 @@ async function extractTextFromPDF(
           .join(' ');
         
         fullText += pageText + '\n';
-        console.log(`📝 Stránka ${pageNum}: ${pageText.length} znaků`);
       } catch (pageError) {
-        console.warn(`⚠️ Chyba při zpracování stránky ${pageNum}:`, pageError);
+        console.warn(`Chyba při zpracování PDF stránky ${pageNum}:`, pageError);
       }
     }
     
@@ -104,7 +102,6 @@ async function convertPdfToImages(
     const pdf = await loadingTask.promise;
     
     const numPages = Math.min(pdf.numPages, maxPages);
-    console.log(`🖼️ Konvertuji prvních ${numPages} stránek na obrázky...`);
     
     const images: string[] = [];
     
@@ -136,7 +133,6 @@ async function convertPdfToImages(
         const base64Image = canvas.toDataURL('image/png').split(',')[1];
         images.push(base64Image);
         
-        console.log(`✅ Stránka ${pageNum} převedena (${Math.round(base64Image.length / 1024)} KB)`);
       } catch (pageError) {
         console.error(`❌ Chyba při konverzi stránky ${pageNum}:`, pageError);
       }
@@ -159,13 +155,9 @@ export async function extractMetadataIntelligent(
   supabaseUrl: string,
   supabaseKey: string
 ): Promise<MetadataResponse> {
-  console.log('🤖 Spouštím inteligentní extrakci metadat...');
-  console.log('📥 PDF URL:', pdfUrl);
-  console.log('📁 Název souboru:', filename);
   
   try {
     // 1. Stáhneme PDF
-    console.log('📥 Stahuji PDF soubor...');
     const pdfResponse = await fetch(pdfUrl);
     if (!pdfResponse.ok) {
       throw new Error(`Nepodařilo se stáhnout PDF: ${pdfResponse.status}`);
@@ -173,11 +165,8 @@ export async function extractMetadataIntelligent(
     
     const pdfBlob = await pdfResponse.blob();
     const pdfData = await pdfBlob.arrayBuffer();
-    const pdfSizeMB = (pdfData.byteLength / 1024 / 1024).toFixed(2);
-    console.log(`✅ PDF staženo (${pdfSizeMB} MB)`);
     
     // 2. Detekujeme OCR - pokusíme se extrahovat text
-    console.log('🔍 Detekuji OCR text...');
     const extractedText = await extractTextFromPDF(pdfData, 10);
     
     let requestData: any;
@@ -186,9 +175,6 @@ export async function extractMetadataIntelligent(
     // 3. Rozhodneme se podle množství textu
     if (extractedText.length > 500) {
       // ✅ Má OCR text
-      console.log(`✅ PDF obsahuje OCR text (${extractedText.length} znaků)`);
-      console.log(`📝 První 200 znaků: "${extractedText.substring(0, 200)}..."`);
-      
       inputType = 'text';
       requestData = {
         type: 'text',
@@ -197,16 +183,11 @@ export async function extractMetadataIntelligent(
       };
     } else {
       // ❌ Nemá OCR text → konvertujeme na obrázky
-      console.log(`❌ PDF neobsahuje OCR text (pouze ${extractedText.length} znaků)`);
-      console.log('🖼️ Konvertuji PDF na obrázky pro vision model...');
-      
       const images = await convertPdfToImages(pdfData, 10, 2.0);
       
       if (images.length === 0) {
         throw new Error('Nepodařilo se převést PDF na obrázky');
       }
-      
-      console.log(`✅ Převedeno ${images.length} stránek na obrázky`);
       
       inputType = 'images';
       requestData = {
@@ -217,7 +198,6 @@ export async function extractMetadataIntelligent(
     }
     
     // 4. Zavoláme Supabase Edge Function
-    console.log(`📡 Volám Edge Function s typem: ${inputType}`);
     const edgeFunctionUrl = `${supabaseUrl}/functions/v1/extract-metadata-ai`;
     
     const response = await fetch(edgeFunctionUrl, {
@@ -240,8 +220,6 @@ export async function extractMetadataIntelligent(
       throw new Error(result.error || 'Edge Function vrátila chybu');
     }
     
-    console.log('✅ Metadata úspěšně extrahována:', result.metadata);
-    console.log(`📊 Model: ${result.model} | Typ: ${result.type}`);
     
     return {
       success: true,

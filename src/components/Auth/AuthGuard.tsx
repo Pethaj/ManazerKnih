@@ -19,19 +19,15 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     const [isInitialCheck, setIsInitialCheck] = useState(true);
 
     const checkAuth = async () => {
-        console.log('🔍 AuthGuard: Kontroluji autentizaci...');
         
         try {
             const { user: currentUser, error: authError } = await getCurrentUser();
             
             if (authError) {
-                console.log('❌ Chyba při ověřování:', authError);
                 setUser(null);
             } else if (currentUser) {
-                console.log('✅ Uživatel přihlášen:', currentUser.email);
                 setUser(currentUser);
             } else {
-                console.log('ℹ️ Žádný přihlášený uživatel');
                 setUser(null);
             }
         } catch (err) {
@@ -44,12 +40,10 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     };
 
     useEffect(() => {
-        console.log('🚀 AuthGuard: useEffect spuštěn');
         checkAuth();
     }, []);
 
     const handleLoginSuccess = () => {
-        console.log('✅ Login úspěšný, znovu kontroluji auth');
         checkAuth();
     };
 
@@ -99,12 +93,10 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
 
     // Pokud není uživatel přihlášen a už proběhla kontrola, zobrazit login formulář
     if (!user) {
-        console.log('🔒 Uživatel není přihlášen - zobrazuji login formulář');
         return <LoginForm onLoginSuccess={handleLoginSuccess} />;
     }
 
     // Pokud je uživatel přihlášen, zobrazit chráněný obsah
-    console.log('✅ Uživatel přihlášen - zobrazuji aplikaci');
     return <>{children(user)}</>;
 };
 

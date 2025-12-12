@@ -1,33 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { SanaChatContent } from '../SanaChat/SanaChat';
-import { ProductSyncAdmin } from '../ProductEmbeddingManager';
+import ProductSyncAdmin from '../SanaChat/ProductSync';
 import { ChatbotSettingsService, Category, PublicationType, Label } from '../../services/chatbotSettingsService';
+import ChatHeader, { ChatHeaderButton } from '../ui/ChatHeader';
 
-// Import ikon a komponent z původního SanaChat
-const SanaAILogo: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg width="120" height="36" viewBox="0 0 120 36" xmlns="http://www.w3.org/2000/svg" {...props}>
-    <text x="0" y="28" fill="currentColor" fontSize="24" fontWeight="bold" fontFamily="Arial, sans-serif">
-      SANA AI
-    </text>
-  </svg>
-);
-
-const ProductIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <circle cx="9" cy="21" r="1"/>
-    <circle cx="20" cy="21" r="1"/>
-    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-  </svg>
+// Logo SANA AI - obrázek z Supabase storage
+const SanaAILogo: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = (props) => (
+  <img
+    src="https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/Generated_Image_September_08__2025_-_3_09PM-removebg-preview.png"
+    alt="Sana AI Logo"
+    style={{ objectFit: 'contain' }}
+    {...props}
+  />
 );
 
 interface FilteredSanaChatWithSettingsProps {
   chatbotId: string; // Identifikátor chatbota pro načtení jeho nastavení
   chatbotName?: string; // Volitelný název pro zobrazení
+  onClose?: () => void; // Volitelná funkce pro zavření chatu
 }
 
 const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> = ({ 
   chatbotId, 
-  chatbotName 
+  chatbotName,
+  onClose 
 }) => {
   // Nastavení a filtrace načtené z databáze podle chatbot ID
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
@@ -57,6 +53,17 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chatbotDisplayName, setChatbotDisplayName] = useState(chatbotName || chatbotId);
+  
+  // State pro jazyk a funkce hlavičky
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('cs');
+  
+  // Definice jazyků pro hlavičku
+  const languages = [
+    { code: 'cs', label: 'CZ' },
+    { code: 'sk', label: 'SK' },
+    { code: 'de', label: 'DE' },
+    { code: 'en', label: 'UK' }
+  ];
 
   // Načteme nastavení chatbota při startu komponenty
   useEffect(() => {
@@ -65,15 +72,8 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
         setLoading(true);
         setError(null);
         
-        console.log(`🤖 Načítám nastavení pro chatbota: ${chatbotId}`);
-        
         // Načti kompletní filtrace pro konkrétní chatbota
         const filters = await ChatbotSettingsService.getChatbotFilters(chatbotId);
-        
-        console.log('📊 Načtené filtrace pro chatbota:', {
-          chatbotId,
-          filters
-        });
         
         // Nastav dostupné možnosti podle nastavení chatbota
         setAvailableCategories(filters.categories);
@@ -97,10 +97,6 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
           enable_manual_funnel: filters.enableManualFunnel,     // 🆕 Manuální funnel
         };
         
-        console.log('🔧 Nastavuji chatbotSettings:', newSettings);
-        console.log('🔍 inline_product_links hodnota:', filters.inlineProductLinks);
-        console.log('🎯 enable_manual_funnel hodnota:', filters.enableManualFunnel);
-        
         setChatbotSettings(newSettings);
         
         // Pokud máme nastavení z databáze, použij název z databáze
@@ -110,7 +106,6 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
         }
         
       } catch (err) {
-        console.error('Chyba při načítání nastavení chatbota:', err);
         setError('Nepodařilo se načíst nastavení chatbota');
         
         // Fallback - pokud se nepodaří načíst nastavení, použij výchozí hodnoty
@@ -152,14 +147,11 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
   }, [chatbotId, chatbotName]);
 
   const toggleFilter = (value: string, selected: string[], setter: (values: string[]) => void) => {
-    console.log('Toggle filter:', { value, currentSelected: selected });
     if (selected.includes(value)) {
       const newSelection = selected.filter(item => item !== value);
-      console.log('Removing filter, new selection:', newSelection);
       setter(newSelection);
     } else {
       const newSelection = [...selected, value];
-      console.log('Adding filter, new selection:', newSelection);
       setter(newSelection);
     }
   };
@@ -184,6 +176,16 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
 
   const toggleProductSync = () => {
     setIsProductSyncVisible(!isProductSyncVisible);
+  };
+  
+  // Funkce pro Nový chat - reload page
+  const handleNewChat = () => {
+    window.location.reload();
+  };
+  
+  // Funkce pro Export do PDF
+  const handleExportPdf = () => {
+    alert('Export do PDF bude implementován později');
   };
 
   if (loading) {
@@ -333,65 +335,71 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
       
       {/* Pravá část s chatem */}
       <div className="flex-1 flex flex-col w-full">
-        {/* Header s tlačítkem pro filtry a posuvníkem */}
-        <div className="bg-bewit-blue text-white shadow-md w-full">
-          <div className="w-full">
-            <div className="flex items-center justify-between h-16 pl-4 pr-4">
-              <div className="flex items-center space-x-4">
-                {/* Posuvník pro filtry - přesunuto na levou stranu */}
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-white/80">Filtry</span>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isFilterPanelVisible}
-                      onChange={toggleFilterPanel}
-                      className="sr-only peer"
-                    />
-                    <div className="relative w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/40"></div>
-                  </label>
-                </div>
-                <div className="h-6 w-px bg-white/20"></div>
-                <div className="flex flex-col">
-                  <SanaAILogo className="h-6 w-16 text-white" />
-                  <span className="text-xs text-white/80 mt-1">{chatbotDisplayName}</span>
-                </div>
-              </div>
-              
-              {/* Tlačítko pro produktovou synchronizaci - zobrazí se pouze pokud je povoleno */}
-              {chatbotSettings.product_recommendations && (
-                <div className="flex items-center space-x-2">
-                  <button 
-                    onClick={toggleProductSync} 
-                    className={`flex items-center justify-center h-9 w-9 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white ${isProductSyncVisible ? 'bg-white/20 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`} 
-                    aria-label={isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty'} 
-                    title={isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty BEWIT'}
-                  >
-                    <ProductIcon className="h-5 w-5" />
-                  </button>
-                </div>
-              )}
+        {/* Header - Jednotná hlavička s filtry v levé části */}
+        <ChatHeader
+          onClose={onClose}
+          languages={languages}
+          selectedLanguage={selectedLanguage}
+          onLanguageChange={setSelectedLanguage}
+          leftContent={
+            <div className="flex items-center space-x-4">
+              {/* Posuvník pro filtry */}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isFilterPanelVisible}
+                  onChange={toggleFilterPanel}
+                  className="sr-only peer"
+                  aria-label="Zobrazit/skrýt filtry"
+                />
+                <div className="relative w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/40"></div>
+              </label>
+              <div className="h-6 w-px bg-white/20"></div>
+              <SanaAILogo className="h-10 w-auto object-contain" />
             </div>
-          </div>
-        </div>
+          }
+          buttons={[
+            ...(chatbotSettings.product_recommendations
+              ? [
+                  {
+                    icon: 'product' as const,
+                    onClick: toggleProductSync,
+                    label: isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty',
+                    tooltip: isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty BEWIT',
+                    isActive: isProductSyncVisible
+                  }
+                ]
+              : []
+            ),
+            {
+              icon: 'plus' as const,
+              onClick: handleNewChat,
+              label: 'Nový chat',
+              tooltip: 'Nový chat'
+            },
+            {
+              icon: 'download' as const,
+              onClick: handleExportPdf,
+              label: 'Export do PDF',
+              tooltip: 'Export do PDF'
+            }
+          ]}
+        />
         
         {/* Chat komponenta nebo ProductSync */}
-        <div className="flex-1 bg-bewit-gray">
+        <div className="flex-1 bg-bewit-gray flex flex-col min-h-0">
           {isProductSyncVisible && chatbotSettings.product_recommendations ? (
             <div className="w-full h-full flex-1 overflow-y-auto p-6">
               <ProductSyncAdmin />
             </div>
           ) : (
-            <>
-              {console.log(`🔧 FilteredSanaChatWithSettings předává chatbotId: "${chatbotId}" do SanaChatContent`)}
-              <SanaChatContent 
-                selectedCategories={selectedCategories}
-                selectedLabels={selectedLabels}
-                selectedPublicationTypes={selectedPublicationTypes}
-                chatbotSettings={chatbotSettings}
-                chatbotId={chatbotId}
-              />
-            </>
+            <SanaChatContent 
+              selectedCategories={selectedCategories}
+              selectedLabels={selectedLabels}
+              selectedPublicationTypes={selectedPublicationTypes}
+              chatbotSettings={chatbotSettings}
+              chatbotId={chatbotId}
+            />
           )}
         </div>
       </div>

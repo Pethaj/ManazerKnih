@@ -130,10 +130,6 @@ export class ChatbotSettingsService {
       }
 
       // 🔍 DEBUG: Vypiš webhook_url pro každý chatbot
-      console.log('🔍 DEBUG getAllChatbotSettings:');
-      data?.forEach(chatbot => {
-        console.log(`  - ${chatbot.chatbot_id}: webhook_url = ${chatbot.webhook_url || 'NENÍ NASTAVENO'}`);
-      });
 
       return data || [];
     } catch (error) {
@@ -171,7 +167,6 @@ export class ChatbotSettingsService {
   // 🆕 Načtení výchozího webového chatbota (pro bublinu na webu)
   static async getDefaultWebChatbot(): Promise<ChatbotSettings | null> {
     try {
-      console.log('🌐 Načítám výchozí webový chatbot (is_default_web_chatbot = true)...');
       
       const { data, error } = await supabase
         .from('chatbot_settings')
@@ -186,7 +181,6 @@ export class ChatbotSettingsService {
         return this.getChatbotSettings('sana_chat');
       }
 
-      console.log('✅ Výchozí webový chatbot načten:', data?.chatbot_id);
       return data;
     } catch (error) {
       console.error('❌ Chyba při načítání výchozího webového chatbota:', error);
@@ -220,10 +214,7 @@ export class ChatbotSettingsService {
   // Aktualizace nastavení chatbota
   static async updateChatbotSettings(chatbotId: string, data: UpdateChatbotSettingsData): Promise<ChatbotSettings> {
     try {
-      console.log(`🔍 Aktualizuji chatbota s ID: "${chatbotId}"`, data);
-      
       // Použij Supabase klient s RLS politikami (bez edge funkce)
-      console.log('💾 Používám Supabase klient pro UPDATE...');
       
       // Proveď UPDATE
       const { data: updateResult, error: updateError } = await supabase
@@ -247,7 +238,6 @@ export class ChatbotSettingsService {
         throw new Error('UPDATE nevrátil žádná data');
       }
 
-      console.log('✅ UPDATE proběhl úspěšně!');
       return updateResult;
     } catch (error) {
       console.error('❌ Chyba při aktualizaci chatbota:', error);

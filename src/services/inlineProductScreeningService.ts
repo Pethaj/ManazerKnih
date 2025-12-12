@@ -61,14 +61,9 @@ Výstup: ["Chuan Xiong Cha Tiao Wan", "bolest hlavy"]`;
  * @returns ScreeningResult s identifikovanými produkty
  */
 export async function screenTextForProducts(text: string): Promise<ScreeningResult> {
-  console.log('🔍 Spouštím screening produktů v textu...');
-  console.log(`📝 Délka textu: ${text.length} znaků`);
-  console.log(`📄 Text preview: "${text.substring(0, 150)}..."`);
-  
   try {
     // Validace vstupu
     if (!text || text.trim().length === 0) {
-      console.log('⚠️ Prázdný text, vracím prázdný seznam');
       return {
         success: true,
         products: []
@@ -77,14 +72,12 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
     
     // Pokud je text příliš krátký, není co screenovat
     if (text.trim().length < 20) {
-      console.log('⚠️ Text je příliš krátký pro screening');
       return {
         success: true,
         products: []
       };
     }
     
-    console.log('📡 Volám Supabase Edge Function...');
     
     // ✅ OPRAVENO: Posíláme systemPrompt a userPrompt místo { text }
     const { data, error } = await supabase.functions.invoke(EDGE_FUNCTION_URL, {
@@ -106,7 +99,6 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
       throw new Error('Edge Function nevrátila žádná data');
     }
     
-    console.log('✅ Edge Function response received');
     
     if (!data.success) {
       throw new Error(data.error || 'Edge Function vrátila chybu');
@@ -118,7 +110,6 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
     
     try {
       const responseText = data.response || '';
-      console.log('📄 Raw response:', responseText);
       
       // Odstranit markdown code blocks pokud jsou
       let jsonText = responseText.trim();
@@ -139,10 +130,6 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
       products = [];
     }
     
-    console.log(`✅ Screening dokončen: ${products.length} produktů/témat nalezeno`);
-    if (products.length > 0) {
-      console.log('📦 Nalezené produkty/témata:', products);
-    }
     
     return {
       success: true,
@@ -168,47 +155,6 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
  * Testovací funkce pro ověření funkčnosti
  */
 export async function testProductScreening(): Promise<void> {
-  console.log('🧪 Spouštím test product screeningu...');
-  console.log('='.repeat(60));
-  
-  const testTexts = [
-    {
-      name: 'Test 1: Produkt wan 009',
-      text: 'Pro bolest hlavy doporučuji wan 009 - Čistý dech, který pomáhá s průchodností nosních dírek a uvolňuje dutiny.'
-    },
-    {
-      name: 'Test 2: Obecná konverzace',
-      text: 'Dobrý den, jak se dnes máte? Doufám, že je vše v pořádku.'
-    },
-    {
-      name: 'Test 3: Bewit produkt',
-      text: 'Bewit Levandule 15ml je skvělý éterický olej na uklidnění mysli, podporu spánku a relaxaci.'
-    },
-    {
-      name: 'Test 4: TČM téma',
-      text: 'V tradiční čínské medicíně se používají bylinné směsi pro harmonizaci Qi a posílení imunitního systému.'
-    }
-  ];
-  
-  for (const test of testTexts) {
-    console.log(`\n🔬 ${test.name}`);
-    console.log(`📝 Text: "${test.text}"`);
-    
-    const result = await screenTextForProducts(test.text);
-    
-    if (result.success) {
-      console.log(`✅ Úspěch: ${result.products.length} položek`);
-      if (result.products.length > 0) {
-        result.products.forEach((product, idx) => {
-          console.log(`   ${idx + 1}. ${product}`);
-        });
-      }
-    } else {
-      console.log(`❌ Chyba: ${result.error}`);
-    }
-  }
-  
-  console.log('='.repeat(60));
-  console.log('🎉 Test dokončen!');
+  // Test funkce - lze použít pro debugging
 }
 

@@ -101,7 +101,6 @@ export async function adminCreateUser(
             updated_at: newUser.updated_at
         };
 
-        console.log('✅ Uživatel vytvořen:', newUser.email);
         return { 
             success: true, 
             error: null, 
@@ -181,7 +180,6 @@ export async function adminDeleteUser(userId: string): Promise<{ success: boolea
             return { success: false, error: 'Nepodařilo se smazat uživatele' };
         }
 
-        console.log('✅ Uživatel smazán:', userId);
         return { success: true, error: null };
     } catch (err) {
         console.error('❌ Chyba při mazání uživatele:', err);
@@ -213,7 +211,6 @@ export async function adminUpdateUserRole(
             return { success: false, error: 'Nepodařilo se změnit roli' };
         }
 
-        console.log('✅ Role změněna:', userId, '->', newRole);
         return { success: true, error: null };
     } catch (err) {
         console.error('❌ Chyba při změně role:', err);
@@ -256,7 +253,6 @@ export async function adminResetUserPassword(
             .delete()
             .eq('user_id', userId);
 
-        console.log('✅ Heslo resetováno:', userId);
         return { success: true, error: null, newPassword };
     } catch (err) {
         console.error('❌ Chyba při resetu hesla:', err);
@@ -300,7 +296,6 @@ export async function adminUpdateUser(
             return { success: false, error: 'Nepodařilo se aktualizovat uživatele' };
         }
 
-        console.log('✅ Uživatel aktualizován:', userId);
         return { success: true, error: null };
     } catch (err) {
         console.error('❌ Chyba při aktualizaci uživatele:', err);

@@ -35,7 +35,6 @@ export default function ResetPasswordPage() {
                     return;
                 }
 
-                console.log('✅ Token validován, uživatel může nastavit nové heslo');
                 setValidatingToken(false);
             } catch (err) {
                 console.error('Neočekávaná chyba při validaci tokenu:', err);

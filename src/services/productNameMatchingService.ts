@@ -40,10 +40,6 @@ export interface MatchingResult {
  * @returns MatchingResult s namatchovanými produkty
  */
 export async function matchProductNames(productNames: string[]): Promise<MatchingResult> {
-  console.log('🔍 Zahajuji matching názvů produktů...');
-  console.log(`📝 Počet názvů k vyhledání: ${productNames.length}`);
-  console.log('📦 Názvy:', productNames);
-  
   if (productNames.length === 0) {
     return {
       success: true,
@@ -62,15 +58,12 @@ export async function matchProductNames(productNames: string[]): Promise<Matchin
     }
     
     if (!products || products.length === 0) {
-      console.warn('⚠️ Žádné produkty s pinyin_name v databázi');
       return {
         success: true,
         matches: [],
         unmatched: productNames
       };
     }
-    
-    console.log(`✅ Načteno ${products.length} produktů z databáze`);
     
     // Pro každý název z GPT najdeme best match
     const matches: MatchedProduct[] = [];
@@ -81,38 +74,10 @@ export async function matchProductNames(productNames: string[]): Promise<Matchin
       
       if (match && match.similarity >= 0.5) { // Threshold pro matching
         matches.push(match);
-        console.log(`✅ Match: "${gptName}" → "${match.pinyin_name}" (${(match.similarity * 100).toFixed(0)}%)`);
-        console.log(`   🔗 URL: ${match.url}`);
       } else {
         unmatched.push(gptName);
-        console.log(`❌ Nenalezen match pro: "${gptName}"`);
       }
     }
-    
-    // Shrnutí do konzole
-    console.log('\n' + '='.repeat(60));
-    console.log('📊 SHRNUTÍ MATCHINGU PRODUKTŮ');
-    console.log('='.repeat(60));
-    console.log(`✅ Nalezeno: ${matches.length} produktů`);
-    console.log(`❌ Nenalezeno: ${unmatched.length} produktů`);
-    
-    if (matches.length > 0) {
-      console.log('\n🔗 URL NALEZENÝCH PRODUKTŮ:');
-      matches.forEach((match, idx) => {
-        console.log(`${idx + 1}. ${match.product_name}`);
-        console.log(`   Pinyin: ${match.pinyin_name}`);
-        console.log(`   URL: ${match.url}`);
-        console.log(`   Shoda: ${(match.similarity * 100).toFixed(0)}%`);
-      });
-    }
-    
-    if (unmatched.length > 0) {
-      console.log('\n⚠️ NENALEZENÉ PRODUKTY:');
-      unmatched.forEach((name, idx) => {
-        console.log(`${idx + 1}. ${name}`);
-      });
-    }
-    console.log('='.repeat(60) + '\n');
     
     return {
       success: true,
@@ -279,25 +244,7 @@ function levenshteinDistance(str1: string, str2: string): number {
  * Testovací funkce
  */
 export async function testProductMatching(): Promise<void> {
-  console.log('🧪 Spouštím test product matching...');
-  console.log('='.repeat(60));
-  
-  const testNames = [
-    'Te Xiao Bi Min Gan Wan',
-    'Čistý dech',
-    '009',
-    'Levandule',
-    'bolest hlavy wan',
-    'neexistující produkt xyz123'
-  ];
-  
-  const result = await matchProductNames(testNames);
-  
-  if (result.success) {
-    console.log('\n✅ Test dokončen úspěšně!');
-  } else {
-    console.log('\n❌ Test selhal:', result.error);
-  }
+  // Test funkce - lze použít pro debugging
 }
 
 

@@ -6,6 +6,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ProductCarousel } from '../ProductCarousel';
 import { getProductRecommendations, EnrichedProduct } from '../../services/productChatWebhookService';
+import ChatHeader from '../ui/ChatHeader';
+import LoadingPhrases from '../SanaChat/LoadingPhrases';
+import WaveLoader from '../SanaChat/WaveLoader';
 
 // Generate session ID
 const generateSessionId = () => 
@@ -89,18 +92,12 @@ const ProductChat: React.FC<ProductChatProps> = ({ onClose }) => {
     setIsLoading(true);
 
     try {
-      console.log('🎯 Odesílám dotaz do Product Chat:', userQuery);
       
       // Call N8N webhook service
       const { text, products } = await getProductRecommendations(
         userQuery,
         sessionId
       );
-
-      console.log('✅ Odpověď získána:', {
-        textLength: text.length,
-        productCount: products.length
-      });
 
       // Add bot message with products
       const botMsg: ChatMessage = {
@@ -134,27 +131,11 @@ const ProductChat: React.FC<ProductChatProps> = ({ onClose }) => {
 
   return (
     <div className="flex flex-col h-full bg-bewit-gray">
-      {/* Header */}
-      <div className="bg-bewit-blue text-white p-4 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-3">
-          <ProductChatLogo className="text-white" />
-          <div>
-            <h2 className="text-xl font-bold">Product Chat</h2>
-            <p className="text-sm text-white/80">Produktová doporučení BEWIT</p>
-          </div>
-        </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-            aria-label="Zavřít"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        )}
-      </div>
+      {/* Header - Jednotná hlavička */}
+      <ChatHeader
+        onClose={onClose}
+        buttons={[]}
+      />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -195,6 +176,7 @@ const ProductChat: React.FC<ProductChatProps> = ({ onClose }) => {
                   <ProductCarousel
                     products={msg.products.slice(0, 6).map(p => ({
                       id: p.product_code,
+                      title: p.product_name, // 🔧 title je required pro ProductRecommendation
                       product_code: p.product_code,
                       product_name: p.product_name,
                       description: p.recommendation, // ⭐ Personalizované doporučení!
@@ -224,10 +206,11 @@ const ProductChat: React.FC<ProductChatProps> = ({ onClose }) => {
               <BotIcon className="w-5 h-5" />
             </div>
             <div className="px-4 py-3 rounded-2xl bg-white border border-slate-200 rounded-bl-none shadow-sm">
-              <div className="flex items-center space-x-2">
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></span>
+              <div className="flex items-center gap-3">
+                {/* Animovaný wave loader */}
+                <WaveLoader />
+                {/* Animované loading fráze */}
+                <LoadingPhrases changeInterval={7000} />
               </div>
             </div>
           </div>

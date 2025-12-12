@@ -53,17 +53,11 @@ export const ProductRecommendationButton: React.FC<ProductRecommendationButtonPr
       setIsLoading(true);
       setError(null);
       
-      console.log('🔘 Kliknutí na tlačítko produktových doporučení');
-      console.log('📝 User Query:', userQuery);
-      console.log('🤖 Bot Response:', botResponse.substring(0, 100) + '...');
-
       const result = await getButtonProductRecommendations({
         userQuery,
         botResponse,
         sessionId
       });
-
-      console.log('✅ Produkty načteny:', result.products.length);
 
       setProducts(result.products);
       setShowCarousel(true);

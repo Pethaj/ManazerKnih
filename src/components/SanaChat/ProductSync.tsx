@@ -128,13 +128,11 @@ const parseXMLFeed = async (xmlText: string): Promise<Product[]> => {
 
                 products.push(product);
             } catch (error) {
-                console.error(`Chyba při parsování produktu ${index}:`, error);
             }
         });
 
         return products;
     } catch (error) {
-        console.error('Chyba při parsování XML feedu:', error);
         throw error;
     }
 };
@@ -159,7 +157,6 @@ const fetchXMLFeed = async (url: string): Promise<string> => {
         const xmlText = await response.text();
         return xmlText;
     } catch (error) {
-        console.error('Chyba při načítání XML feedu:', error);
         throw error;
     }
 };
@@ -180,7 +177,6 @@ const syncProductsToSupabase = async (products: Product[]): Promise<{ inserted: 
                 .single();
 
             if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = no rows found
-                console.error('Chyba při hledání existujícího produktu:', selectError);
                 failed++;
                 continue;
             }
@@ -207,7 +203,6 @@ const syncProductsToSupabase = async (products: Product[]): Promise<{ inserted: 
                     .eq('id', existing.id);
 
                 if (updateError) {
-                    console.error('Chyba při aktualizaci produktu:', updateError);
                     failed++;
                 } else {
                     updated++;
@@ -234,14 +229,12 @@ const syncProductsToSupabase = async (products: Product[]): Promise<{ inserted: 
                     });
 
                 if (insertError) {
-                    console.error('Chyba při vkládání produktu:', insertError);
                     failed++;
                 } else {
                     inserted++;
                 }
             }
         } catch (error) {
-            console.error('Neočekávaná chyba při zpracování produktu:', error);
             failed++;
         }
     }
@@ -270,26 +263,21 @@ export const syncProductsFeed = async (): Promise<boolean> => {
         .single();
 
     if (logError) {
-        console.error('Chyba při vytváření sync logu:', logError);
         return false;
     }
 
     const logId = logData.id;
 
     try {
-        console.log('🔄 Začínám synchronizaci produktového feedu z BEWIT (Feed 1)...');
         
         // 1. Načteme XML feed
         const xmlText = await fetchXMLFeed(BEWIT_FEED_URL);
-        console.log('✅ XML feed načten úspěšně');
 
         // 2. Parsujeme XML
         const products = await parseXMLFeed(xmlText);
-        console.log(`✅ Naparsováno ${products.length} produktů`);
 
         // 3. Synchronizujeme do Supabase
         const result = await syncProductsToSupabase(products);
-        console.log(`✅ Synchronizace dokončena: ${result.inserted} vloženo, ${result.updated} aktualizováno, ${result.failed} chyb`);
 
         // 4. Aktualizujeme log
         const finishTime = new Date().toISOString();
@@ -308,7 +296,6 @@ export const syncProductsFeed = async (): Promise<boolean> => {
         return true;
 
     } catch (error) {
-        console.error('❌ Chyba při synchronizaci produktového feedu:', error);
         
         // Aktualizujeme log s chybou
         const finishTime = new Date().toISOString();
@@ -328,7 +315,6 @@ export const syncProductsFeed = async (): Promise<boolean> => {
 // Nová funkce pro synchronizaci Feed 2 (přes Edge Function)
 export const syncProductsFeed2 = async (): Promise<boolean> => {
     try {
-        console.log('🔄 Spouštím synchronizaci Product Feed 2...');
         
         // Získáme anon key z Supabase klienta
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -340,15 +326,12 @@ export const syncProductsFeed2 = async (): Promise<boolean> => {
         });
 
         if (error) {
-            console.error('❌ Chyba při volání Edge Function:', error);
             throw error;
         }
 
-        console.log('✅ Synchronizace Feed 2 dokončena:', data);
         return data?.ok === true;
 
     } catch (error) {
-        console.error('❌ Kritická chyba při synchronizaci Feed 2:', error);
         return false;
     }
 };
@@ -365,13 +348,11 @@ export const getLastSyncLog = async (syncType: string): Promise<SyncLog | null> 
             .single();
 
         if (error) {
-            console.error('Chyba při načítání sync logu:', error);
             return null;
         }
 
         return data;
     } catch (error) {
-        console.error('Kritická chyba při načítání sync logu:', error);
         return null;
     }
 };
@@ -392,7 +373,6 @@ export const getProductCounts = async (): Promise<{feed1: number, feed2: number}
             feed2: count2 || 0
         };
     } catch (error) {
-        console.error('Chyba při načítání počtu produktů:', error);
         return { feed1: 0, feed2: 0 };
     }
 };
@@ -424,7 +404,6 @@ const ProductSyncAdmin: React.FC = () => {
             const log = await getLastSyncLog('products_feed');
             setLastSyncStatus(log);
         } catch (error) {
-            console.error('Chyba při načítání sync statusu Feed 1:', error);
         }
     };
 
@@ -433,7 +412,6 @@ const ProductSyncAdmin: React.FC = () => {
             const log = await getLastSyncLog('product_feed_2');
             setLastSyncStatusFeed2(log);
         } catch (error) {
-            console.error('Chyba při načítání sync statusu Feed 2:', error);
         }
     };
 
@@ -444,13 +422,11 @@ const ProductSyncAdmin: React.FC = () => {
                 .select('*', { count: 'exact', head: true });
 
             if (error) {
-                console.error('Chyba při načítání počtu produktů Feed 1:', error);
                 return;
             }
 
             setProductCount(count || 0);
         } catch (error) {
-            console.error('Chyba při načítání počtu produktů Feed 1:', error);
         }
     };
 
@@ -461,13 +437,11 @@ const ProductSyncAdmin: React.FC = () => {
                 .select('*', { count: 'exact', head: true });
 
             if (error) {
-                console.error('Chyba při načítání počtu produktů Feed 2:', error);
                 return;
             }
 
             setProductCountFeed2(count || 0);
         } catch (error) {
-            console.error('Chyba při načítání počtu produktů Feed 2:', error);
         }
     };
 
@@ -475,7 +449,6 @@ const ProductSyncAdmin: React.FC = () => {
     const handleHttpSync = async () => {
         setIsLoading(true);
         try {
-            console.log('🚀 Spouštím HTTP synchronizaci přes Edge Function...');
             
             const response = await fetch('https://modopafybeslbcqjxsve.supabase.co/functions/v1/sync-products', {
                 method: 'POST',
@@ -495,7 +468,6 @@ const ProductSyncAdmin: React.FC = () => {
             }
 
             const result = await response.json();
-            console.log('✅ Odpověď z Edge Function:', result);
 
             if (result.ok) {
                 await loadSyncStatus();
@@ -512,7 +484,6 @@ const ProductSyncAdmin: React.FC = () => {
                 throw new Error(result.error || 'Neznámá chyba z Edge Function');
             }
         } catch (error) {
-            console.error('❌ Chyba při HTTP synchronizaci:', error);
             alert('❌ Chyba při synchronizaci: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
         } finally {
             setIsLoading(false);
@@ -527,7 +498,6 @@ const ProductSyncAdmin: React.FC = () => {
     const handleManualSyncFeed2 = async () => {
         setIsLoadingFeed2(true);
         try {
-            console.log('🚀 Spouštím synchronizaci Feed 2...');
             
             const success = await syncProductsFeed2();
             
@@ -539,7 +509,6 @@ const ProductSyncAdmin: React.FC = () => {
                 throw new Error('Synchronizace Feed 2 selhala');
             }
         } catch (error) {
-            console.error('❌ Chyba při synchronizaci Feed 2:', error);
             alert('❌ Chyba při synchronizaci Feed 2: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
         } finally {
             setIsLoadingFeed2(false);

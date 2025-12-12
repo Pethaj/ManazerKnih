@@ -258,3 +258,10 @@ Po této opravě by měl **Product Funnel Mode fungovat správně** pro Wany Cha
 
 _Opraveno: 8. prosince 2024_
 
+
+
+
+
+
+
+

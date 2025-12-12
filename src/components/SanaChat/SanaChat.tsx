@@ -22,6 +22,12 @@ import { getHybridProductRecommendations, HybridProductRecommendation } from '..
 import { routeUserIntent, extractProductsFromHistory, enrichFunnelProductsFromDatabase, RecommendedProduct } from '../../services/intentRoutingService';
 // FunnelProduct typ pro metadata ve zprávě
 import type { FunnelProduct } from '../../services/productFunnelService';
+// 🆕 Jednotná hlavička chatu
+import ChatHeader from '../ui/ChatHeader';
+// 🆕 LoadingPhrases pro animované loading texty
+import LoadingPhrases from './LoadingPhrases';
+// 🆕 WaveLoader - animovaný loader s pulzujícími kroužky
+import WaveLoader from './WaveLoader';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -176,7 +182,7 @@ const LinkIcon: React.FC<IconProps> = (props) => (
     </svg>
 );
 
-const SanaAILogo: React.FC<IconProps> = (props) => (
+const SanaAILogo: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = (props) => (
     <img 
         src="https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/Generated_Image_September_08__2025_-_3_09PM-removebg-preview.png"
         alt="Sana AI Logo" 
@@ -619,10 +625,11 @@ const TypingIndicator: React.FC = () => (
             <BotIcon className="w-5 h-5" />
         </div>
         <div className="px-4 py-3 rounded-2xl bg-white border border-slate-200 rounded-bl-none shadow-sm">
-            <div className="flex items-center space-x-1">
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></span>
+            <div className="flex items-center gap-3">
+                {/* Animovaný wave loader */}
+                <WaveLoader />
+                {/* Animované loading fráze */}
+                <LoadingPhrases changeInterval={7000} />
             </div>
         </div>
     </div>
@@ -2429,6 +2436,14 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     
     // State pro jazyk a funkce hlavičky
     const [selectedLanguage, setSelectedLanguage] = useState<string>('cs');
+    
+    // Definice jazyků pro hlavičku
+    const languages = [
+        { code: 'cs', label: 'CZ' }, 
+        { code: 'sk', label: 'SK' }, 
+        { code: 'de', label: 'DE' }, 
+        { code: 'en', label: 'UK' }
+    ];
 
     // Načteme metadata z databáze při startu komponenty
     useEffect(() => {
@@ -2657,76 +2672,51 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
             
             {/* Pravá část s chatem */}
             <div className="flex-1 flex flex-col w-full">
-                {/* Header s tlačítkem pro filtry a posuvníkem */}
-                <div className="bg-bewit-blue text-white shadow-md w-full">
-                    <div className="w-full">
-                        <div className="flex items-center justify-between h-16 pl-4 pr-4">
-                            <div className="flex items-center space-x-4">
-                                {/* Filter toggle switch */}
-                                <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-white/80">Filtry</span>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={isFilterPanelVisible}
-                                            onChange={toggleFilterPanel}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="relative w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/40"></div>
-                                    </label>
-                                </div>
-                                <div className="h-6 w-px bg-white/20"></div>
-                                <SanaAILogo className="h-20 w-20 text-white" />
-                            </div>
-                            
-                            {/* Pravá část s funkcemi */}
-                            <div className="flex items-center space-x-2 sm:space-x-4">
-                                {/* Jazyky */}
-                                <div className="flex items-center space-x-2">
-                                    {languages.map(lang => (
-                                        <button
-                                            key={lang.code}
-                                            onClick={() => setSelectedLanguage(lang.code)}
-                                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-200 ${
-                                                selectedLanguage === lang.code
-                                                    ? 'bg-white text-bewit-blue ring-2 ring-offset-2 ring-offset-bewit-blue ring-white'
-                                                    : 'bg-white/20 hover:bg-white/30 text-white'
-                                            }`}
-                                            aria-label={`Změnit jazyk na ${lang.label}`}
-                                        >
-                                            {lang.label}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="h-6 w-px bg-white/20 hidden sm:block"></div>
-                                {/* Funkce tlačítka */}
-                                <div className="flex items-center space-x-2">
-                                    <button 
-                                        onClick={toggleProductSync} 
-                                        className={`flex items-center justify-center h-9 w-9 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white ${isProductSyncVisible ? 'bg-white/20 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`} 
-                                        aria-label={isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty'} 
-                                        title={isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty BEWIT'}
-                                    >
-                                        <ProductIcon className="h-5 w-5" />
-                                    </button>
-                                    <button onClick={handleNewChat} className="flex items-center justify-center h-9 w-9 bg-white/10 hover:bg-white/20 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Nový chat" title="Nový chat">
-                                        <NewChatIcon className="h-5 w-5" />
-                                    </button>
-                                    <button onClick={handleExportPdf} className="flex items-center justify-center h-9 w-9 bg-white/10 hover:bg-white/20 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Export do PDF" title="Export do PDF">
-                                        <ExportPdfIcon className="h-5 w-5" />
-                                    </button>
-                                    {onClose && (
-                                        <button onClick={onClose} className="flex items-center justify-center h-9 w-9 bg-white/10 hover:bg-white/20 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Zavřít chat" title="Zavřít chat">
-                                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                {/* Header - Jednotná hlavička */}
+                <ChatHeader
+                  onClose={onClose}
+                  languages={languages}
+                  selectedLanguage={selectedLanguage}
+                  onLanguageChange={setSelectedLanguage}
+                  leftContent={
+                    <div className="flex items-center space-x-4">
+                      {/* Filter toggle switch */}
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isFilterPanelVisible}
+                          onChange={toggleFilterPanel}
+                          className="sr-only peer"
+                          aria-label="Zobrazit/skrýt filtry"
+                        />
+                        <div className="relative w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/40"></div>
+                      </label>
+                      <div className="h-6 w-px bg-white/20"></div>
+                      <SanaAILogo className="h-10 w-auto object-contain" />
                     </div>
-                </div>
+                  }
+                  buttons={[
+                    {
+                      icon: 'product',
+                      onClick: toggleProductSync,
+                      label: isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty',
+                      tooltip: isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty BEWIT',
+                      isActive: isProductSyncVisible
+                    },
+                    {
+                      icon: 'plus',
+                      onClick: handleNewChat,
+                      label: 'Nový chat',
+                      tooltip: 'Nový chat'
+                    },
+                    {
+                      icon: 'download',
+                      onClick: handleExportPdf,
+                      label: 'Export do PDF',
+                      tooltip: 'Export do PDF'
+                    }
+                  ]}
+                />
                 
                 {/* Chat komponenta nebo ProductSync */}
                 <div className="flex-1 bg-bewit-gray min-h-0">

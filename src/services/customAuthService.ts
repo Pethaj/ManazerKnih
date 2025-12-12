@@ -83,7 +83,6 @@ export async function login(
     password: string
 ): Promise<{ user: User | null; error: string | null }> {
     try {
-        console.log('🔐 Přihlašování uživatele:', email);
 
         // 1. Najít uživatele podle emailu
         const { data: userData, error: fetchError } = await supabase
@@ -144,7 +143,6 @@ export async function login(
             createdAt: userData.created_at
         };
 
-        console.log('✅ Přihlášení úspěšné:', user.email);
         return { user, error: null };
 
     } catch (err) {
@@ -171,7 +169,6 @@ export async function logout(): Promise<{ error: string | null }> {
         // Smazat session z localStorage
         clearSession();
 
-        console.log('✅ Odhlášení úspěšné');
         return { error: null };
     } catch (err) {
         console.error('❌ Chyba při odhlášení:', err);
@@ -242,11 +239,9 @@ export async function changePassword(
             return { success: false, error: 'Uživatel není přihlášen' };
         }
 
-        console.log('🔐 Měním heslo pro uživatele:', user.id);
 
         // 1. Zahashovat nové heslo
         const newPasswordHash = await bcrypt.hash(newPassword, 10);
-        console.log('✅ Heslo zahashováno');
 
         // 2. Aktualizovat heslo v databázi
         const { error: updateError } = await supabase
@@ -259,7 +254,6 @@ export async function changePassword(
             return { success: false, error: 'Nepodařilo se změnit heslo' };
         }
 
-        console.log('✅ Heslo úspěšně změněno');
         return { success: true, error: null };
 
     } catch (err) {

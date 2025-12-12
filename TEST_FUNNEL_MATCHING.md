@@ -181,3 +181,10 @@ HAVING COUNT(*) > 1;
 **Datum:** 2024-12-09  
 **Status:** ✅ Připraveno k testování  
 **Tester:** Provést manuální test podle kroků výše
+
+
+
+
+
+
+

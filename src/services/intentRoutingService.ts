@@ -144,25 +144,9 @@ export async function routeUserIntent(
   lastBotMessage?: string,
   recommendedProducts?: RecommendedProduct[]
 ): Promise<IntentRouterResponse> {
-  const startTime = performance.now();
-  
-  console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #8B5CF6; font-weight: bold;');
-  console.log('%c🔀 INTENT ROUTING SERVICE - START', 'color: #8B5CF6; font-weight: bold; font-size: 14px;');
-  console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #8B5CF6; font-weight: bold;');
-  console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
-  
-  console.log('%c───────────────────────────────────────────────────────────────────', 'color: #8B5CF6;');
-  console.log('%c📥 VSTUPNÍ DATA:', 'color: #8B5CF6; font-weight: bold;');
-  console.log('%c───────────────────────────────────────────────────────────────────', 'color: #8B5CF6;');
-  console.log(`📝 User Message: "${userMessage}"`);
-  console.log(`📜 Historie konverzace: ${conversationHistory?.length || 0} zpráv`);
-  console.log(`📦 Doporučené produkty: ${recommendedProducts?.length || 0}`);
-  console.log(`💬 Poslední bot zpráva: ${lastBotMessage ? `ANO (${lastBotMessage.length} znaků)` : 'NE'}`);
-  
   try {
     // Validace vstupu
     if (!userMessage || userMessage.trim().length === 0) {
-      console.log('%c⚠️ Prázdná zpráva - vracím default: CHAT', 'color: orange;');
       return {
         success: true,
         intent: 'chat',
@@ -181,9 +165,6 @@ export async function routeUserIntent(
       msg.role === 'bot' && msg.hasCallout === true
     ) || false;
     
-    console.log(`🟡 Žlutý callout v historii: ${hasRecommendationCallout ? 'ANO ✓' : 'NE'}`);
-    console.log(`📦 Produkty již doporučeny: ${hasProductsInHistory ? 'ANO ✓' : 'NE'}`);
-    
     // User prompt s kontextem pro LLM
     let userPrompt = `## AKTUÁLNÍ ZPRÁVA UŽIVATELE
 "${userMessage}"
@@ -199,14 +180,6 @@ ${conversationHistory && conversationHistory.length > 0
 
 Rozhodni o intentu podle pravidel.`;
 
-    console.log('%c───────────────────────────────────────────────────────────────────', 'color: #8B5CF6;');
-    console.log('%c📡 VOLÁM OPENROUTER API (přes Edge Function)...', 'color: #8B5CF6; font-weight: bold;');
-    console.log('%c───────────────────────────────────────────────────────────────────', 'color: #8B5CF6;');
-    console.log(`🤖 Model: ${MODEL}`);
-    console.log(`🌡️ Temperature: ${TEMPERATURE}`);
-
-    const apiStartTime = performance.now();
-
     // Zavoláme Edge Function (ta jen proxuje OpenRouter)
     const { data, error } = await supabase.functions.invoke(EDGE_FUNCTION_URL, {
       body: {
@@ -218,12 +191,7 @@ Rozhodni o intentu podle pravidel.`;
       }
     });
 
-    const apiDuration = performance.now() - apiStartTime;
-    console.log(`⏱️ API response time: ${apiDuration.toFixed(0)}ms`);
-
     if (error) {
-      console.log('%c❌ EDGE FUNCTION CHYBA:', 'color: #EF4444; font-weight: bold;');
-      console.log(`   Error: ${error.message}`);
       throw new Error(`Edge Function chyba: ${error.message}`);
     }
 
@@ -232,7 +200,6 @@ Rozhodni o intentu podle pravidel.`;
     }
 
     const responseText = data.response;
-    console.log('📄 AI Response:', responseText);
 
     // PARSOVÁNÍ ODPOVĚDI
     let result: { 
@@ -253,7 +220,6 @@ Rozhodni o intentu podle pravidel.`;
       // Validace intentů - pouze 3 možnosti
       const validIntents = ['chat', 'funnel', 'update_funnel'];
       if (!validIntents.includes(result.intent)) {
-        console.log('%c⚠️ Neplatný intent, nastavuji na CHAT', 'color: orange;');
         result.intent = 'chat';
       }
 
@@ -263,7 +229,6 @@ Rozhodni o intentu podle pravidel.`;
       }
 
     } catch (parseError) {
-      console.error('%c❌ Chyba při parsování JSON, fallback na CHAT', 'color: #EF4444;', parseError);
       result = { 
         intent: 'chat', 
         confidence: 0.5, 
@@ -271,22 +236,6 @@ Rozhodni o intentu podle pravidel.`;
         symptomList: [] 
       };
     }
-
-    const totalDuration = performance.now() - startTime;
-
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #10B981; font-weight: bold;');
-    console.log('%c✅ INTENT ROUTING - VÝSLEDEK', 'color: #10B981; font-weight: bold; font-size: 14px;');
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #10B981; font-weight: bold;');
-    console.log(`%c🎯 INTENT: ${result.intent.toUpperCase()}`, `color: ${result.intent === 'funnel' || result.intent === 'update_funnel' ? '#F59E0B' : '#10B981'}; font-weight: bold; font-size: 16px;`);
-    console.log(`📊 Confidence: ${(result.confidence * 100).toFixed(1)}%`);
-    console.log(`📝 Reasoning: ${result.reasoning}`);
-    
-    if ((result.intent === 'funnel' || result.intent === 'update_funnel') && result.symptomList && result.symptomList.length > 0) {
-      console.log(`%c🩺 Extrahované symptomy: ${result.symptomList.join(', ')}`, 'color: #F59E0B;');
-    }
-    
-    console.log(`⏱️ Celkový čas: ${totalDuration.toFixed(0)}ms`);
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #10B981; font-weight: bold;');
 
     return {
       success: true,
@@ -298,15 +247,7 @@ Rozhodni o intentu podle pravidel.`;
     };
 
   } catch (error) {
-    const totalDuration = performance.now() - startTime;
-    
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #EF4444; font-weight: bold;');
-    console.log('%c❌ INTENT ROUTING - CHYBA', 'color: #EF4444; font-weight: bold; font-size: 14px;');
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #EF4444; font-weight: bold;');
-    console.log(`🚫 Error: ${error instanceof Error ? error.message : String(error)}`);
-    console.log(`⏱️ Čas do chyby: ${totalDuration.toFixed(0)}ms`);
-    console.log('%c🔄 Fallback: CHAT', 'color: #F59E0B; font-weight: bold;');
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #EF4444; font-weight: bold;');
+    console.error('❌ Intent routing error:', error instanceof Error ? error.message : String(error));
     
     // Fallback na chat při chybě
     return {
@@ -419,13 +360,8 @@ export async function enrichFunnelProductsFromDatabase(
   products: RecommendedProduct[]
 ): Promise<RecommendedProduct[]> {
   if (!products || products.length === 0) {
-    console.log('%c⚠️ Žádné produkty k obohacení', 'color: orange;');
     return [];
   }
-
-  console.log('%c🔍 Obohacuji funnel produkty z product_feed_2...', 'color: #8B5CF6; font-weight: bold;');
-  console.log(`   Počet produktů: ${products.length}`);
-  console.log(`   Product codes: ${products.map(p => p.product_code).join(', ')}`);
 
   try {
     // Získáme product_codes a URLs pro dotaz
@@ -437,11 +373,8 @@ export async function enrichFunnelProductsFromDatabase(
       .map(p => p.url)
       .filter(url => url && url.length > 0);
 
-    console.log(`   📊 Product codes: ${productCodes.length}, URLs: ${productUrls.length}`);
-
     // Pokud nemáme ani product_codes ani URLs, použijeme fallback
     if (productCodes.length === 0 && productUrls.length === 0) {
-      console.log('%c⚠️ Žádné platné product_codes ani URLs, zkouším hledání podle názvu', 'color: orange;');
       return await enrichByProductName(products);
     }
 
@@ -469,45 +402,29 @@ export async function enrichFunnelProductsFromDatabase(
     const { data, error } = await query;
 
     if (error) {
-      console.error('%c❌ Chyba při načítání z product_feed_2:', 'color: #EF4444;', error);
-      // Zkusíme fallback podle názvu
+      console.error('Chyba při načítání z product_feed_2:', error);
       return await enrichByProductName(products);
     }
 
     if (!data || data.length === 0) {
-      console.log('%c⚠️ Žádná data nenalezena podle product_code, zkouším podle názvu', 'color: orange;');
       return await enrichByProductName(products);
     }
-
-    console.log(`%c✅ Načteno ${data.length} produktů z product_feed_2`, 'color: #10B981;');
 
     // Spojíme data - obohacení původních produktů o metadata z DB
     // 🔧 OPRAVA: Prioritizujeme URL matching (URL je unikátní identifikátor!)
     const enrichedProducts: RecommendedProduct[] = products.map(product => {
-      console.log(`   🔍 Hledám produkt: ${product.product_name}`);
-      console.log(`      product_code: ${product.product_code}`);
-      console.log(`      url: ${product.url}`);
-      
       // 1. Priorita: Matching podle URL (URL je unikátní!)
       let dbData = null;
       if (product.url) {
         dbData = data.find(d => d.url === product.url);
-        if (dbData) {
-          console.log(`   ✅ Nalezeno podle URL: ${dbData.product_name}`);
-        }
       }
       
       // 2. Fallback: Matching podle product_code
       if (!dbData) {
         dbData = data.find(d => d.product_code === product.product_code);
-        if (dbData) {
-          console.log(`   ✅ Nalezeno podle product_code: ${dbData.product_name}`);
-        }
       }
       
       if (dbData) {
-        console.log(`      → thumbnail: ${dbData.thumbnail ? 'ANO' : 'CHYBÍ'}`);
-        console.log(`      → price: ${dbData.price || 'CHYBÍ'}`);
         return {
           product_code: dbData.product_code,
           product_name: dbData.product_name || product.product_name,
@@ -518,7 +435,6 @@ export async function enrichFunnelProductsFromDatabase(
           currency: dbData.currency || 'CZK'
         };
       } else {
-        console.log(`   ⚠️ ${product.product_name} → nenalezeno v DB (ani podle URL ani podle code)`);
         return product;
       }
     });
@@ -526,7 +442,7 @@ export async function enrichFunnelProductsFromDatabase(
     return enrichedProducts;
 
   } catch (error) {
-    console.error('%c❌ Chyba při obohacování produktů:', 'color: #EF4444;', error);
+    console.error('Chyba při obohacování produktů:', error);
     return products; // Vrátíme původní produkty
   }
 }
@@ -538,15 +454,10 @@ export async function enrichFunnelProductsFromDatabase(
 async function enrichByProductName(
   products: RecommendedProduct[]
 ): Promise<RecommendedProduct[]> {
-  console.log('%c🔍 Fallback: Hledám produkty podle URL nebo názvu...', 'color: #F59E0B;');
-  
   const enrichedProducts: RecommendedProduct[] = [];
 
   for (const product of products) {
     try {
-      console.log(`   🔍 Hledám: ${product.product_name}`);
-      console.log(`      URL: ${product.url || 'CHYBÍ'}`);
-      
       let data = null;
       let error = null;
       
@@ -559,10 +470,7 @@ async function enrichByProductName(
           .single();
         
         if (!urlResult.error && urlResult.data) {
-          console.log(`   ✅ Nalezeno podle URL: ${urlResult.data.product_name}`);
           data = urlResult.data;
-        } else {
-          console.log(`   ⚠️ Nenalezeno podle URL, zkouším název...`);
         }
       }
       
@@ -586,15 +494,9 @@ async function enrichByProductName(
         const nameResult = await query.limit(1).single();
         data = nameResult.data;
         error = nameResult.error;
-        
-        if (!error && data) {
-          console.log(`   ✅ Nalezeno podle názvu: ${data.product_name}`);
-        }
       }
 
       if (data) {
-        console.log(`      → thumbnail: ${data.thumbnail ? 'ANO' : 'CHYBÍ'}`);
-        console.log(`      → price: ${data.price || 'CHYBÍ'}`);
         enrichedProducts.push({
           product_code: data.product_code,
           product_name: data.product_name,
@@ -605,11 +507,9 @@ async function enrichByProductName(
           currency: data.currency || 'CZK'
         });
       } else {
-        console.log(`   ⚠️ Nenalezeno ani podle URL ani podle názvu: ${product.product_name}`);
         enrichedProducts.push(product);
       }
     } catch (err) {
-      console.log(`   ❌ Chyba při hledání: ${product.product_name}`, err);
       enrichedProducts.push(product);
     }
   }

@@ -54,12 +54,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             }
 
             try {
-                console.log('🌐 Načítám výchozí webový chatbot z databáze...');
                 // 🆕 Načti výchozí webový chatbot (is_default_web_chatbot = true)
                 const settings = await ChatbotSettingsService.getDefaultWebChatbot();
                 
                 if (settings) {
-                    console.log('✅ Výchozí webový chatbot načten:', settings.chatbot_id, settings.chatbot_name);
                     setChatbotId(settings.chatbot_id); // Uložíme ID pro markdown rendering
                     setChatbotSettings({
                         product_recommendations: settings.product_recommendations || false,
@@ -70,7 +68,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                         use_feed_2: settings.use_feed_2 !== undefined ? settings.use_feed_2 : true,
                     });
                 } else {
-                    console.warn('⚠️ Výchozí webový chatbot nenalezen, použiji defaultní hodnoty pro sana_chat');
                     // Defaultní nastavení pokud není v databázi
                     setChatbotId('sana_chat');
                     setChatbotSettings({
@@ -83,7 +80,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     });
                 }
             } catch (error) {
-                console.error('❌ Chyba při načítání nastavení SanaChat:', error);
                 // Fallback na defaultní nastavení
                 setChatbotSettings({
                     product_recommendations: false,

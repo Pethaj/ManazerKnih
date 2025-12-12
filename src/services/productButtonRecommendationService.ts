@@ -54,10 +54,6 @@ async function callButtonRecommendationsWebhook(
   context: ConversationContext
 ): Promise<N8NButtonRecommendationResponse> {
   try {
-    console.log('🚀 Volám N8N webhook pro Button Recommendations...');
-    console.log('📝 User Query:', context.userQuery);
-    console.log('🤖 Bot Response:', context.botResponse.substring(0, 100) + '...');
-    console.log('🔑 Session ID:', context.sessionId);
 
     // Kombinujeme user query a bot response do jednoho chat inputu
     // protože používáme Product Chat webhook
@@ -65,7 +61,6 @@ async function callButtonRecommendationsWebhook(
 Uživatel: ${context.userQuery}
 Chatbot: ${context.botResponse}`;
 
-    console.log('📦 Kombinovaný input pro webhook:', combinedInput.substring(0, 150) + '...');
 
     const response = await fetch(BUTTON_RECOMMENDATIONS_WEBHOOK_URL, {
       method: 'POST',
@@ -86,7 +81,6 @@ Chatbot: ${context.botResponse}`;
     }
 
     let data = await response.json();
-    console.log('✅ N8N webhook raw response:', JSON.stringify(data).substring(0, 200) + '...');
 
     // N8N může vracet data v několika formátech (stejně jako u Product Chat):
     // 1. [{ data: [...] }] - pole s objektem
@@ -97,23 +91,19 @@ Chatbot: ${context.botResponse}`;
     
     // Varianta 1: Array s data property
     if (Array.isArray(data) && data.length > 0 && data[0].data) {
-      console.log('🔧 Rozbaluji N8N response z array[0].data struktury');
       productsData = data[0].data;
     }
     // Varianta 2: Objekt s data property
     else if (data.data && Array.isArray(data.data)) {
-      console.log('🔧 Rozbaluji N8N response z object.data struktury');
       productsData = data.data;
     }
     // Varianta 3: Už má standardní formát
     else if (data.text && Array.isArray(data.products)) {
-      console.log('✅ N8N response je už ve standardním formátu');
       return data;
     }
     
     // Pokud máme productsData, konvertujeme na standardní formát
     if (productsData && Array.isArray(productsData)) {
-      console.log(`🔧 Konvertuji ${productsData.length} produktů na standardní formát`);
       
       const products = productsData.map((item: any) => ({
         product_code: item['ID produktu'] || item.product_code,
@@ -125,10 +115,6 @@ Chatbot: ${context.botResponse}`;
         products: products
       };
       
-      console.log('✅ Konvertováno na standardní formát:', {
-        textLength: data.text.length,
-        productsCount: data.products.length
-      });
     }
 
     // Validace finálního formátu
@@ -137,10 +123,6 @@ Chatbot: ${context.botResponse}`;
       throw new Error('Invalid response format from N8N webhook - nelze konvertovat na standardní formát');
     }
 
-    console.log('✅ Finální response:', {
-      textLength: data.text?.length || 0,
-      productsCount: data.products?.length || 0
-    });
 
     return data;
   } catch (error) {
@@ -159,15 +141,11 @@ async function enrichProductsWithMetadata(
   recommendations: ProductRecommendation[]
 ): Promise<EnrichedProduct[]> {
   try {
-    console.log('📊 Obohacuji produkty o metadata z product_feed_2...');
-    
     if (recommendations.length === 0) {
-      console.log('ℹ️ Žádné produkty k obohacení');
       return [];
     }
 
     const codes = recommendations.map(r => r.product_code);
-    console.log('🔍 Hledám metadata pro product_codes:', codes);
 
     const { data, error } = await supabase
       .from('product_feed_2')
@@ -195,14 +173,12 @@ async function enrichProductsWithMetadata(
       }));
     }
 
-    console.log(`✅ Načteno ${data.length} metadat z product_feed_2`);
 
     // Spojit doporučení z N8N s metadata z product_feed_2
     const enrichedProducts = recommendations.map(rec => {
       const metadata = data.find(d => d.product_code === rec.product_code);
       
       if (!metadata) {
-        console.warn(`⚠️ Metadata nenalezena pro produkt ${rec.product_code}`);
       }
 
       return {
@@ -218,7 +194,6 @@ async function enrichProductsWithMetadata(
       };
     });
 
-    console.log('✅ Produkty úspěšně obohaceny');
     return enrichedProducts;
   } catch (error) {
     console.error('❌ Chyba při obohacování produktů:', error);
@@ -251,8 +226,6 @@ export async function getButtonProductRecommendations(
     // 2. Obohacení produktů o metadata
     const enrichedProducts = await enrichProductsWithMetadata(webhookResponse.products);
 
-    console.log('🎉 Produktová doporučení na tlačítko úspěšně získána');
-    console.log(`📦 Počet produktů: ${enrichedProducts.length}`);
 
     return {
       text: webhookResponse.text,
