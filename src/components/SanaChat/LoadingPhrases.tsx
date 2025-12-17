@@ -156,3 +156,7 @@ const LoadingPhrases: React.FC<LoadingPhrasesProps> = ({ changeInterval = 7000 }
 };
 
 export default LoadingPhrases;
+
+
+
+

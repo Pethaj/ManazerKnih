@@ -201,3 +201,7 @@ import ChatHeader from '../ui/ChatHeader';
 
 Všechny chaty v aplikaci nyní používají jednotnou hlavičku s konzistentním vzhledem a funkčností! 🎉
 
+
+
+
+

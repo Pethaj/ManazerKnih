@@ -239,3 +239,7 @@ Pokud problém přetrvává, pošli:
 
 
 
+
+
+
+

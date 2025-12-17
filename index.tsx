@@ -4069,7 +4069,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
 
             console.log('📤 Webhook payload:', webhookPayload);
 
-            const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook-test/822e584e-0836-4d1d-aef1-5c4dce6573c0', {
+            const response = await fetch('https://n8n.srv980546.hstgr.cloud/webhook/822e584e-0836-4d1d-aef1-5c4dce6573c0', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
