@@ -7,6 +7,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, '.'),
     }
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        widget: path.resolve(__dirname, 'public/widgets/widget-chat.html'),
+        embed: path.resolve(__dirname, 'embed.html')
+      }
+    }
+  },
   server: {
     port: 5173,
     hmr: {
@@ -15,6 +24,13 @@ export default defineConfig({
     watch: {
       usePolling: true,
       interval: 100
+    },
+    // 🔓 Povolení iframe embeddingu pro všechny domény
+    headers: {
+      // Povolí vložení do iframe z jakékoliv domény
+      'Content-Security-Policy': "frame-ancestors *",
+      // Alternativně můžeš povolit jen specifické domény:
+      // 'Content-Security-Policy': "frame-ancestors 'self' https://klient-domena.cz",
     }
   }
 });

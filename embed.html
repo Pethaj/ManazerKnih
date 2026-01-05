@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wany Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Tailwind config - stejná jako v main app
+      window.addEventListener('DOMContentLoaded', function() {
+        if (typeof tailwind !== 'undefined') {
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  bewit: {
+                    blue: '#005b96',
+                    lightBlue: '#e6f2f9',
+                    dark: '#333333',
+                    gray: '#f5f5f5',
+                  },
+                },
+              },
+            },
+          }
+        }
+      });
+    </script>
+    
+    <style>
+        :root {
+            --background-primary: #fdfaf6;
+            --background-secondary: #ffffff;
+            --background-tertiary: #f3eee8;
+            --text-primary: #4a4a4a;
+            --text-secondary: #7a7a7a;
+            --accent-primary: #5d7fa3;
+            --accent-primary-hover: #4a6582;
+            --border-color: #eaddd7;
+            --danger-color: #d9534f;
+            --warning-color: #d9534f;
+            --font-family: 'Inter', sans-serif;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --accent-beige: #C8A97E;
+        }
+        
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: var(--font-family);
+            background-color: var(--background-primary);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        #embed-root {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Chat specific scrollbar styling */
+        .chat-scroll-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-scroll-container::-webkit-scrollbar-track {
+            background: #f8fafc;
+            border-radius: 4px;
+        }
+        .chat-scroll-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+            border: 1px solid #f8fafc;
+        }
+        .chat-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* Responzivní jazykové tlačítka */
+        .lang-label-full {
+            display: inline !important;
+        }
+        .lang-label-short {
+            display: none !important;
+        }
+        
+        @media (max-width: 767px) {
+            .lang-label-full {
+                display: none !important;
+            }
+            .lang-label-short {
+                display: inline !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="embed-root"></div>
+    <script type="module" src="/src/embed-entry.tsx"></script>
+</body>
+</html>
+
