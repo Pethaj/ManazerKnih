@@ -1,4 +1,6 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "headers": [
     {
       "source": "/embed.html",
@@ -12,6 +14,12 @@
           "value": "ALLOWALL"
         }
       ]
+    }
+  ],
+  "routes": [
+    {
+      "src": "/embed.html",
+      "dest": "/embed.html"
     }
   ]
 }
