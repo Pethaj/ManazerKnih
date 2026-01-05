@@ -1,6 +1,8 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "cleanUrls": false,
+  "trailingSlash": false,
   "headers": [
     {
       "source": "/embed.html",
@@ -16,10 +18,10 @@
       ]
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/embed.html",
-      "dest": "/embed.html"
+      "source": "/(.*)",
+      "destination": "/$1"
     }
   ]
 }
