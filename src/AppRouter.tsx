@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import EmbedVanyChat from './pages/EmbedVanyChat';
 
 // Import hlavní App komponenty z main.tsx
 // POZNÁMKA: Toto bude potřeba upravit podle skutečné struktury
@@ -20,6 +21,9 @@ export default function AppRouter({ MainApp }: AppRouterProps) {
             <Routes>
                 {/* Reset hesla - přístupná pro všechny */}
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
+                
+                {/* Embed Wany Chat - pro vložení do iframe na webech klientů */}
+                <Route path="/embed/vany-chat" element={<EmbedVanyChat />} />
                 
                 {/* Hlavní aplikace */}
                 <Route path="/" element={<MainApp />} />

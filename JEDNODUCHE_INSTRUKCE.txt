@@ -1,0 +1,221 @@
+═══════════════════════════════════════════════════════════════════════════
+  VANY CHAT WIDGET - EXTRÉMNĚ JEDNODUCHÉ INSTRUKCE
+═══════════════════════════════════════════════════════════════════════════
+
+✅ BUILD HOTOVÝ! Widget NEzobrazuje automatickou bublinu.
+   Zobrazí se pouze když klient klikne na tlačítko.
+
+═══════════════════════════════════════════════════════════════════════════
+KROK 1: NAHRÁT NA GR8LEARN.EU (Jednou provést)
+═══════════════════════════════════════════════════════════════════════════
+
+1. Připoj se na gr8learn.eu přes FTP
+2. Vytvoř složku: /vany-widget/
+3. Nahraj tam 2 složky:
+   - dist/widgets/  → /vany-widget/widgets/
+   - dist/assets/   → /vany-widget/assets/
+
+HOTOVO! Teď už nikdy nemusíš nic uploadovat.
+
+═══════════════════════════════════════════════════════════════════════════
+KROK 2: POUŽITÍ U KLIENTA (To dáváš každému klientovi)
+═══════════════════════════════════════════════════════════════════════════
+
+Klient vloží na svůj web JEDEN řádek kódu (před </body>):
+
+<script src="https://www.gr8learn.eu/vany-widget/widgets/vany-chat-widget.js" 
+        data-chatbot-id="vany_chat">
+</script>
+
+A JEDNO tlačítko nebo odkaz:
+
+<button onclick="window.VanyChatWidget.open()">
+  💬 Otevřít chat
+</button>
+
+TO JE VŠECHNO! ✅
+
+═══════════════════════════════════════════════════════════════════════════
+KOMPLETNÍ PŘÍKLAD PRO KLIENTA
+═══════════════════════════════════════════════════════════════════════════
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Můj web</title>
+</head>
+<body>
+  
+  <h1>Vítejte na mém webu</h1>
+  
+  <!-- Tlačítko pro otevření chatu -->
+  <button onclick="window.VanyChatWidget.open()">
+    💬 Kontaktujte nás
+  </button>
+  
+  <!-- WIDGET SCRIPT (před </body>) -->
+  <script src="https://www.gr8learn.eu/vany-widget/widgets/vany-chat-widget.js" 
+          data-chatbot-id="vany_chat">
+  </script>
+  
+</body>
+</html>
+
+═══════════════════════════════════════════════════════════════════════════
+RŮZNÉ STYLY TLAČÍTEK (Klient si vybere)
+═══════════════════════════════════════════════════════════════════════════
+
+Jednoduché tlačítko:
+<button onclick="window.VanyChatWidget.open()">Chat</button>
+
+Styled tlačítko:
+<button onclick="window.VanyChatWidget.open()" 
+        style="padding: 15px 30px; background: #667eea; color: white; 
+               border: none; border-radius: 8px; cursor: pointer;">
+  💬 Otevřít chat
+</button>
+
+Jako odkaz:
+<a href="#" onclick="event.preventDefault(); window.VanyChatWidget.open();">
+  Klikněte zde pro chat
+</a>
+
+V menu:
+<nav>
+  <a href="index.html">Domů</a>
+  <a href="kontakt.html">Kontakt</a>
+  <a href="#" onclick="event.preventDefault(); window.VanyChatWidget.open();">
+    Chat
+  </a>
+</nav>
+
+═══════════════════════════════════════════════════════════════════════════
+JAK TO FUNGUJE?
+═══════════════════════════════════════════════════════════════════════════
+
+1. Klient vloží widget script na svou stránku
+2. Widget se načte, ale je SKRYTÝ (žádná bublina!)
+3. Klient vytvoří své vlastní tlačítko/odkaz
+4. Když uživatel klikne → zavolá se window.VanyChatWidget.open()
+5. Otevře se chat okno
+6. Uživatel chatuje
+7. Zavře křížkem nebo ESC
+
+═══════════════════════════════════════════════════════════════════════════
+POKROČILÉ FUNKCE (volitelné)
+═══════════════════════════════════════════════════════════════════════════
+
+Zavřít chat programově:
+<button onclick="window.VanyChatWidget.close()">Zavřít chat</button>
+
+Poslat automatickou zprávu:
+<button onclick="window.VanyChatWidget.open(); 
+                 setTimeout(() => window.VanyChatWidget.sendMessage('Dobrý den'), 500)">
+  Poradit s produkty
+</button>
+
+Změnit téma:
+<button onclick="window.VanyChatWidget.setTheme('dark')">Tmavý režim</button>
+
+═══════════════════════════════════════════════════════════════════════════
+KONFIGURACE (volitelné parametry)
+═══════════════════════════════════════════════════════════════════════════
+
+Základní (bez nastavení):
+<script src="https://www.gr8learn.eu/vany-widget/widgets/vany-chat-widget.js" 
+        data-chatbot-id="vany_chat">
+</script>
+
+S vlastním nastavením:
+<script src="https://www.gr8learn.eu/vany-widget/widgets/vany-chat-widget.js" 
+        data-chatbot-id="vany_chat"
+        data-theme="light"
+        data-position="bottom-right"
+        data-greeting="Ahoj! Jak vám mohu pomoci?"
+        data-width="450"
+        data-height="650">
+</script>
+
+Parametry:
+- data-theme          = "light" nebo "dark"
+- data-position       = "bottom-right", "bottom-left", "top-right", "top-left"
+- data-greeting       = Vlastní uvítací zpráva
+- data-width          = Šířka v px (default: 400)
+- data-height         = Výška v px (default: 600)
+
+═══════════════════════════════════════════════════════════════════════════
+TEST PO NAHRÁNÍ NA SERVER
+═══════════════════════════════════════════════════════════════════════════
+
+Po uploadu na gr8learn.eu otevři:
+
+Test stránka:
+https://www.gr8learn.eu/vany-widget/widgets/test.html
+
+Ukázka pro klienty:
+https://www.gr8learn.eu/vany-widget/widgets/priklad-klient.html
+
+═══════════════════════════════════════════════════════════════════════════
+CO DÁVAT KLIENTŮM?
+═══════════════════════════════════════════════════════════════════════════
+
+EMAIL TEMPLATE pro klienty:
+
+---
+
+Dobrý den,
+
+pro integraci chatbota na vaše stránky stačí:
+
+1. Vložit tento kód před </body> tag:
+
+<script src="https://www.gr8learn.eu/vany-widget/widgets/vany-chat-widget.js" 
+        data-chatbot-id="vany_chat">
+</script>
+
+2. Vytvořit tlačítko nebo odkaz:
+
+<button onclick="window.VanyChatWidget.open()">
+  💬 Kontaktujte nás
+</button>
+
+Můžete použít jakýkoli vlastní design tlačítka.
+
+Ukázkovou stránku najdete zde:
+https://www.gr8learn.eu/vany-widget/widgets/priklad-klient.html
+
+S pozdravem
+---
+
+═══════════════════════════════════════════════════════════════════════════
+DŮLEŽITÉ!
+═══════════════════════════════════════════════════════════════════════════
+
+✓ Widget se NIKDY automaticky nezobrazuje
+✓ Zobrazí se pouze když klient zavolá .open()
+✓ Žádná plovoucí bublina
+✓ Klient má plnou kontrolu nad designem tlačítka
+✓ Funguje na jakémkoli webu
+✓ Responsivní (desktop/mobile)
+
+═══════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════
+
+Pokud nefunguje:
+1. Otevři Developer Console (F12)
+2. Zadej: console.log(window.VanyChatWidget)
+3. Mělo by vrátit objekt, ne undefined
+
+Nejčastější chyby:
+- Špatná cesta k souboru (zkontroluj URL)
+- Script není před </body>
+- Tlačítko zavolá .open() před načtením widgetu
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+
+
+
+

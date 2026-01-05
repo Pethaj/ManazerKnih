@@ -243,3 +243,9 @@ Pokud problém přetrvává, pošli:
 
 
 
+
+
+
+
+
+

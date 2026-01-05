@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ukázka - Vany Chat Widget u klienta</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    
+    p {
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+    
+    .chat-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 20px;
+    }
+    
+    .chat-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .chat-button:active {
+      transform: translateY(0);
+    }
+    
+    .code-box {
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 20px 0;
+      overflow-x: auto;
+    }
+    
+    .code-box code {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    
+    .info-box h3 {
+      margin-top: 0;
+      color: #1976d2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Ukázka Vany Chat Widget</h1>
+    
+    <p>
+      Toto je ukázková stránka, jak vypadá integrace Vany Chat widgetu na webu klienta.
+    </p>
+    
+    <p>
+      Widget se <strong>automaticky nezobrazuje</strong>. Zobrazí se až když uživatel klikne na tlačítko níže:
+    </p>
+    
+    <!-- TLAČÍTKO PRO OTEVŘENÍ CHATU -->
+    <button class="chat-button" onclick="window.VanyChatWidget.open()">
+      💬 Otevřít chat s poradcem
+    </button>
+    
+    <div class="info-box">
+      <h3>📋 Jak to funguje?</h3>
+      <p>
+        1. Na stránku je vložen widget script (viz kód níže)<br>
+        2. Vytvoříte si vlastní tlačítko nebo odkaz<br>
+        3. Při kliknutí zavoláte <code>window.VanyChatWidget.open()</code><br>
+        4. Otevře se chat okno<br>
+        5. Po dokončení může uživatel zavřít chat křížkem nebo ESC
+      </p>
+    </div>
+    
+    <h2>💻 Kód pro integraci</h2>
+    
+    <p>Vložte tento kód na konec vašeho HTML (před &lt;/body&gt;):</p>
+    
+    <div class="code-box">
+      <code>&lt;!-- Vany Chat Widget --&gt;<br>
+&lt;script src="https://beautiful-pika-466f18.netlify.app/widgets/vany-chat-widget.js" <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-chatbot-id="vany_chat"&gt;<br>
+&lt;/script&gt;</code>
+    </div>
+    
+    <p>A pak vytvořte tlačítko nebo odkaz s tímto onclick:</p>
+    
+    <div class="code-box">
+      <code>&lt;button onclick="window.VanyChatWidget.open()"&gt;<br>
+&nbsp;&nbsp;💬 Kontaktujte nás<br>
+&lt;/button&gt;</code>
+    </div>
+    
+    <h2>🎨 Příklady tlačítek</h2>
+    
+    <p>Můžete použít jakýkoli design tlačítka:</p>
+    
+    <!-- Příklad 1: Jednoduché tlačítko -->
+    <button onclick="window.VanyChatWidget.open()" 
+            style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">
+      Jednoduché tlačítko
+    </button>
+    
+    <!-- Příklad 2: Tlačítko s ikonou -->
+    <button onclick="window.VanyChatWidget.open()" 
+            style="padding: 10px 20px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">
+      💬 Chat s poradcem
+    </button>
+    
+    <!-- Příklad 3: Odkaz -->
+    <a href="#" onclick="event.preventDefault(); window.VanyChatWidget.open();" 
+       style="color: #667eea; text-decoration: underline; margin: 5px; display: inline-block;">
+      Nebo klikněte zde pro chat
+    </a>
+    
+    <h2>📱 Další možnosti</h2>
+    
+    <p>Můžete také programově ovládat chat:</p>
+    
+    <div class="code-box">
+      <code>// Otevřít chat<br>
+window.VanyChatWidget.open();<br>
+<br>
+// Zavřít chat<br>
+window.VanyChatWidget.close();<br>
+<br>
+// Přepnout viditelnost<br>
+window.VanyChatWidget.toggle();<br>
+<br>
+// Poslat automatickou zprávu<br>
+window.VanyChatWidget.sendMessage("Dobrý den, potřebuji poradit...");</code>
+    </div>
+    
+    <h2>🔧 Pokročilá konfigurace</h2>
+    
+    <p>Widget můžete přizpůsobit pomocí parametrů:</p>
+    
+    <div class="code-box">
+      <code>&lt;script src="https://beautiful-pika-466f18.netlify.app/widgets/vany-chat-widget.js"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-chatbot-id="vany_chat"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-theme="light"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-position="bottom-right"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-greeting="Dobrý den! Jak vám mohu pomoci?"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-width="450"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-height="650"&gt;<br>
+&lt;/script&gt;</code>
+    </div>
+    
+    <hr style="margin: 40px 0; border: none; border-top: 1px solid #ddd;">
+    
+    <p style="text-align: center; color: #999; font-size: 14px;">
+      © 2025 Bewit | Vany Chat Widget Demo
+    </p>
+  </div>
+  
+  <!-- ============================================ -->
+  <!-- VANY CHAT WIDGET - TOHLE PŘIDÁ KLIENT       -->
+  <!-- ============================================ -->
+  <script src="./vany-chat-widget.js" 
+          data-chatbot-id="vany_chat">
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,173 @@
+═══════════════════════════════════════════════════════════════════════════
+  VANY CHAT WIDGET - INSTRUKCE PRO UPLOAD NA GR8LEARN.EU
+═══════════════════════════════════════════════════════════════════════════
+
+✅ BUILD DOKONČEN - Soubory jsou připravené v složce: dist/
+
+═══════════════════════════════════════════════════════════════════════════
+KROK 1: CO NAHRÁT NA SERVER
+═══════════════════════════════════════════════════════════════════════════
+
+Nahraj tyto 2 složky na gr8learn.eu:
+
+1. dist/widgets/     → nahraj jako: /vany-widget/widgets/
+2. dist/assets/      → nahraj jako: /vany-widget/assets/
+
+VÝSLEDNÁ STRUKTURA NA SERVERU:
+www.gr8learn.eu/
+└── vany-widget/              ← Vytvoř tuto hlavní složku
+    ├── widgets/
+    │   ├── vany-chat-widget.js    (6.2K)  ← HLAVNÍ LOADER SCRIPT
+    │   ├── widget-chat.html       (4.3K)  ← Iframe stránka
+    │   └── test.html              (12K)   ← Test stránka
+    └── assets/
+        ├── widget-entry-*.js      (9.6K)  ← React bundle
+        ├── widget-entry-*.css     (3.1K)  ← Styly
+        ├── WaveLoader-*.js        (752K)  ← Loader komponenta
+        └── ... (další soubory)
+
+═══════════════════════════════════════════════════════════════════════════
+KROK 2: TEST PO UPLOADU
+═══════════════════════════════════════════════════════════════════════════
+
+Po uploadu otevři v prohlížeči:
+
+👉 https://www.gr8learn.eu/vany-widget/widgets/test.html
+
+Měl bys vidět:
+- Testovací stránku s fialovým gradientem
+- Widget v pravém dolním rohu
+- Ovládací panel pro změnu nastavení
+
+Vyzkoušej:
+- Napiš zprávu do chatu
+- Zkontroluj, že chat odpovídá
+- Zkus produktová doporučení
+
+═══════════════════════════════════════════════════════════════════════════
+KROK 3: POUŽITÍ NA KLIENTSKÉM WEBU
+═══════════════════════════════════════════════════════════════════════════
+
+Klient vloží tento kód na JAKÝKOLI web:
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Testovací stránka</title>
+</head>
+<body>
+  <h1>Můj web</h1>
+  <p>Nějaký obsah...</p>
+
+  <!-- Vany Chat Widget -->
+  <script src="https://www.gr8learn.eu/vany-widget/widgets/vany-chat-widget.js" 
+          data-chatbot-id="vany_chat">
+  </script>
+</body>
+</html>
+
+═══════════════════════════════════════════════════════════════════════════
+KONFIGURACE WIDGETU
+═══════════════════════════════════════════════════════════════════════════
+
+Základní:
+<script src="https://www.gr8learn.eu/vany-widget/widgets/vany-chat-widget.js" 
+        data-chatbot-id="vany_chat">
+</script>
+
+S vlastním nastavením:
+<script src="https://www.gr8learn.eu/vany-widget/widgets/vany-chat-widget.js" 
+        data-chatbot-id="vany_chat"
+        data-theme="light"
+        data-position="bottom-right"
+        data-greeting="Ahoj! Jak vám mohu pomoci s produkty Bewit?"
+        data-width="450"
+        data-height="650">
+</script>
+
+Dostupné parametry:
+- data-chatbot-id     = ID chatbota (default: "vany_chat")
+- data-theme          = "light" nebo "dark"
+- data-position       = "bottom-right", "bottom-left", "top-right", "top-left"
+- data-greeting       = Vlastní uvítací zpráva
+- data-width          = Šířka v px (default: 400)
+- data-height         = Výška v px (default: 600)
+
+═══════════════════════════════════════════════════════════════════════════
+JAVASCRIPT API
+═══════════════════════════════════════════════════════════════════════════
+
+Programové ovládání widgetu:
+
+// Otevřít widget
+window.VanyChatWidget.open();
+
+// Zavřít widget
+window.VanyChatWidget.close();
+
+// Přepnout viditelnost
+window.VanyChatWidget.toggle();
+
+// Poslat zprávu
+window.VanyChatWidget.sendMessage("Jaké produkty doporučujete?");
+
+// Změnit téma
+window.VanyChatWidget.setTheme("dark");
+
+Příklad - tlačítko pro otevření chatu:
+<button onclick="window.VanyChatWidget.open()">
+  💬 Kontaktujte nás
+</button>
+
+═══════════════════════════════════════════════════════════════════════════
+VELIKOSTI SOUBORŮ
+═══════════════════════════════════════════════════════════════════════════
+
+Widget loader:        6.2 KB
+Widget HTML:          4.3 KB
+React bundle:         9.6 KB (gzipped: 3.82 KB)
+CSS:                  3.1 KB (gzipped: 1.20 KB)
+
+Total widget:        ~23 KB (~10 KB gzipped)
+
+═══════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════
+
+Pokud widget nefunguje:
+
+1. Otevři Developer Console (F12)
+2. Zkontroluj chyby v Console tab
+3. Zkontroluj Network tab - všechny soubory by měly mít status 200
+4. Zkontroluj:
+   console.log(window.VanyChatWidget);
+   // Mělo by vrátit objekt s konfigurací
+
+5. Nejčastější problémy:
+   - Špatná cesta k souborům (zkontroluj URL)
+   - CORS chyby (měly by být vyřešeny)
+   - JavaScript vypnutý v prohlížeči
+
+═══════════════════════════════════════════════════════════════════════════
+DŮLEŽITÉ
+═══════════════════════════════════════════════════════════════════════════
+
+✓ Widget vyžaduje HTTPS v produkci (gr8learn.eu má ✓)
+✓ Widget automaticky detekuje base URL
+✓ Widget je responsivní (desktop/mobile)
+✓ Widget používá iframe izolaci (žádné CSS konflikty)
+
+═══════════════════════════════════════════════════════════════════════════
+KONTAKT
+═══════════════════════════════════════════════════════════════════════════
+
+Pro technickou podporu: podpora@bewit.love
+Web: https://bewit.love
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+
+
+
+

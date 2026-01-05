@@ -48,40 +48,40 @@ if (customSanitizeSchema.protocols && customSanitizeSchema.protocols.href) {
 
 // API functions for loading metadata
 const api = {
-    async getLabels(): Promise<string[]> {
+    async getLabels(): Promise<Array<{id: string, name: string}>> {
         const { data, error } = await supabaseClient
             .from('labels')
-            .select('name')
+            .select('id, name')
             .order('name');
         if (error) {
             console.error('Error loading labels:', error);
             return [];
         }
-        return data.map(item => item.name);
+        return data || [];
     },
     
-    async getCategories(): Promise<string[]> {
-        const { data, error } = await supabaseClient
+    async getCategories(): Promise<Array<{id: string, name: string}>> {
+        const { data, error} = await supabaseClient
             .from('categories')
-            .select('name')
+            .select('id, name')
             .order('name');
         if (error) {
             console.error('Error loading categories:', error);
             return [];
         }
-        return data.map(item => item.name);
+        return data || [];
     },
     
-    async getPublicationTypes(): Promise<string[]> {
+    async getPublicationTypes(): Promise<Array<{id: string, name: string}>> {
         const { data, error } = await supabaseClient
             .from('publication_types')
-            .select('name')
+            .select('id, name')
             .order('name');
         if (error) {
             console.error('Error loading publication types:', error);
             return [];
         }
-        return data.map(item => item.name);
+        return data || [];
     }
 };
 
@@ -2391,6 +2391,9 @@ interface FilteredSanaChatProps {
         use_feed_1?: boolean;
         use_feed_2?: boolean;
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
+        allowed_categories?: string[];  // 🆕 Povolené kategorie (UUID)
+        allowed_labels?: string[];  // 🆕 Povolené štítky (UUID)
+        allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
     };
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;
@@ -2448,24 +2451,55 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     // Načteme metadata z databáze při startu komponenty
     useEffect(() => {
         const loadMetadata = async () => {
-            // Nejprve nastavím fallback hodnoty aby se něco zobrazilo
-            const fallbackCategories = ['Aromaterapie', 'Masáže', 'Akupunktura', 'Diagnostika', 'TČM', 'Wany'];
-            const fallbackLabels = ['Osobní', 'Chci přečíst']; // Dle memory [[memory:7487588]]
-            const fallbackTypes = ['public', 'students', 'internal_bewit'];
+            // Fallback hodnoty - budou se použít jen pokud selže načtení z DB
+            const allFallbackCategories = ['Aromaterapie', 'Masáže', 'Akupunktura', 'Diagnostika', 'TČM', 'Wany'];
+            const allFallbackLabels = ['Osobní', 'Chci přečíst'];
+            const allFallbackTypes = ['public', 'students', 'internal_bewit'];
+            
+            // Fallback hodnoty - respektujeme nastavení z chatbotSettings
+            // Pokud není definované allowed_* (undefined), zobrazíme vše
+            // Pokud je prázdné ([]), nezobrazíme nic
+            // Pokud obsahuje UUID, načteme z DB a filtrujeme
+            console.log('🔍 FALLBACK LOGIKA:');
+            console.log('  - settings.allowed_categories:', settings?.allowed_categories);
+            console.log('  - settings.allowed_labels:', settings?.allowed_labels);
+            console.log('  - settings.allowed_publication_types:', settings?.allowed_publication_types);
+            
+            const fallbackCategories = settings?.allowed_categories === undefined
+                ? allFallbackCategories // Undefined = zobraz vše
+                : (settings.allowed_categories.length === 0 ? [] : []); // Prázdné nebo UUID = čekáme na DB
+                
+            const fallbackLabels = settings?.allowed_labels === undefined
+                ? allFallbackLabels // Undefined = zobraz vše
+                : []; // Prázdné nebo UUID = použij nastavení (prázdné = skryté)
+                
+            const fallbackTypes = settings?.allowed_publication_types === undefined
+                ? allFallbackTypes // Undefined = zobraz vše
+                : (settings.allowed_publication_types.length === 0 ? [] : []); // Prázdné nebo UUID = čekáme na DB
+            
+            console.log('🔍 FALLBACK VÝSLEDKY:');
+            console.log('  - fallbackCategories:', fallbackCategories);
+            console.log('  - fallbackLabels:', fallbackLabels);
+            console.log('  - fallbackTypes:', fallbackTypes);
             
             setAvailableCategories(fallbackCategories);
             setAvailableLabels(fallbackLabels);
             setAvailablePublicationTypes(fallbackTypes);
             
-            // Defaultně vše zaškrtnuté
+            // Defaultně vše zaškrtnuté (pouze povolené položky)
             setSelectedCategories([...fallbackCategories]);
             setSelectedLabels([...fallbackLabels]);
             setSelectedPublicationTypes([...fallbackTypes]);
             
-            console.log('🔄 Nastaveny výchozí hodnoty pro filtry (vše zaškrtnuté):', {
+            console.log('🔄 Nastaveny výchozí hodnoty pro filtry podle chatbotSettings:', {
                 categories: fallbackCategories,
                 labels: fallbackLabels,
-                types: fallbackTypes
+                types: fallbackTypes,
+                allowed_settings: {
+                    categories: settings?.allowed_categories,
+                    labels: settings?.allowed_labels,
+                    publication_types: settings?.allowed_publication_types
+                }
             });
             
             try {
@@ -2480,18 +2514,49 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                 console.log('- Kategorie:', categories);
                 console.log('- Typy publikací:', publicationTypes);
                 
+                // Filtrujeme metadata podle povolených hodnot v chatbotSettings
+                // allowed_* obsahují UUID, takže porovnáváme podle ID
+                // Filtrování podle chatbotSettings
+                // Pokud není definované (undefined) = zobraz vše
+                // Pokud je prázdné ([]) = nezobraz nic
+                // Pokud obsahuje ID = zobraz pouze ty
+                const allowedCategories = settings?.allowed_categories === undefined
+                    ? categories.map(cat => cat.name) // Undefined = zobraz vše
+                    : settings.allowed_categories.length === 0
+                        ? [] // Prázdné = skryté
+                        : categories.filter(cat => settings.allowed_categories.includes(cat.id)).map(cat => cat.name);
+                
+                const allowedLabels = settings?.allowed_labels === undefined
+                    ? labels.map(label => label.name) // Undefined = zobraz vše
+                    : settings.allowed_labels.length === 0
+                        ? [] // Prázdné = skryté
+                        : labels.filter(label => settings.allowed_labels.includes(label.id)).map(label => label.name);
+                
+                const allowedPublicationTypes = settings?.allowed_publication_types === undefined
+                    ? publicationTypes.map(type => type.name) // Undefined = zobraz vše
+                    : settings.allowed_publication_types.length === 0
+                        ? [] // Prázdné = skryté
+                        : publicationTypes.filter(type => settings.allowed_publication_types.includes(type.id)).map(type => type.name);
+                
+                console.log('🔒 Filtrované kategorie podle chatbotSettings:');
+                console.log('  - Všechny z DB:', categories);
+                console.log('  - Povolené UUID z settings.allowed_categories:', settings?.allowed_categories);
+                console.log('  - Výsledné povolené kategorie (jména):', allowedCategories);
+                console.log('  - Povolené štítky:', allowedLabels);
+                console.log('  - Povolené typy:', allowedPublicationTypes);
+                
                 // Pouze pokud se načetly data z databáze, aktualizuji je
-                if (labels.length > 0) {
-                    setAvailableLabels(labels);
-                    setSelectedLabels([...labels]); // Defaultně vše zaškrtnuté
+                if (allowedLabels.length > 0) {
+                    setAvailableLabels(allowedLabels);
+                    setSelectedLabels([...allowedLabels]); // Defaultně vše zaškrtnuté
                 }
-                if (categories.length > 0) {
-                    setAvailableCategories(categories);
-                    setSelectedCategories([...categories]); // Defaultně vše zaškrtnuté
+                if (allowedCategories.length > 0) {
+                    setAvailableCategories(allowedCategories);
+                    setSelectedCategories([...allowedCategories]); // Defaultně vše zaškrtnuté
                 }
-                if (publicationTypes.length > 0) {
-                    setAvailablePublicationTypes(publicationTypes);
-                    setSelectedPublicationTypes([...publicationTypes]); // Defaultně vše zaškrtnuté
+                if (allowedPublicationTypes.length > 0) {
+                    setAvailablePublicationTypes(allowedPublicationTypes);
+                    setSelectedPublicationTypes([...allowedPublicationTypes]); // Defaultně vše zaškrtnuté
                 }
                 
             } catch (error) {
@@ -2500,7 +2565,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
         };
         
         loadMetadata();
-    }, []);
+    }, [settings]); // Znovu načteme pokud se změní nastavení
 
     const toggleFilter = (value: string, selected: string[], setter: (values: string[]) => void) => {
         console.log('Toggle filter:', { value, currentSelected: selected });
@@ -2607,65 +2672,71 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                     </button>
                 </div>
                 
-                {/* Kategorie - vlastní dva sloupce */}
-                <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-bewit-dark mb-4 text-center">Kategorie léčby</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {availableCategories.map(category => (
-                            <button
-                                key={category}
-                                onClick={() => toggleFilter(category, selectedCategories, setSelectedCategories)}
-                                className={`p-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-center ${
-                                    selectedCategories.includes(category)
-                                        ? 'bg-bewit-blue text-white shadow-md'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                {category}
-                            </button>
-                        ))}
+                {/* Kategorie - zobrazí se jen pokud existují povolené kategorie */}
+                {availableCategories.length > 0 && (
+                    <div className="mb-6">
+                        <h3 className="text-lg font-semibold text-bewit-dark mb-4 text-center">Kategorie léčby</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {availableCategories.map(category => (
+                                <button
+                                    key={category}
+                                    onClick={() => toggleFilter(category, selectedCategories, setSelectedCategories)}
+                                    className={`p-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-center ${
+                                        selectedCategories.includes(category)
+                                            ? 'bg-bewit-blue text-white shadow-md'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {category}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
 
-                {/* Typy publikací - vlastní dva sloupce */}
-                <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-bewit-dark mb-4 text-center">Typy publikací</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {availablePublicationTypes.map(type => (
-                            <button
-                                key={type}
-                                onClick={() => toggleFilter(type, selectedPublicationTypes, setSelectedPublicationTypes)}
-                                className={`p-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-center ${
-                                    selectedPublicationTypes.includes(type)
-                                        ? 'bg-bewit-blue text-white shadow-md'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                {type === 'public' ? 'Veřejné' : type === 'students' ? 'Pro studenty' : 'Interní'}
-                            </button>
-                        ))}
+                {/* Typy publikací - zobrazí se jen pokud existují povolené typy */}
+                {availablePublicationTypes.length > 0 && (
+                    <div className="mb-6">
+                        <h3 className="text-lg font-semibold text-bewit-dark mb-4 text-center">Typy publikací</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {availablePublicationTypes.map(type => (
+                                <button
+                                    key={type}
+                                    onClick={() => toggleFilter(type, selectedPublicationTypes, setSelectedPublicationTypes)}
+                                    className={`p-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-center ${
+                                        selectedPublicationTypes.includes(type)
+                                            ? 'bg-bewit-blue text-white shadow-md'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {type === 'public' ? 'Veřejné' : type === 'students' ? 'Pro studenty' : 'Interní'}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
 
-                {/* Štítky - vlastní dva sloupce */}
-                <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-bewit-dark mb-4 text-center">Štítky</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {availableLabels.map(label => (
-                            <button
-                                key={label}
-                                onClick={() => toggleFilter(label, selectedLabels, setSelectedLabels)}
-                                className={`p-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-center ${
-                                    selectedLabels.includes(label)
-                                        ? 'bg-bewit-blue text-white shadow-md'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                {label}
-                            </button>
-                        ))}
+                {/* Štítky - zobrazí se jen pokud existují povolené štítky */}
+                {availableLabels.length > 0 && (
+                    <div className="mb-6">
+                        <h3 className="text-lg font-semibold text-bewit-dark mb-4 text-center">Štítky</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {availableLabels.map(label => (
+                                <button
+                                    key={label}
+                                    onClick={() => toggleFilter(label, selectedLabels, setSelectedLabels)}
+                                    className={`p-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-center ${
+                                        selectedLabels.includes(label)
+                                            ? 'bg-bewit-blue text-white shadow-md'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 </div>
             </div>
@@ -2696,13 +2767,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                     </div>
                   }
                   buttons={[
-                    {
-                      icon: 'product',
-                      onClick: toggleProductSync,
-                      label: isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty',
-                      tooltip: isProductSyncVisible ? 'Skrýt produkty' : 'Spravovat produkty BEWIT',
-                      isActive: isProductSyncVisible
-                    },
+                    // ❌ Ikona produktů (košík) byla odstraněna
                     {
                       icon: 'plus',
                       onClick: handleNewChat,

@@ -117,30 +117,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             )}
           </div>
           
-          {/* Pravá část - Jazyky a akční tlačítka */}
+          {/* Pravá část - Akční tlačítka */}
           <div className="flex items-center space-x-3">
-            {/* Jazykové tlačítka */}
-            {languages && languages.length > 0 && onLanguageChange && (
-              <>
-                <div className="flex items-center space-x-2">
-                  {languages.map(lang => (
-                    <button
-                      key={lang.code}
-                      onClick={() => onLanguageChange(lang.code)}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-200 ${
-                        selectedLanguage === lang.code
-                          ? 'bg-white text-bewit-blue ring-2 ring-offset-2 ring-offset-bewit-blue ring-white'
-                          : 'bg-white/20 hover:bg-white/30 text-white'
-                      }`}
-                      aria-label={`Změnit jazyk na ${lang.label}`}
-                    >
-                      {lang.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="h-6 w-px bg-white/20"></div>
-              </>
-            )}
+            {/* Jazykové tlačítka ODSTRANĚNY - defaultně CZ */}
             
             {/* Akční tlačítka */}
             <div className="flex items-center space-x-2">
@@ -180,6 +159,13 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 };
 
 export default ChatHeader;
+
+
+
+
+
+
+
 
 
 

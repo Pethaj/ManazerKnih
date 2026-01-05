@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vany Chat Widget</title>
+  <meta name="description" content="Embedovatelný chatbot widget pro Bewit klienty">
+  
+  <!-- Preconnect pro rychlejší načítání -->
+  <link rel="preconnect" href="https://modopafybeslbcqjxsve.supabase.co">
+  <link rel="preconnect" href="https://n8n.srv980546.hstgr.cloud">
+  
+  <style>
+    /* Reset & Base Styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    #root {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Loading Spinner */
+    .widget-loader {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .widget-loader-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .widget-loader-text {
+      color: white;
+      margin-top: 16px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* Error State */
+    .widget-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      background: #f9fafb;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .widget-error-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .widget-error-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 8px;
+    }
+
+    .widget-error-message {
+      font-size: 14px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <!-- Root element for React app -->
+  <div id="root">
+    <!-- Initial loading state -->
+    <div class="widget-loader">
+      <div style="text-align: center;">
+        <div class="widget-loader-spinner"></div>
+        <div class="widget-loader-text">Načítám chat...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Widget Entry Point Script -->
+  <script type="module">
+    // Widget initialization
+    console.log('🤖 Vany Chat Widget HTML načten');
+    
+    // Parse URL parameters for debugging
+    const params = new URLSearchParams(window.location.search);
+    console.log('📋 Widget parametry:', {
+      chatbot: params.get('chatbot'),
+      theme: params.get('theme'),
+      greeting: params.get('greeting')
+    });
+
+    // Error handler
+    window.addEventListener('error', (event) => {
+      console.error('❌ Widget chyba:', event.error);
+      
+      // Show error UI
+      const root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = `
+          <div class="widget-error">
+            <div class="widget-error-icon">⚠️</div>
+            <div class="widget-error-title">Nepodařilo se načíst chat</div>
+            <div class="widget-error-message">${event.message || 'Neznámá chyba'}</div>
+          </div>
+        `;
+      }
+    });
+
+    // Import and render React app
+    import('/src/widget-entry.tsx').catch((error) => {
+      console.error('❌ Nepodařilo se načíst widget:', error);
+      
+      const root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = `
+          <div class="widget-error">
+            <div class="widget-error-icon">⚠️</div>
+            <div class="widget-error-title">Chyba načítání</div>
+            <div class="widget-error-message">Zkontrolujte konfiguraci widgetu</div>
+          </div>
+        `;
+      }
+    });
+  </script>
+
+  <!-- Analytics (volitelné - pro budoucnost) -->
+  <script>
+    // Widget analytics placeholder
+    window.__VANY_WIDGET_ANALYTICS__ = {
+      trackEvent: function(eventName, data) {
+        console.log('📊 Widget Analytics:', eventName, data);
+        // Budoucí implementace: poslat na analytics server
+      }
+    };
+  </script>
+</body>
+</html>
+
+
+
+
+
+

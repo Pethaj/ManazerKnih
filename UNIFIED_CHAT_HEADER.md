@@ -205,3 +205,9 @@ Všechny chaty v aplikaci nyní používají jednotnou hlavičku s konzistentní
 
 
 
+
+
+
+
+
+

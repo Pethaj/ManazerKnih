@@ -1,0 +1,4 @@
+# Vercel redirects/rewrites
+/embed.html /embed.html 200
+/* /index.html 200
+

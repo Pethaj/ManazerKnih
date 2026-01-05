@@ -1,0 +1,156 @@
+═══════════════════════════════════════════════════════════════════════════
+  FTP UPLOAD NA GR8LEARN.EU - CHECKLIST
+═══════════════════════════════════════════════════════════════════════════
+
+✅ Build je hotový! Soubory jsou v: dist/
+
+═══════════════════════════════════════════════════════════════════════════
+CO NAHRÁT
+═══════════════════════════════════════════════════════════════════════════
+
+Z lokální složky DIST nahraj tyto 2 složky:
+
+📁 dist/widgets/   → nahraj jako → /vany-widget/widgets/
+📁 dist/assets/    → nahraj jako → /vany-widget/assets/
+
+═══════════════════════════════════════════════════════════════════════════
+POSTUP V FTP PROGRAMU (FileZilla, Cyberduck, atd.)
+═══════════════════════════════════════════════════════════════════════════
+
+1. PŘIPOJ SE NA SERVER:
+   - Host: gr8learn.eu (nebo ftp.gr8learn.eu)
+   - Username: [tvoje FTP jméno]
+   - Password: [tvoje FTP heslo]
+   - Port: 21 (nebo 22 pro SFTP)
+
+2. NAJDI WEBOVOU SLOŽKU:
+   Obvykle je to:
+   - /public_html/
+   - /www/
+   - /htdocs/
+   - nebo root složka
+
+3. VYTVOŘ NOVOU SLOŽKU:
+   Pravé tlačítko → New Folder → Pojmenuj: vany-widget
+
+4. VEJDI DO vany-widget/:
+   Double-click na složku vany-widget
+
+5. NAHRAJ SLOŽKY:
+   
+   a) Najdi na svém počítači:
+      /Users/petrhajduk/Documents/Code/Bewit/Manazer Knih/app/dist/
+   
+   b) Přetáhni (drag & drop) tyto 2 složky do FTP:
+      ✓ widgets/
+      ✓ assets/
+
+6. POČKEJ NA DOKONČENÍ:
+   FTP program ukáže progress bar
+
+7. VÝSLEDNÁ STRUKTURA NA SERVERU:
+   www.gr8learn.eu/
+   └── vany-widget/
+       ├── widgets/
+       │   ├── vany-chat-widget.js      (6.2 KB)
+       │   ├── widget-chat.html         (4.3 KB)
+       │   ├── test.html                (12 KB)
+       │   └── priklad-klient.html      (9 KB)
+       └── assets/
+           ├── widget-entry-*.js
+           ├── widget-entry-*.css
+           ├── WaveLoader-*.js
+           └── ... (další soubory)
+
+═══════════════════════════════════════════════════════════════════════════
+PO UPLOADU - TEST
+═══════════════════════════════════════════════════════════════════════════
+
+Otevři v prohlížeči a zkontroluj:
+
+1. Test stránka:
+   https://www.gr8learn.eu/vany-widget/widgets/test.html
+   
+   Měl bys vidět:
+   ✓ Fialovou stránku s ovládacím panelem
+   ✓ Widget v pravém dolním rohu (zobrazí se po kliknutí na tlačítko)
+
+2. Ukázka pro klienty:
+   https://www.gr8learn.eu/vany-widget/widgets/priklad-klient.html
+   
+   Měl bys vidět:
+   ✓ Bílou stránku s instrukcemi
+   ✓ Tlačítko "Otevřít chat s poradcem"
+   ✓ Po kliknutí se otevře chat
+
+3. Zkontroluj Developer Console:
+   - Otevři DevTools (F12)
+   - Zadej: window.VanyChatWidget
+   - Mělo by vrátit objekt (ne undefined)
+
+═══════════════════════════════════════════════════════════════════════════
+POKUD NĚCO NEFUNGUJE
+═══════════════════════════════════════════════════════════════════════════
+
+❌ Chyba 404 Not Found
+   → Špatná cesta nebo soubory nejsou nahrané
+   → Zkontroluj, že složky jsou ve správné struktuře
+
+❌ Widget se nezobrazuje
+   → Otevři Console (F12)
+   → Hledej červené chyby
+   → Zkontroluj, že všechny soubory se načítají (Network tab)
+
+❌ "Permission denied"
+   → Nemáš oprávnění k uploadu
+   → Zkontroluj FTP přihlašovací údaje
+
+❌ CORS chyby
+   → Mělo by být OK, protože vše je na stejné doméně
+   → Pokud přesto je problém, kontaktuj hosting support
+
+═══════════════════════════════════════════════════════════════════════════
+DŮLEŽITÉ POZNÁMKY
+═══════════════════════════════════════════════════════════════════════════
+
+✓ Nahráváš POUZE ze složky dist/ (ne celý projekt!)
+✓ Toto děláš JEDNOU - pak už jen dáváš klientům kód
+✓ Widget NEzobrazuje automatickou bublinu
+✓ Klient musí vytvořit tlačítko s onclick="window.VanyChatWidget.open()"
+
+═══════════════════════════════════════════════════════════════════════════
+AKTUALIZACE WIDGETU (v budoucnu)
+═══════════════════════════════════════════════════════════════════════════
+
+Když budeš chtít aktualizovat widget:
+
+1. Udělej změny v kódu
+2. Spusť: npm run build
+3. Nahraj nové soubory z dist/ přes FTP (přepiš staré)
+4. Hotovo! Všichni klienti automaticky dostanou novou verzi
+
+═══════════════════════════════════════════════════════════════════════════
+KONTAKT
+═══════════════════════════════════════════════════════════════════════════
+
+Pro technickou podporu: podpora@bewit.love
+Web: https://bewit.love
+
+═══════════════════════════════════════════════════════════════════════════
+
+CHECKLIST:
+[ ] Připojil jsem se na FTP
+[ ] Vytvořil jsem složku /vany-widget/
+[ ] Nahrál jsem dist/widgets/ → /vany-widget/widgets/
+[ ] Nahrál jsem dist/assets/ → /vany-widget/assets/
+[ ] Otestoval jsem https://www.gr8learn.eu/vany-widget/widgets/test.html
+[ ] Widget se otevírá po kliknutí na tlačítko ✓
+[ ] Připravil jsem email template pro klienty (viz JEDNODUCHE_INSTRUKCE.txt)
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+
+
+
+

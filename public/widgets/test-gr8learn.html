@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Wany Chat Widget (GR8LEARN.EU)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 16px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 999px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .status.ready {
+            background: #10b981;
+            color: white;
+        }
+
+        p {
+            color: #64748b;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .info-box {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 24px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .info-box strong {
+            color: #2563eb;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        code {
+            background: #e2e8f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .widget-info {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .feature-list {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        .feature-list li {
+            padding: 12px 0;
+            color: #475569;
+            display: flex;
+            align-items: center;
+        }
+
+        .feature-list li:before {
+            content: "✅";
+            margin-right: 12px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Wany Chat Widget Test</h1>
+            <div class="status ready">✓ READY</div>
+            <p>
+                Tato stránka simuluje web klienta a testuje Wany Chat widget 
+                hostovaný na <strong>gr8learn.eu</strong>.
+            </p>
+
+            <div class="info-box">
+                <strong>📡 Widget URL:</strong>
+                <code>https://gr8learn.eu/embed.html</code>
+            </div>
+
+            <div class="info-box">
+                <strong>🧪 Test checklist:</strong>
+                <ul class="feature-list">
+                    <li>Chat se zobrazí po kliknutí na modrou ikonu 💬</li>
+                    <li>Header obsahuje Sana AI logo</li>
+                    <li>Filtry: TČM a Wany jsou viditelné</li>
+                    <li>Štítky NEJSOU viditelné (skryté)</li>
+                    <li>Tlačítko zavřít NENÍ viditelné</li>
+                    <li>Na mobile je chat fullscreen</li>
+                    <li>Na desktopu je chat 1200x700px</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="widget-info">
+            <h2 style="margin-bottom: 20px; color: #1e293b;">📋 Implementační varianty</h2>
+            
+            <h3 style="color: #2563eb; margin-top: 20px;">Varianta 1: Vždy viditelný</h3>
+            <pre style="background: #f1f5f9; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px;">&lt;iframe
+  src="https://gr8learn.eu/embed.html"
+  style="position:fixed; right:24px; bottom:24px; width:1200px; height:700px; 
+         border:0; border-radius:16px; z-index:999999;"
+  allow="clipboard-write"
+  title="Wany Chat"
+&gt;&lt;/iframe&gt;</pre>
+
+            <h3 style="color: #2563eb; margin-top: 30px;">Varianta 2: S jednoduchým tlačítkem</h3>
+            <p style="color: #64748b; font-size: 14px; margin-top: 8px;">Používá jednoduchý onclick handler</p>
+
+            <h3 style="color: #2563eb; margin-top: 30px;">✨ Varianta 3: S pokročilým togglem (POUŽITÁ)</h3>
+            <p style="color: #64748b; font-size: 14px; margin-top: 8px;">
+                Smooth animace, responsivní design, hover efekty.
+                <strong>Tato varianta je aktivní na této stránce!</strong>
+            </p>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 🎯 VARIANTA 3: Toggle tlačítko (DOPORUČENÁ) -->
+    <!-- ============================================ -->
+    <script>
+      (function() {
+        const EMBED_URL = 'https://gr8learn.eu/embed.html';
+        
+        // Vytvoření toggle tlačítka
+        const toggleBtn = document.createElement('button');
+        toggleBtn.id = 'wany-chat-toggle';
+        toggleBtn.innerHTML = '💬';
+        toggleBtn.style.cssText = `
+          position: fixed;
+          right: 24px;
+          bottom: 24px;
+          width: 65px;
+          height: 65px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+          border: none;
+          color: white;
+          font-size: 28px;
+          cursor: pointer;
+          box-shadow: 0 15px 35px rgba(37,99,235,0.35);
+          z-index: 999998;
+          transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        `;
+        
+        // Vytvoření iframe
+        const iframe = document.createElement('iframe');
+        iframe.id = 'wany-chat-iframe';
+        iframe.src = EMBED_URL;
+        iframe.allow = 'clipboard-write';
+        iframe.title = 'Wany Chat';
+        iframe.style.cssText = `
+          position: fixed;
+          z-index: 999999;
+          border: 0;
+          transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+          opacity: 0;
+          transform: translateY(10px) scale(0.95);
+          visibility: hidden;
+          pointer-events: none;
+          background-color: white;
+        `;
+        
+        let isOpen = false;
+        
+        // Toggle funkce
+        toggleBtn.addEventListener('click', function() {
+          isOpen = !isOpen;
+          
+          if (isOpen) {
+            // Otevřít chat
+            toggleBtn.innerHTML = '✕';
+            toggleBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+            toggleBtn.style.transform = 'rotate(90deg)';
+            
+            iframe.style.opacity = '1';
+            iframe.style.transform = 'translateY(0) scale(1)';
+            iframe.style.visibility = 'visible';
+            iframe.style.pointerEvents = 'auto';
+            
+            // Desktop
+            if (window.innerWidth >= 768) {
+              iframe.style.right = '24px';
+              iframe.style.bottom = '100px';
+              iframe.style.width = '1200px';
+              iframe.style.height = '700px';
+              iframe.style.borderRadius = '24px';
+              iframe.style.boxShadow = '0 40px 100px -20px rgba(0,0,0,0.4)';
+              iframe.style.top = 'auto';
+              iframe.style.left = 'auto';
+            } else {
+              // Mobile - fullscreen
+              iframe.style.top = '0';
+              iframe.style.left = '0';
+              iframe.style.width = '100vw';
+              iframe.style.height = '100vh';
+              iframe.style.borderRadius = '0';
+            }
+          } else {
+            // Zavřít chat
+            toggleBtn.innerHTML = '💬';
+            toggleBtn.style.background = 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)';
+            toggleBtn.style.transform = 'rotate(0deg)';
+            
+            iframe.style.opacity = '0';
+            iframe.style.transform = 'translateY(10px) scale(0.95)';
+            iframe.style.visibility = 'hidden';
+            iframe.style.pointerEvents = 'none';
+          }
+        });
+        
+        // Hover efekt
+        toggleBtn.addEventListener('mouseenter', function() {
+          toggleBtn.style.transform = isOpen ? 'rotate(90deg) scale(1.1)' : 'scale(1.1)';
+        });
+        
+        toggleBtn.addEventListener('mouseleave', function() {
+          toggleBtn.style.transform = isOpen ? 'rotate(90deg) scale(1)' : 'scale(1)';
+        });
+        
+        // Vložení do stránky
+        document.body.appendChild(toggleBtn);
+        document.body.appendChild(iframe);
+        
+        console.log('✅ Wany Chat widget loaded successfully from gr8learn.eu');
+      })();
+    </script>
+</body>
+</html>
+

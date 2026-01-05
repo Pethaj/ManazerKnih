@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vany Chat Widget - Test Page</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #1f2937;
+      margin-bottom: 10px;
+      font-size: 32px;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    .info-box {
+      background: #f3f4f6;
+      border-left: 4px solid #667eea;
+      padding: 15px 20px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+
+    .info-box h3 {
+      color: #1f2937;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .info-box p {
+      color: #4b5563;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+
+    .info-box code {
+      background: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #667eea;
+    }
+
+    .demo-section {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .demo-section h2 {
+      color: #1f2937;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    .code-block {
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .code-block .comment {
+      color: #9ca3af;
+    }
+
+    .code-block .tag {
+      color: #60a5fa;
+    }
+
+    .code-block .attribute {
+      color: #f59e0b;
+    }
+
+    .code-block .value {
+      color: #34d399;
+    }
+
+    .control-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .control-group label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .control-group select,
+    .control-group input {
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .control-group select:focus,
+    .control-group input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5568d3;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    .content {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .content h2 {
+      color: #1f2937;
+      margin-bottom: 20px;
+    }
+
+    .content p {
+      color: #4b5563;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .status-indicator.active {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status-indicator.inactive {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .status-indicator.active .status-dot {
+      background: #10b981;
+    }
+
+    .status-indicator.inactive .status-dot {
+      background: #ef4444;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    footer {
+      text-align: center;
+      color: white;
+      padding: 20px;
+      font-size: 14px;
+    }
+
+    footer a {
+      color: white;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🤖 Vany Chat Widget - Test Page</h1>
+      <p class="subtitle">Testovací stránka pro embedovatelný chatbot widget</p>
+      
+      <div class="info-box">
+        <h3>📋 O této stránce</h3>
+        <p>Toto je testovací stránka pro Vany Chat Widget. Widget je načten pomocí jednoduchého <code>&lt;script&gt;</code> tagu.</p>
+        <p>Můžete měnit konfiguraci widgetu pomocí ovládacích prvků níže a vidět změny v reálném čase.</p>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 15px;">
+        <span style="font-weight: 500; color: #374151;">Status widgetu:</span>
+        <div class="status-indicator active">
+          <span class="status-dot"></span>
+          <span>Widget aktivní</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="demo-section">
+      <h2>⚙️ Ovládací panel</h2>
+      
+      <div class="control-panel">
+        <div class="control-group">
+          <label for="chatbot-id">Chatbot ID:</label>
+          <input type="text" id="chatbot-id" value="vany_chat" />
+        </div>
+
+        <div class="control-group">
+          <label for="theme">Téma:</label>
+          <select id="theme">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="position">Pozice:</label>
+          <select id="position">
+            <option value="bottom-right" selected>Bottom Right</option>
+            <option value="bottom-left">Bottom Left</option>
+            <option value="top-right">Top Right</option>
+            <option value="top-left">Top Left</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="greeting">Uvítací zpráva:</label>
+          <input type="text" id="greeting" placeholder="Ahoj! Jak vám mohu pomoci?" />
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button class="btn-primary" onclick="reloadWidget()">🔄 Reload Widget</button>
+        <button class="btn-secondary" onclick="toggleWidget()">👁️ Toggle Widget</button>
+        <button class="btn-danger" onclick="removeWidget()">❌ Remove Widget</button>
+      </div>
+    </div>
+
+    <!-- Integration Code -->
+    <div class="demo-section">
+      <h2>📝 Integrace kód</h2>
+      <p style="color: #6b7280; margin-bottom: 15px;">Zkopírujte tento kód na svou webovou stránku:</p>
+      
+      <div class="code-block">
+        <span class="comment">&lt;!-- Vany Chat Widget --&gt;</span><br>
+        <span class="tag">&lt;script</span> <span class="attribute">src</span>=<span class="value">"https://beautiful-pika-466f18.netlify.app/widgets/vany-chat-widget.js"</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="attribute">data-chatbot-id</span>=<span class="value" id="code-chatbot">"vany_chat"</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="attribute">data-theme</span>=<span class="value" id="code-theme">"light"</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="attribute">data-position</span>=<span class="value" id="code-position">"bottom-right"</span><span class="tag">&gt;</span><br>
+        <span class="tag">&lt;/script&gt;</span>
+      </div>
+    </div>
+
+    <!-- Sample Content -->
+    <div class="content">
+      <h2>📄 Ukázkový obsah stránky</h2>
+      <p>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
+        Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+      </p>
+      <p>
+        Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
+        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+      </p>
+      <p>
+        Chatbot widget by měl být viditelný v pravém dolním rohu této stránky. Můžete s ním interagovat a testovat jeho funkčnost.
+      </p>
+    </div>
+
+    <footer>
+      <p>© 2025 Bewit | <a href="https://bewit.love" target="_blank">bewit.love</a></p>
+    </footer>
+  </div>
+
+  <!-- Widget Script -->
+  <script src="./vany-chat-widget.js" 
+          data-chatbot-id="vany_chat"
+          data-theme="light"
+          data-position="bottom-right"
+          id="vany-widget-script">
+  </script>
+
+  <!-- Control Script -->
+  <script>
+    // Update code preview
+    function updateCodePreview() {
+      const chatbotId = document.getElementById('chatbot-id').value;
+      const theme = document.getElementById('theme').value;
+      const position = document.getElementById('position').value;
+
+      document.getElementById('code-chatbot').textContent = `"${chatbotId}"`;
+      document.getElementById('code-theme').textContent = `"${theme}"`;
+      document.getElementById('code-position').textContent = `"${position}"`;
+    }
+
+    // Reload widget with new config
+    function reloadWidget() {
+      removeWidget();
+      
+      setTimeout(() => {
+        const chatbotId = document.getElementById('chatbot-id').value;
+        const theme = document.getElementById('theme').value;
+        const position = document.getElementById('position').value;
+        const greeting = document.getElementById('greeting').value;
+
+        const script = document.createElement('script');
+        script.src = './vany-chat-widget.js';
+        script.id = 'vany-widget-script';
+        script.setAttribute('data-chatbot-id', chatbotId);
+        script.setAttribute('data-theme', theme);
+        script.setAttribute('data-position', position);
+        if (greeting) {
+          script.setAttribute('data-greeting', greeting);
+        }
+
+        document.body.appendChild(script);
+        
+        console.log('✅ Widget reloadován s novou konfigurací');
+      }, 500);
+    }
+
+    // Toggle widget visibility
+    function toggleWidget() {
+      if (window.VanyChatWidget) {
+        window.VanyChatWidget.toggle();
+      } else {
+        alert('Widget není načten');
+      }
+    }
+
+    // Remove widget
+    function removeWidget() {
+      const script = document.getElementById('vany-widget-script');
+      if (script) {
+        script.remove();
+      }
+
+      const iframe = document.getElementById('vany-chat-widget-iframe');
+      if (iframe) {
+        iframe.remove();
+      }
+
+      console.log('❌ Widget odstraněn');
+    }
+
+    // Update code preview on input change
+    document.getElementById('chatbot-id').addEventListener('input', updateCodePreview);
+    document.getElementById('theme').addEventListener('change', updateCodePreview);
+    document.getElementById('position').addEventListener('change', updateCodePreview);
+
+    // Test widget API
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        if (window.VanyChatWidget) {
+          console.log('✅ Widget API dostupné:', window.VanyChatWidget);
+          console.log('📋 Widget Config:', window.VanyChatWidget.config);
+        }
+      }, 2000);
+    });
+  </script>
+</body>
+</html>
+

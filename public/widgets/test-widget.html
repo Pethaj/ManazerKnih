@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test - Wany Chat Widget</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 60px 40px;
+      text-align: center;
+    }
+    
+    h1 {
+      font-size: 2.5rem;
+      color: #333;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }
+    
+    p {
+      font-size: 1.1rem;
+      color: #666;
+      margin-bottom: 40px;
+      line-height: 1.6;
+    }
+    
+    .btn {
+      display: inline-block;
+      padding: 20px 50px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      font-size: 1.2rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+    
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+    }
+    
+    .btn:active {
+      transform: translateY(-1px);
+    }
+    
+    .info {
+      margin-top: 40px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 10px;
+      border-left: 4px solid #667eea;
+    }
+    
+    .info h3 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+    }
+    
+    .info p {
+      font-size: 0.9rem;
+      margin-bottom: 10px;
+      color: #555;
+      text-align: left;
+    }
+    
+    .emoji {
+      font-size: 3rem;
+      margin-bottom: 20px;
+    }
+    
+    .status {
+      margin-top: 30px;
+      padding: 15px;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-radius: 8px;
+      color: #155724;
+      font-weight: 600;
+    }
+    
+    .status.loading {
+      background: #fff3cd;
+      border-color: #ffeaa7;
+      color: #856404;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="emoji">💬</div>
+    <h1>Wany Chat Widget</h1>
+    <p>
+      Otestuj chatového asistenta Wany. Po kliknutí na tlačítko se otevře kompletní chat
+      přesně stejný jako na MedBase platformě.
+    </p>
+    
+    <button class="btn" onclick="openWanyChat()">
+      🚀 Spustit Wany Chat
+    </button>
+    
+    <div class="info">
+      <h3>ℹ️ Informace</h3>
+      <p><strong>Chatbot:</strong> vany_chat</p>
+      <p><strong>Zdroj:</strong> Originální FilteredSanaChat z MedBase</p>
+      <p><strong>Filtry:</strong> Automaticky načteny z databáze</p>
+      <p><strong>N8N Webhook:</strong> Produkční endpoint</p>
+    </div>
+    
+    <div id="status" class="status loading" style="display: none;">
+      ⏳ Načítám widget...
+    </div>
+  </div>
+
+  <!-- VANY CHAT WIDGET -->
+  <script src="./vany-chat-widget.js" 
+          data-chatbot-id="vany_chat"
+          data-theme="light"
+          data-position="bottom-right">
+  </script>
+
+  <script>
+    function openWanyChat() {
+      const statusEl = document.getElementById('status');
+      
+      if (window.VanyChatWidget) {
+        statusEl.style.display = 'block';
+        statusEl.textContent = '✅ Otevírám Wany Chat...';
+        statusEl.className = 'status';
+        
+        setTimeout(() => {
+          window.VanyChatWidget.open();
+          setTimeout(() => {
+            statusEl.style.display = 'none';
+          }, 1000);
+        }, 300);
+      } else {
+        statusEl.style.display = 'block';
+        statusEl.textContent = '❌ Widget není dostupný. Obnovte stránku.';
+        statusEl.className = 'status';
+        statusEl.style.background = '#f8d7da';
+        statusEl.style.borderColor = '#f5c6cb';
+        statusEl.style.color = '#721c24';
+      }
+    }
+
+    // Check widget status on load
+    window.addEventListener('load', function() {
+      const statusEl = document.getElementById('status');
+      
+      setTimeout(() => {
+        if (window.VanyChatWidget) {
+          console.log('✅ Wany Chat Widget načten úspěšně');
+          console.log('📊 Config:', window.VanyChatWidget.config);
+        } else {
+          statusEl.style.display = 'block';
+          statusEl.textContent = '⚠️ Widget se nenačetl správně';
+          statusEl.className = 'status';
+          statusEl.style.background = '#f8d7da';
+          statusEl.style.borderColor = '#f5c6cb';
+          statusEl.style.color = '#721c24';
+        }
+      }, 1000);
+    });
+
+    // Listen for widget events
+    window.addEventListener('message', function(event) {
+      const data = event.data;
+      console.log('📡 Widget Event:', data);
+      
+      if (data.type === 'WIDGET_READY') {
+        console.log('✅ Widget připraven');
+      }
+    });
+  </script>
+</body>
+</html>
+
+
