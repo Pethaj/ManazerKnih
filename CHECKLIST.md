@@ -207,3 +207,4 @@ Stačí provést testy z výše uvedeného seznamu.
 **Datum:** 7. ledna 2026  
 **Status:** ✅ READY TO TEST
 
+

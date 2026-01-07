@@ -252,3 +252,4 @@ V případě problémů kontaktujte vývojářský tým.
 **Datum:** 6. ledna 2025  
 **Status:** ✅ Produkční verze připravená k nasazení
 
+

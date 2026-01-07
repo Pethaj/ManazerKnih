@@ -250,3 +250,4 @@ Pokud problém přetrvává, pošli:
 
 
 
+

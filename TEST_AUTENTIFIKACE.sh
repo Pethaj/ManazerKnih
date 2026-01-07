@@ -68,3 +68,4 @@ echo ""
 
 echo "✅ Všechny testy provedeny!"
 
+

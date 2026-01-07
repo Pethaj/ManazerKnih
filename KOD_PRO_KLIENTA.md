@@ -245,3 +245,4 @@ X-Frame-Options: ALLOWALL
 **NEXT STEP**: Zkontroluj Vercel Dashboard za 2-5 minut
 
 
+

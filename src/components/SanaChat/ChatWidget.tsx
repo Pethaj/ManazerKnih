@@ -26,6 +26,8 @@ interface ChatWidgetProps {
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
+        enable_product_router?: boolean;  // 🆕 Produktový router
+        enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
     };
 }
 
@@ -45,6 +47,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         allowed_categories?: string[];  // 🆕 Povolené kategorie (UUID)
         allowed_labels?: string[];  // 🆕 Povolené štítky (UUID)
         allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
+        enable_product_router?: boolean;  // 🆕 Produktový router
+        enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
     } | null>(null);
     const [chatbotId, setChatbotId] = useState<string>('sana_chat'); // 🆕 Pro markdown rendering
     const [isLoading, setIsLoading] = useState(true);
@@ -83,6 +87,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                         allowed_categories: [],
                         allowed_labels: [],
                         allowed_publication_types: [],
+                        enable_product_router: true,   // default true
+                        enable_manual_funnel: false,   // default false
                     });
                 }
             } catch (error) {
@@ -97,6 +103,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     allowed_categories: [],
                     allowed_labels: [],
                     allowed_publication_types: [],
+                    enable_product_router: true,   // default true
+                    enable_manual_funnel: false,   // default false
                 });
             } finally {
                 setIsLoading(false);
@@ -124,11 +132,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     allowed_categories: settings.allowed_categories || [],
                     allowed_labels: settings.allowed_labels || [],
                     allowed_publication_types: settings.allowed_publication_types || [],
+                    // 🆕 DŮLEŽITÉ: Produktový router a manuální funnel
+                    enable_product_router: settings.enable_product_router !== false, // default true
+                    enable_manual_funnel: settings.enable_manual_funnel === true,    // default false
                 });
                 console.log(`✅ Načten chatbot: ${settings.chatbot_name}`, {
                     categories: settings.allowed_categories?.length || 0,
                     labels: settings.allowed_labels?.length || 0,
-                    publicationTypes: settings.allowed_publication_types?.length || 0
+                    publicationTypes: settings.allowed_publication_types?.length || 0,
+                    enableProductRouter: settings.enable_product_router !== false,
+                    enableManualFunnel: settings.enable_manual_funnel === true
                 });
             }
         } catch (error) {

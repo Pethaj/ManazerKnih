@@ -507,3 +507,4 @@ Widget je plně funkční a připraven k:
 
 
 
+

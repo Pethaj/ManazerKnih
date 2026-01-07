@@ -133,3 +133,4 @@ Pokud by aplikace byla **veřejná**, pak bychom použili Edge Function pro logi
 2. Pokud funguje, HOTOVO! ✅
 3. Pokud nefunguje, další debug
 
+

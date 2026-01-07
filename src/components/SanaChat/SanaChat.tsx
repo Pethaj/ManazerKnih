@@ -2394,6 +2394,8 @@ interface FilteredSanaChatProps {
         allowed_categories?: string[];  // 🆕 Povolené kategorie (UUID)
         allowed_labels?: string[];  // 🆕 Povolené štítky (UUID)
         allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
+        enable_product_router?: boolean;  // 🆕 Produktový router
+        enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
     };
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;

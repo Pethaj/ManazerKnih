@@ -138,3 +138,4 @@ Pokud Vercel stále dělá problémy s `/embed.html`, zvažte:
 **✅ Ideální výsledek**: `https://gr8learn.eu/embed.html` zobrazí Wany Chat widget bez jakýchkoliv 404 chyb.
 
 
+
