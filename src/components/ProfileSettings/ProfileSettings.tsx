@@ -37,10 +37,8 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ currentUser, onClose 
         setIsLoading(true);
 
         try {
-            // V novém systému potřebujeme současné heslo
-            // Pro tento starý ProfileSettings komponent, použijeme prázdný string
-            // Doporučujeme použít novou komponentu ChangePassword místo této
-            const result = await changePassword('', newPassword);
+            // changePassword bere jen 1 parametr: nové heslo
+            const result = await changePassword(newPassword);
             
             if (result.error) {
                 setError(result.error);
