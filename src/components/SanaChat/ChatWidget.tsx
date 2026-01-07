@@ -42,6 +42,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
+        allowed_categories?: string[];  // 🆕 Povolené kategorie (UUID)
+        allowed_labels?: string[];  // 🆕 Povolené štítky (UUID)
+        allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
     } | null>(null);
     const [chatbotId, setChatbotId] = useState<string>('sana_chat'); // 🆕 Pro markdown rendering
     const [isLoading, setIsLoading] = useState(true);
@@ -77,6 +80,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                         book_database: true,
                         use_feed_1: true,
                         use_feed_2: true,
+                        allowed_categories: [],
+                        allowed_labels: [],
+                        allowed_publication_types: [],
                     });
                 }
             } catch (error) {
@@ -88,6 +94,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     book_database: true,
                     use_feed_1: true,
                     use_feed_2: true,
+                    allowed_categories: [],
+                    allowed_labels: [],
+                    allowed_publication_types: [],
                 });
             } finally {
                 setIsLoading(false);
@@ -111,8 +120,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     book_database: settings.book_database !== undefined ? settings.book_database : true,
                     use_feed_1: settings.use_feed_1 !== undefined ? settings.use_feed_1 : true,
                     use_feed_2: settings.use_feed_2 !== undefined ? settings.use_feed_2 : true,
+                    // 🆕 Přidáme filtry z nastavení chatbota
+                    allowed_categories: settings.allowed_categories || [],
+                    allowed_labels: settings.allowed_labels || [],
+                    allowed_publication_types: settings.allowed_publication_types || [],
                 });
-                console.log(`✅ Načten chatbot: ${settings.chatbot_name}`);
+                console.log(`✅ Načten chatbot: ${settings.chatbot_name}`, {
+                    categories: settings.allowed_categories?.length || 0,
+                    labels: settings.allowed_labels?.length || 0,
+                    publicationTypes: settings.allowed_publication_types?.length || 0
+                });
             }
         } catch (error) {
             console.error('❌ Chyba při načítání chatbota:', error);
