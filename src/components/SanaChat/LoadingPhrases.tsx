@@ -12,9 +12,9 @@ interface LoadingPhrasesProps {
 }
 
 const loadingPhrases = [
-  "Generuji odpověď pro vás...",
+  "Generuji odpověď ...",
   "Hledám tu nejlepší informaci...",
-  "Moment, kontroluji databázi...",
+  "Hledám a hledám...",
   "Zpracovávám váš dotaz...",
   "Prosím o chvilku strpení...",
   "Analyzuji vaši otázku...",
@@ -23,7 +23,7 @@ const loadingPhrases = [
   "Skoro hotovo...",
   "Načítám data...",
   "Sestavuji doporučení...",
-  "Kontroluji dostupnost...",
+  
   "Vyhledávám v katalogu...",
   "Zpracovávám informace...",
   "Optimalizuji výsledky...",
@@ -32,7 +32,7 @@ const loadingPhrases = [
   "Doplňuji detaily...",
   "Ověřuji informace...",
   "Finalizuji odpověď...",
-  "Hledám nejlepší shody...",
+  
   "Kontroluji všechny možnosti...",
   "Zpracovávám váš požadavek...",
   "Připravuji výsledky...",
@@ -40,7 +40,7 @@ const loadingPhrases = [
   "Analyzuji možnosti...",
   "Vybírám nejlepší řešení...",
   "Sestavuji informace...",
-  "Přidávám konečné úpravy...",
+ 
   "Téměř připraveno..."
 ];
 
@@ -156,6 +156,7 @@ const LoadingPhrases: React.FC<LoadingPhrasesProps> = ({ changeInterval = 7000 }
 };
 
 export default LoadingPhrases;
+
 
 
 

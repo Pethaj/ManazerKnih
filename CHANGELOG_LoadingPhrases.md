@@ -224,3 +224,4 @@ Komponenta je plně implementovaná, otestovaná a připravená k použití v pr
 
 
 
+

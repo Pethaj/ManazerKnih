@@ -469,6 +469,34 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                             <p style={styles.chatbotDescription}>{chatbot.description || 'Bez popisu'}</p>
                                             <div style={styles.chatbotId}>ID: {chatbot.chatbot_id}</div>
                                             
+                                            {/* 🆕 Aktivace chatbota */}
+                                            <div style={styles.chatbotSettings}>
+                                                <h4 style={styles.sectionSubtitle}>⚡ Viditelnost na webu</h4>
+                                                
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.is_active || false}
+                                                            onChange={() => updateLocalSettings(chatbot.chatbot_id, { 
+                                                                is_active: !chatbot.is_active 
+                                                            })}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <circle cx="12" cy="12" r="10"></circle>
+                                                            <path d="M12 6v6l4 2"></path>
+                                                        </svg>
+                                                        Chatbot je aktivní
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        {chatbot.is_active 
+                                                            ? '✅ Chatbot se zobrazí v selectoru na webu MedBase a uživatelé si ho mohou vybrat' 
+                                                            : '❌ Chatbot je skrytý a nebude dostupný pro výběr na webu'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
                                             {/* Základní funkce */}
                                             <div style={styles.chatbotSettings}>
                                                 <h4 style={styles.sectionSubtitle}>🔧 Základní funkce</h4>

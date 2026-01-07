@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { FilteredSanaChat } from './SanaChat';
-import { ChatbotSettingsService } from '../../services/chatbotSettingsService';
+import { ChatbotSettingsService, ChatbotSettings } from '../../services/chatbotSettingsService';
+import ChatbotSelector from '../ChatbotSelector/ChatbotSelector';
 
 const ChatBubbleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -32,6 +33,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     chatbotSettings: propChatbotSettings 
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [showSelector, setShowSelector] = useState(false);
+    const [availableChatbots, setAvailableChatbots] = useState<ChatbotSettings[]>([]);
     const [chatbotSettings, setChatbotSettings] = useState<{
         product_recommendations: boolean;
         product_button_recommendations: boolean;
@@ -43,10 +46,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     const [chatbotId, setChatbotId] = useState<string>('sana_chat'); // 🆕 Pro markdown rendering
     const [isLoading, setIsLoading] = useState(true);
 
-    // Načtení nastavení SanaChat z databáze při prvním načtení
+    // Načtení aktivních chatbotů při prvním načtení
     useEffect(() => {
-        const loadChatbotSettings = async () => {
-            // Pokud jsou poskytnuta nastavení přes props, použij je
+        const loadChatbots = async () => {
+            // Pokud jsou poskytnuta nastavení přes props, použij je a přeskoč načítání z DB
             if (propChatbotSettings) {
                 setChatbotSettings(propChatbotSettings);
                 setIsLoading(false);
@@ -54,32 +57,30 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             }
 
             try {
-                // 🆕 Načti výchozí webový chatbot (is_default_web_chatbot = true)
-                const settings = await ChatbotSettingsService.getDefaultWebChatbot();
+                // Načti všechny aktivní chatboty
+                const chatbots = await ChatbotSettingsService.getActiveChatbots();
+                setAvailableChatbots(chatbots);
                 
-                if (settings) {
-                    setChatbotId(settings.chatbot_id); // Uložíme ID pro markdown rendering
-                    setChatbotSettings({
-                        product_recommendations: settings.product_recommendations || false,
-                        product_button_recommendations: settings.product_button_recommendations || false,
-                        inline_product_links: settings.inline_product_links || false,  // 🆕 Inline produktové linky / screening
-                        book_database: settings.book_database !== undefined ? settings.book_database : true,
-                        use_feed_1: settings.use_feed_1 !== undefined ? settings.use_feed_1 : true,
-                        use_feed_2: settings.use_feed_2 !== undefined ? settings.use_feed_2 : true,
-                    });
+                console.log('✅ Načteno aktivních chatbotů:', chatbots.length);
+                
+                // Pokud jsou nějaké chatboty k dispozici, nastav první jako výchozí
+                if (chatbots.length > 0) {
+                    const defaultChatbot = chatbots[0];
+                    loadChatbotById(defaultChatbot.chatbot_id);
                 } else {
-                    // Defaultní nastavení pokud není v databázi
+                    // Fallback na defaultní nastavení
                     setChatbotId('sana_chat');
                     setChatbotSettings({
                         product_recommendations: false,
                         product_button_recommendations: false,
-                        inline_product_links: false,  // 🆕 Inline produktové linky / screening
+                        inline_product_links: false,
                         book_database: true,
                         use_feed_1: true,
                         use_feed_2: true,
                     });
                 }
             } catch (error) {
+                console.error('❌ Chyba při načítání chatbotů:', error);
                 // Fallback na defaultní nastavení
                 setChatbotSettings({
                     product_recommendations: false,
@@ -93,11 +94,46 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             }
         };
 
-        loadChatbotSettings();
+        loadChatbots();
     }, [propChatbotSettings]);
 
+    // Funkce pro načtení konkrétního chatbota podle ID
+    const loadChatbotById = async (chatbotIdToLoad: string) => {
+        try {
+            const settings = await ChatbotSettingsService.getChatbotSettings(chatbotIdToLoad);
+            
+            if (settings) {
+                setChatbotId(settings.chatbot_id);
+                setChatbotSettings({
+                    product_recommendations: settings.product_recommendations || false,
+                    product_button_recommendations: settings.product_button_recommendations || false,
+                    inline_product_links: settings.inline_product_links || false,
+                    book_database: settings.book_database !== undefined ? settings.book_database : true,
+                    use_feed_1: settings.use_feed_1 !== undefined ? settings.use_feed_1 : true,
+                    use_feed_2: settings.use_feed_2 !== undefined ? settings.use_feed_2 : true,
+                });
+                console.log(`✅ Načten chatbot: ${settings.chatbot_name}`);
+            }
+        } catch (error) {
+            console.error('❌ Chyba při načítání chatbota:', error);
+        }
+    };
+
+    // Handler pro výběr chatbota ze selectoru
+    const handleChatbotSelect = async (selectedChatbotId: string) => {
+        console.log('🤖 Uživatel vybral chatbota:', selectedChatbotId);
+        setShowSelector(false);
+        await loadChatbotById(selectedChatbotId);
+        setIsOpen(true);
+    };
+
     const toggleChat = () => {
-        setIsOpen(!isOpen);
+        // Pokud máme více než 1 aktivní chatbot, zobraz selector
+        if (!isOpen && availableChatbots.length > 1) {
+            setShowSelector(true);
+        } else {
+            setIsOpen(!isOpen);
+        }
     };
 
     // Pokud se načítají nastavení, nezobrazuj tlačítko
@@ -112,6 +148,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
     return (
         <>
+            {/* Selector chatbotů */}
+            {showSelector && (
+                <ChatbotSelector
+                    chatbots={availableChatbots}
+                    onSelect={handleChatbotSelect}
+                    onClose={() => setShowSelector(false)}
+                />
+            )}
+
+            {/* Chat okno */}
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                     <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
@@ -123,6 +169,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* Plovoucí tlačítko */}
             <div className="fixed bottom-5 right-5 z-50">
                 <button
                     onClick={toggleChat}

@@ -249,3 +249,4 @@ Pokud problém přetrvává, pošli:
 
 
 
+

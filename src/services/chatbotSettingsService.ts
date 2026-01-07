@@ -189,6 +189,28 @@ export class ChatbotSettingsService {
     }
   }
 
+  // 🆕 Načtení všech aktivních chatbotů pro selector
+  static async getActiveChatbots(): Promise<ChatbotSettings[]> {
+    try {
+      const { data, error } = await supabase
+        .from('chatbot_settings')
+        .select('*')
+        .eq('is_active', true)
+        .order('chatbot_name', { ascending: true });
+
+      if (error) {
+        console.error('❌ Chyba při načítání aktivních chatbotů:', error);
+        throw error;
+      }
+
+      console.log('✅ Načteno aktivních chatbotů:', data?.length || 0);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Chyba při načítání aktivních chatbotů:', error);
+      return [];
+    }
+  }
+
   // Vytvoření nového chatbota
   static async createChatbotSettings(data: CreateChatbotSettingsData): Promise<ChatbotSettings> {
     try {

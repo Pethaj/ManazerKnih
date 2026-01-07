@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Tlačítka</title>
+</head>
+<body style="padding: 40px; background: #f1f5f9;">
+    
+    <h1>Test - Klikni na tlačítko</h1>
+    
+    <button onclick="testClick()" style="padding: 20px; font-size: 18px; cursor: pointer;">
+        TEST KLIKNUTÍ
+    </button>
+    
+    <div id="status" style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px;">
+        Čekám na kliknutí...
+    </div>
+    
+    <hr style="margin: 40px 0;">
+    
+    <!-- Skutečné tlačítko z widgetu -->
+    <button 
+      onclick="openWanyChat()"
+      style="width:180px;height:51px;border-radius:15px;cursor:pointer;transition:0.3s ease;background:linear-gradient(to bottom right,#2e8eff 0%,rgba(46,142,255,0) 30%);background-color:rgba(46,142,255,0.2);border:none;display:inline-flex;align-items:center;justify-content:center;">
+      <div style="width:176px;height:47px;border-radius:13px;background-color:#079854;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;">
+        Spustit Chat (Widget)
+      </div>
+    </button>
+    
+    <!-- Iframe -->
+    <iframe 
+      id="wany-chat-iframe"
+      src="https://gr8learn.eu/embed.html"
+      style="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:999999;visibility:hidden;opacity:0;transition:opacity 0.3s ease;background:#fff;"
+    ></iframe>
+    
+    <!-- Close button -->
+    <button 
+      id="wany-close-btn"
+      onclick="closeWanyChat()"
+      style="position:fixed;top:20px;right:20px;z-index:1000000;background:#ef4444;color:white;border:none;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:20px;visibility:hidden;opacity:0;">
+    ✕</button>
+    
+    <script>
+        function testClick() {
+            document.getElementById('status').innerHTML = '✅ Tlačítko funguje! onclick se volá správně.';
+            document.getElementById('status').style.background = '#dcfce7';
+        }
+        
+        function openWanyChat() {
+            console.log('🚀 openWanyChat CALLED');
+            
+            const iframe = document.getElementById('wany-chat-iframe');
+            const closeBtn = document.getElementById('wany-close-btn');
+            
+            console.log('iframe element:', iframe);
+            console.log('closeBtn element:', closeBtn);
+            
+            if (iframe) {
+                iframe.style.visibility = 'visible';
+                iframe.style.opacity = '1';
+                console.log('✅ Iframe visibility changed');
+            }
+            
+            if (closeBtn) {
+                closeBtn.style.visibility = 'visible';
+                closeBtn.style.opacity = '1';
+                console.log('✅ Close button visible');
+            }
+            
+            document.body.style.overflow = 'hidden';
+            
+            document.getElementById('status').innerHTML = '✅ openWanyChat() byla zavolána!';
+            document.getElementById('status').style.background = '#dbeafe';
+        }
+        
+        function closeWanyChat() {
+            console.log('❌ closeWanyChat CALLED');
+            
+            const iframe = document.getElementById('wany-chat-iframe');
+            const closeBtn = document.getElementById('wany-close-btn');
+            
+            if (iframe) {
+                iframe.style.visibility = 'hidden';
+                iframe.style.opacity = '0';
+            }
+            
+            if (closeBtn) {
+                closeBtn.style.visibility = 'hidden';
+                closeBtn.style.opacity = '0';
+            }
+            
+            document.body.style.overflow = '';
+        }
+    </script>
+</body>
+</html>
+

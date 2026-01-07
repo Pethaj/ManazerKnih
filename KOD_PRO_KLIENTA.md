@@ -244,3 +244,4 @@ X-Frame-Options: ALLOWALL
 **STAV**: 🟡 Čeká se na Vercel deployment (automatické)
 **NEXT STEP**: Zkontroluj Vercel Dashboard za 2-5 minut
 
+

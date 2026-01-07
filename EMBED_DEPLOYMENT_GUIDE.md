@@ -453,3 +453,4 @@ Pro technickou podporu:
 
 **🎉 Wany Chat je ready pro nasazení u klientů!**
 
+
