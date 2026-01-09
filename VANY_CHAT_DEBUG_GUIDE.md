@@ -251,3 +251,5 @@ Pokud problém přetrvává, pošli:
 
 
 
+
+

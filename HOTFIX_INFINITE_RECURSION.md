@@ -97,3 +97,5 @@ Bezpečnost: ✅ OK (bez recursion)
 - **Politiky:** ✅ Opraveny
 
 
+
+

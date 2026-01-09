@@ -145,3 +145,5 @@ Výsledek: ✅ Mělo by fungovat!
 Ale to vyžaduje **změny v kódu** - Varianta B z původního návrhu.
 
 
+
+

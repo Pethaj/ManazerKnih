@@ -267,3 +267,5 @@ Otevři chatbot a pošli zprávu - uvidíš LoadingPhrases v akci! 🎬
 
 
 
+
+

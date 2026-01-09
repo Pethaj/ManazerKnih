@@ -134,3 +134,5 @@ Pokud by aplikace byla **veřejná**, pak bychom použili Edge Function pro logi
 3. Pokud nefunguje, další debug
 
 
+
+

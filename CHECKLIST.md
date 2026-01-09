@@ -208,3 +208,5 @@ Stačí provést testy z výše uvedeného seznamu.
 **Status:** ✅ READY TO TEST
 
 
+
+

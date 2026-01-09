@@ -253,3 +253,5 @@ V případě problémů kontaktujte vývojářský tým.
 **Status:** ✅ Produkční verze připravená k nasazení
 
 
+
+

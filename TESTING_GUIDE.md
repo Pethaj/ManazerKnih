@@ -367,3 +367,5 @@ Pokud narazíš na problém, který není popsaný v této příručce:
 
 
 
+
+

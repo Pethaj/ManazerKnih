@@ -658,7 +658,7 @@ const Message: React.FC<{
     metadata?: { categories: string[]; labels: string[]; publication_types: string[]; };  // Metadata
 }> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] } }) => {
     const isUser = message.role === 'user';
-    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat';  // 🆕 Sana Local Format a Vany Chat používají markdown
+    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi';  // 🆕 Sana Local Format, Vany Chat a EO-Smesi používají markdown
     
     // 🆕 State pro inline produktové linky
     
