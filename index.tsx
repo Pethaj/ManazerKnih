@@ -61,9 +61,15 @@ interface Book {
     hasOCR: boolean; // indikuje zda dokument obsahuje OCR text
     content: string;
     filePath: string; // path in supabase storage
-    vectorStatus: 'pending' | 'success' | 'error'; // Status nahrání do vektorové databáze
+    vectorStatus: 'pending' | 'success' | 'error'; // Status nahrání do vektorové databáze (celkový)
     vectorAddedAt?: string; // ISO string, datum úspěšného přidání do vektorové databáze
     metadataSnapshot?: string; // JSON snapshot metadat v době přidání do VDB
+    // Nové sloupce pro tracking jednotlivých databází
+    qdrantLocalStatus?: 'none' | 'success' | 'error';
+    qdrantCloudStatus?: 'none' | 'success' | 'error';
+    supabaseVectorStatus?: 'none' | 'success' | 'error';
+    vectorUploadDetails?: any;
+    lastVectorUploadAt?: string;
 }
 
 // --- ICONS ---
@@ -505,6 +511,12 @@ const mapSupabaseToBook = (data: Database['public']['Tables']['books']['Row']): 
         hasOCR: data.OCR || false,
         vectorAddedAt: (data as any).vector_added_at || undefined,
         metadataSnapshot: (data as any).metadata_snapshot || undefined,
+        // Nové sloupce pro tracking jednotlivých databází
+        qdrantLocalStatus: ((data as any).qdrant_local_status as 'none' | 'success' | 'error') || 'none',
+        qdrantCloudStatus: ((data as any).qdrant_cloud_status as 'none' | 'success' | 'error') || 'none',
+        supabaseVectorStatus: ((data as any).supabase_vector_status as 'none' | 'success' | 'error') || 'none',
+        vectorUploadDetails: (data as any).vector_upload_details || undefined,
+        lastVectorUploadAt: (data as any).last_vector_upload_at || undefined,
     };
 };
 
@@ -1302,7 +1314,21 @@ const api = {
                         console.log('⚠️ Webhook vrátil prázdnou odpověď');
                     }
                     
-                    // Zpracujeme formát odpovědi - pole objektů
+                    // ====================
+                    // PARSOVÁNÍ N8N ODPOVĚDI - DETEKCE JEDNOTLIVÝCH DATABÁZÍ
+                    // ====================
+                    // Očekávaný formát: [
+                    //   { "qdrant_ok": true, "qdrant_error": "" },
+                    //   { "qdrant_ok": true, "qdrant_error": "" },
+                    //   { "supabase_ok": true, "supabase_error": "" }
+                    // ]
+                    
+                    let qdrantLocalStatus: 'none' | 'success' | 'error' = 'none';
+                    let qdrantCloudStatus: 'none' | 'success' | 'error' = 'none';
+                    let supabaseVectorStatus: 'none' | 'success' | 'error' = 'none';
+                    let qdrantLocalError = '';
+                    let qdrantCloudError = '';
+                    let supabaseVectorError = '';
                     let newStatus: 'success' | 'error' | 'pending' = 'error';
                     let message = '';
                     
@@ -1311,30 +1337,56 @@ const api = {
                         newStatus = 'error';
                         message = '❌ Webhook vrátil prázdnou odpověď. Zkontrolujte n8n workflow a ujistěte se, že vrací validní JSON odpověď.';
                     } else if (Array.isArray(result) && result.length >= 2) {
-                        console.log('🔍 Hledám objekty v poli...');
-                        const qdrantResult = result.find(item => item.hasOwnProperty('qdrant_ok'));
+                        console.log('🔍 Parsování pole objektů z N8N...');
+                        
+                        // Najdi všechny Qdrant odpovědi (očekáváme 2)
+                        const qdrantResults = result.filter(item => item.hasOwnProperty('qdrant_ok'));
                         const supabaseResult = result.find(item => item.hasOwnProperty('supabase_ok'));
                         
-                        console.log('🗄️ Qdrant result:', qdrantResult);
+                        console.log('🗄️ Qdrant results:', qdrantResults);
                         console.log('🗄️ Supabase result:', supabaseResult);
                         
-                        const qdrantOk = qdrantResult?.qdrant_ok === true;
-                        const supabaseOk = supabaseResult?.supabase_ok === true;
+                        // První Qdrant = Local, druhý = Cloud (podle pořadí v odpovědi)
+                        if (qdrantResults.length >= 1) {
+                            qdrantLocalStatus = qdrantResults[0].qdrant_ok === true ? 'success' : 'error';
+                            qdrantLocalError = qdrantResults[0].qdrant_error || '';
+                            console.log('✅ Qdrant Local status:', qdrantLocalStatus, 'Error:', qdrantLocalError);
+                        }
                         
-                        console.log('✅ Qdrant OK:', qdrantOk, 'Supabase OK:', supabaseOk);
+                        if (qdrantResults.length >= 2) {
+                            qdrantCloudStatus = qdrantResults[1].qdrant_ok === true ? 'success' : 'error';
+                            qdrantCloudError = qdrantResults[1].qdrant_error || '';
+                            console.log('✅ Qdrant Cloud status:', qdrantCloudStatus, 'Error:', qdrantCloudError);
+                        }
                         
-                        if (qdrantOk && supabaseOk) {
-                            newStatus = 'success';
-                            message = `✅ Soubor úspěšně nahrán do obou databází (Supabase + Qdrant)`;
-                        } else if (supabaseOk && !qdrantOk) {
-                            newStatus = 'error';
-                            message = `⚠️ Soubor nahrán pouze do Supabase. Chyba Qdrant: ${qdrantResult?.qdrant_error || 'Neznámá chyba'}`;
-                        } else if (qdrantOk && !supabaseOk) {
-                            newStatus = 'error';
-                            message = `⚠️ Soubor nahrán pouze do Qdrant. Chyba Supabase: ${supabaseResult?.supabase_error || 'Neznámá chyba'}`;
+                        if (supabaseResult) {
+                            supabaseVectorStatus = supabaseResult.supabase_ok === true ? 'success' : 'error';
+                            supabaseVectorError = supabaseResult.supabase_error || '';
+                            console.log('✅ Supabase Vector status:', supabaseVectorStatus, 'Error:', supabaseVectorError);
+                        }
+                        
+                        // Celkový status: success pouze pokud OBA Qdranty jsou OK
+                        // (Supabase je považován za méně důležitý)
+                        const bothQdrantsOk = qdrantLocalStatus === 'success' && qdrantCloudStatus === 'success';
+                        newStatus = bothQdrantsOk ? 'success' : 'error';
+                        
+                        console.log('🔍 Vyhodnocení celkového statusu:');
+                        console.log('  - Qdrant Local:', qdrantLocalStatus);
+                        console.log('  - Qdrant Cloud:', qdrantCloudStatus);
+                        console.log('  - Supabase Vector:', supabaseVectorStatus);
+                        console.log('  - Obě Qdranty OK:', bothQdrantsOk);
+                        console.log('  - Celkový vectorStatus:', newStatus);
+                        
+                        if (bothQdrantsOk) {
+                            message = `✅ Soubor úspěšně nahrán do obou Qdrantů`;
                         } else {
-                            newStatus = 'error';
-                            message = `❌ Soubor se nepodařilo nahrát do žádné databáze.\nSupabase: ${supabaseResult?.supabase_error || 'Neznámá chyba'}\nQdrant: ${qdrantResult?.qdrant_error || 'Neznámá chyba'}`;
+                            message = `❌ Nahrání do některé databáze selhalo:\n`;
+                            if (qdrantLocalStatus === 'error') {
+                                message += `- Qdrant Local: ${qdrantLocalError || 'Chyba'}\n`;
+                            }
+                            if (qdrantCloudStatus === 'error') {
+                                message += `- Qdrant Cloud: ${qdrantCloudError || 'Chyba'}\n`;
+                            }
                         }
                     } else {
                         // Fallback pro starší formáty
@@ -1378,7 +1430,60 @@ const api = {
                     }
                     
                     try {
-                        await api.updateBook(updatedBook);
+                        // AKTUALIZUJ STATUSY JEDNOTLIVÝCH DATABÁZÍ
+                        console.log('🔄 Aktualizuji statusy jednotlivých databází v books tabulce...');
+                        
+                        const updateData: any = {
+                            Vdtb: newStatus,
+                            qdrant_local_status: qdrantLocalStatus,
+                            qdrant_cloud_status: qdrantCloudStatus,
+                            supabase_vector_status: supabaseVectorStatus,
+                            vector_upload_details: result,
+                            last_vector_upload_at: new Date().toISOString()
+                        };
+                        
+                        // Pokud bylo nahrání úspěšné, přidáme snapshot metadat
+                        if (newStatus === 'success') {
+                            const snapshotData = {
+                                title: book.title,
+                                author: book.author,
+                                publicationYear: book.publicationYear,
+                                publisher: book.publisher,
+                                summary: book.summary,
+                                keywords: book.keywords,
+                                language: book.language,
+                                format: book.format,
+                                fileSize: book.fileSize,
+                                coverImageUrl: book.coverImageUrl,
+                                publicationTypes: book.publicationTypes,
+                                labels: book.labels,
+                                categories: book.categories,
+                                releaseVersion: book.releaseVersion
+                            };
+                            
+                            updateData.vector_added_at = new Date().toISOString();
+                            updateData.metadata_snapshot = JSON.stringify(snapshotData);
+                            
+                            console.log('📸 Vytvořen snapshot metadat pro detekci změn');
+                        }
+                        
+                        const { data: dbData, error: dbError } = await supabaseClient
+                            .from('books')
+                            .update(updateData)
+                            .eq('id', book.id)
+                            .select()
+                            .single();
+                        
+                        if (dbError) {
+                            console.error('❌ Chyba při aktualizaci statusů v databázi:', dbError);
+                            throw dbError;
+                        }
+                        
+                        console.log('✅ Statusy úspěšně aktualizovány v databázi');
+                        console.log('✅ Aktualizovaná data:', dbData);
+                        
+                        // Aktualizuj také local state
+                        updatedBook = mapSupabaseToBook(dbData);
                     } catch (updateError) {
                         console.warn('⚠️ Webhook byl úspěšný, ale nepodařilo se aktualizovat status v databázi:', updateError);
                         // Webhook byl úspěšný, takže nebudeme měnit návratovou hodnotu
