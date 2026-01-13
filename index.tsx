@@ -855,7 +855,9 @@ const api = {
             }
             throw error; 
         }
-        return { filePath, fileSize: Math.round(file.size / 1024) };
+        // Zajistíme, že fileSize je minimálně 1 KB i pro malé soubory
+        const fileSizeKB = Math.max(1, Math.round(file.size / 1024));
+        return { filePath, fileSize: fileSizeKB };
     },
     async uploadFileWithId(file: File, bucket: string, bookId: string): Promise<{ filePath: string, fileSize: number }> {
         const fileExtension = file.name.split('.').pop() || '';
@@ -891,7 +893,9 @@ const api = {
         }
         
         console.log(`Successfully uploaded to ${bucket}/${filePath}`);
-        return { filePath, fileSize: Math.round(file.size / 1024) };
+        // Zajistíme, že fileSize je minimálně 1 KB i pro malé soubory
+        const fileSizeKB = Math.max(1, Math.round(file.size / 1024));
+        return { filePath, fileSize: fileSizeKB };
     },
     async createBook(bookData: Omit<Book, 'id' | 'dateAdded' | 'content'>): Promise<Book> {
         console.log('💾 API createBook - vstupní OCR stav:', bookData.hasOCR);
@@ -1540,6 +1544,381 @@ const api = {
         }
     },
 
+    // Funkce pro odesílání pouze textu do n8n webhook pro vektorovou databázi
+    async sendTextOnlyToVectorDatabase(book: Book, waitForResponse: boolean = false): Promise<{success: boolean, message: string, details?: any}> {
+        const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/10f5ed9e-e0b1-465d-8bc8-b2ba9a37bc58';
+        
+        try {
+            // Nejdříve aktualizujeme status na pending
+            await api.updateBook({...book, vectorStatus: 'pending'});
+            
+            console.log('📄 Připravuji text-only data pro vektorovou databázi...');
+            
+            // KROK 1: Získání extrahovaného textu
+            // Nejdříve zkusíme načíst z mezipaměti
+            const cacheKey = `extracted_text_${book.id}`;
+            let extractedText = localStorage.getItem(cacheKey);
+            
+            if (!extractedText || extractedText.trim().length === 0) {
+                console.log('📥 Text není v mezipaměti, spouštím LOKÁLNÍ extrakci z PDF...');
+                
+                try {
+                    // Stáhneme PDF soubor z Supabase storage
+                    const { data: fileData, error: downloadError } = await supabaseClient.storage
+                        .from('Books')
+                        .download(book.filePath);
+                        
+                    if (downloadError || !fileData) {
+                        throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
+                    }
+                    
+                    console.log('📄 PDF staženo, velikost:', fileData.size, 'bytes');
+                    console.log('🔍 DEBUG fileData:', {
+                        size: fileData.size,
+                        type: fileData.type,
+                        constructor: fileData.constructor.name
+                    });
+                    
+                    // Vytvoříme File objekt z Blob
+                    const pdfFile = new File([fileData], book.filePath.split('/').pop() || 'document.pdf', { type: 'application/pdf' });
+                    
+                    console.log('🔍 DEBUG pdfFile před extrakcí:', {
+                        name: pdfFile.name,
+                        size: pdfFile.size,
+                        type: pdfFile.type
+                    });
+                    
+                    // Lokální extrakce textu pomocí PDF.js
+                    const txtFile = await extractTextLocallyFromPDF(pdfFile);
+                    
+                    console.log('🔍 DEBUG txtFile po extrakci:', {
+                        name: txtFile.name,
+                        size: txtFile.size,
+                        type: txtFile.type
+                    });
+                    
+                    // Načteme text ze souboru
+                    extractedText = await txtFile.text();
+                    
+                    console.log('✅ Text extrahován lokálně:', extractedText.length, 'znaků');
+                    console.log('🔍 DEBUG prvních 500 znaků textu:');
+                    console.log(extractedText.substring(0, 500));
+                    
+                    // Uložíme do mezipaměti
+                    localStorage.setItem(cacheKey, extractedText);
+                    localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
+                    console.log('💾 Text uložen do mezipaměti');
+                    
+                } catch (extractError) {
+                    throw new Error(`Nepodařilo se extrahovat text: ${extractError instanceof Error ? extractError.message : 'Neznámá chyba'}`);
+                }
+            } else {
+                console.log('✅ Používám text z mezipaměti:', extractedText.length, 'znaků');
+            }
+            
+            if (!extractedText || extractedText.trim().length === 0) {
+                throw new Error('Extrahovaný text je prázdný. PDF pravděpodobně neobsahuje čitelný text.');
+            }
+            
+            // KROK 2: Vytvoření TXT Blob souboru
+            const txtBlob = new Blob([extractedText], { type: 'text/plain; charset=utf-8' });
+            const txtFileName = book.filePath.split('/').pop()?.replace(/\.(pdf|PDF)$/i, '.txt') || `${book.title}.txt`;
+            
+            console.log('📄 Vytvořen TXT soubor:', txtFileName, 'Velikost:', txtBlob.size, 'bytes');
+            console.log('🔍 DEBUG txtBlob:', {
+                size: txtBlob.size,
+                type: txtBlob.type
+            });
+            
+            // Kontrola prvních 200 bajtů txtBlob
+            const txtBlobPreview = await txtBlob.slice(0, 200).text();
+            console.log('🔍 DEBUG prvních 200 bajtů txtBlob:');
+            console.log(txtBlobPreview);
+            
+            // KROK 3: Vytvoříme FormData s TXT souborem a metadaty
+            const formData = new FormData();
+            formData.append('file', txtBlob, txtFileName);
+            formData.append('bookId', book.id);
+            formData.append('fileName', txtFileName);
+            formData.append('fileType', 'txt'); // Označíme jako TXT
+            formData.append('contentType', 'text'); // 🆕 PARAMETR PRO N8N: Rozlišení PDF vs TXT
+            
+            // Metadata jako samostatná pole
+            formData.append('id', book.id);
+            formData.append('title', book.title);
+            formData.append('author', book.author);
+            formData.append('publicationYear', book.publicationYear?.toString() || '');
+            formData.append('publisher', book.publisher || '');
+            formData.append('summary', book.summary || '');
+            formData.append('language', book.language || '');
+            formData.append('releaseVersion', book.releaseVersion || '');
+            formData.append('format', 'TXT'); // Označíme jako TXT formát
+            formData.append('fileSize', txtBlob.size.toString());
+            
+            // Pole (arrays) - každý prvek zvlášť
+            if (book.keywords && book.keywords.length > 0) {
+                book.keywords.forEach(keyword => {
+                    formData.append('keywords[]', keyword);
+                });
+            }
+            
+            if (book.categories && book.categories.length > 0) {
+                book.categories.forEach(category => {
+                    formData.append('categories[]', category);
+                });
+            }
+            
+            if (book.labels && book.labels.length > 0) {
+                book.labels.forEach(label => {
+                    formData.append('labels[]', label);
+                });
+            }
+            
+            if (book.publicationTypes && book.publicationTypes.length > 0) {
+                book.publicationTypes.forEach(type => {
+                    formData.append('publicationTypes[]', type);
+                });
+            }
+            
+            console.log('📦 FormData připraven s TXT souborem a metadaty:', {
+                bookId: book.id,
+                fileName: txtFileName,
+                fileType: 'txt',
+                contentType: 'text', // 🔑 Klíčový parametr
+                fileSize: txtBlob.size,
+                title: book.title,
+                author: book.author
+            });
+            
+            if (waitForResponse) {
+                // Režim s čekáním na odpověď - s timeoutem 5 minut
+                console.log('⏳ Odesílám webhook (text-only) a čekám na odpověď (timeout 5 minut)...');
+                
+                // Vytvoříme AbortController pro timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                }, 5 * 60 * 1000); // 5 minut timeout
+                
+                try {
+                    const response = await fetch(webhookUrl, {
+                        method: 'POST',
+                        body: formData,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+                    }
+                    
+                    // Zkusíme parsovat odpověď jako JSON
+                    let result: any = null;
+                    const responseText = await response.text();
+                    console.log('📥 Webhook raw odpověď (text-only):', responseText);
+                    
+                    if (responseText && responseText.trim().length > 0) {
+                        try {
+                            result = JSON.parse(responseText);
+                            console.log('✅ Webhook odpověď parsována:', result);
+                        } catch (parseError) {
+                            console.warn('⚠️ Nepodařilo se parsovat JSON odpověď:', parseError);
+                        }
+                    } else {
+                        console.log('⚠️ Webhook vrátil prázdnou odpověď');
+                    }
+                    
+                    // Parsování statusů (stejně jako u PDF verze)
+                    let qdrantLocalStatus: 'none' | 'success' | 'error' = 'none';
+                    let qdrantCloudStatus: 'none' | 'success' | 'error' = 'none';
+                    let supabaseVectorStatus: 'none' | 'success' | 'error' = 'none';
+                    let qdrantLocalError = '';
+                    let qdrantCloudError = '';
+                    let supabaseVectorError = '';
+                    let newStatus: 'success' | 'error' | 'pending' = 'error';
+                    let message = '';
+                    
+                    if (!result || responseText.trim().length === 0) {
+                        newStatus = 'error';
+                        message = '❌ Webhook vrátil prázdnou odpověď. Zkontrolujte n8n workflow a ujistěte se, že vrací validní JSON odpověď.';
+                    } else if (Array.isArray(result) && result.length >= 2) {
+                        console.log('🔍 Parsování pole objektů z N8N...');
+                        
+                        const qdrantResults = result.filter(item => item.hasOwnProperty('qdrant_ok'));
+                        const supabaseResult = result.find(item => item.hasOwnProperty('supabase_ok'));
+                        
+                        if (qdrantResults.length >= 1) {
+                            qdrantLocalStatus = qdrantResults[0].qdrant_ok === true ? 'success' : 'error';
+                            qdrantLocalError = qdrantResults[0].qdrant_error || '';
+                        }
+                        
+                        if (qdrantResults.length >= 2) {
+                            qdrantCloudStatus = qdrantResults[1].qdrant_ok === true ? 'success' : 'error';
+                            qdrantCloudError = qdrantResults[1].qdrant_error || '';
+                        }
+                        
+                        if (supabaseResult) {
+                            supabaseVectorStatus = supabaseResult.supabase_ok === true ? 'success' : 'error';
+                            supabaseVectorError = supabaseResult.supabase_error || '';
+                        }
+                        
+                        const bothQdrantsOk = qdrantLocalStatus === 'success' && qdrantCloudStatus === 'success';
+                        newStatus = bothQdrantsOk ? 'success' : 'error';
+                        
+                        if (bothQdrantsOk) {
+                            message = `✅ Text úspěšně nahrán do obou Qdrantů`;
+                        } else {
+                            message = `❌ Nahrání do některé databáze selhalo:\n`;
+                            if (qdrantLocalStatus === 'error') {
+                                message += `- Qdrant Local: ${qdrantLocalError || 'Chyba'}\n`;
+                            }
+                            if (qdrantCloudStatus === 'error') {
+                                message += `- Qdrant Cloud: ${qdrantCloudError || 'Chyba'}\n`;
+                            }
+                        }
+                    } else {
+                        console.log('⚠️ Neočekávaný formát odpovědi, používám fallback. result.success:', result.success);
+                        newStatus = result.success ? 'success' : 'error';
+                        message = result.message || (result.success ? 'Úspěšně nahráno do vektorové databáze (text-only)' : 'Chyba při nahrávání do vektorové databáze');
+                    }
+                    
+                    // Aktualizujeme vectorStatus a vytvoříme snapshot metadat
+                    let updatedBook = {...book, vectorStatus: newStatus};
+                    
+                    if (newStatus === 'success') {
+                        const snapshotData = {
+                            title: book.title,
+                            author: book.author,
+                            publicationYear: book.publicationYear,
+                            publisher: book.publisher,
+                            summary: book.summary,
+                            keywords: book.keywords,
+                            language: book.language,
+                            format: book.format,
+                            fileSize: book.fileSize,
+                            coverImageUrl: book.coverImageUrl,
+                            publicationTypes: book.publicationTypes,
+                            labels: book.labels,
+                            categories: book.categories,
+                            releaseVersion: book.releaseVersion
+                        };
+                        
+                        const metadataSnapshot = JSON.stringify(snapshotData);
+                        
+                        updatedBook = {
+                            ...updatedBook,
+                            vectorAddedAt: new Date().toISOString(),
+                            metadataSnapshot: metadataSnapshot
+                        };
+                        
+                        console.log('📸 Vytvořen snapshot metadat pro detekci změn');
+                    }
+                    
+                    try {
+                        console.log('🔄 Aktualizuji statusy jednotlivých databází v books tabulce...');
+                        
+                        const updateData: any = {
+                            Vdtb: newStatus,
+                            qdrant_local_status: qdrantLocalStatus,
+                            qdrant_cloud_status: qdrantCloudStatus,
+                            supabase_vector_status: supabaseVectorStatus,
+                            vector_upload_details: result,
+                            last_vector_upload_at: new Date().toISOString()
+                        };
+                        
+                        if (newStatus === 'success') {
+                            const snapshotData = {
+                                title: book.title,
+                                author: book.author,
+                                publicationYear: book.publicationYear,
+                                publisher: book.publisher,
+                                summary: book.summary,
+                                keywords: book.keywords,
+                                language: book.language,
+                                format: book.format,
+                                fileSize: book.fileSize,
+                                coverImageUrl: book.coverImageUrl,
+                                publicationTypes: book.publicationTypes,
+                                labels: book.labels,
+                                categories: book.categories,
+                                releaseVersion: book.releaseVersion
+                            };
+                            
+                            updateData.vector_added_at = new Date().toISOString();
+                            updateData.metadata_snapshot = JSON.stringify(snapshotData);
+                        }
+                        
+                        const { data: dbData, error: dbError } = await supabaseClient
+                            .from('books')
+                            .update(updateData)
+                            .eq('id', book.id)
+                            .select()
+                            .single();
+                        
+                        if (dbError) {
+                            console.error('❌ Chyba při aktualizaci statusů v databázi:', dbError);
+                            throw dbError;
+                        }
+                        
+                        console.log('✅ Statusy úspěšně aktualizovány v databázi');
+                        
+                        updatedBook = mapSupabaseToBook(dbData);
+                    } catch (updateError) {
+                        console.warn('⚠️ Webhook byl úspěšný, ale nepodařilo se aktualizovat status v databázi:', updateError);
+                    }
+                    
+                    return {
+                        success: newStatus === 'success',
+                        message,
+                        details: result
+                    };
+                    
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+                    
+                    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+                        throw new Error('⏰ Timeout: Webhook neodpověděl do 5 minut. Zkuste to později nebo kontaktujte administrátora.');
+                    }
+                    
+                    throw fetchError;
+                }
+                
+            } else {
+                // Režim fire-and-forget (bez čekání na odpověď)
+                console.log('🚀 Odesílám webhook (text-only) bez čekání na odpověď (fire-and-forget)...');
+                
+                fetch(webhookUrl, {
+                    method: 'POST',
+                    body: formData
+                }).catch(err => {
+                    console.error('⚠️ Chyba při odesílání fire-and-forget webhoku (ignorováno):', err);
+                });
+                
+                return {
+                    success: true,
+                    message: 'Požadavek odeslán do fronty na zpracování (text-only)'
+                };
+            }
+            
+        } catch (error) {
+            console.error('Chyba při odesílání text-only dat do vektorové databáze:', error);
+            
+            // Aktualizujeme status na error
+            try {
+                await api.updateBook({...book, vectorStatus: 'error'});
+            } catch (updateError) {
+                console.error('Chyba při aktualizaci statusu:', updateError);
+            }
+            
+            return {
+                success: false,
+                message: `Chyba: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
+            };
+        }
+    },
+
     // Funkce pro mazání z Supabase vektorové databáze
     async deleteFromSupabaseVectorDB(bookId: string): Promise<{success: boolean, message: string}> {
         try {
@@ -2062,26 +2441,106 @@ const generateMetadataIntelligent = async (book: Book): Promise<Partial<Book>> =
     console.log("🤖 Generuji metadata pomocí inteligentní extrakce (auto-detekce OCR)...");
     console.log("📁 FilePath:", book.filePath);
     console.log("📖 Kniha:", book.title, "od", book.author);
-    
+    console.log("📄 Formát:", book.format);
+
     try {
-        // Ověříme, že je to PDF soubor
-        if (book.format.toLowerCase() !== 'pdf') {
-            throw new Error('Inteligentní extrakce metadat je podporována pouze pro PDF soubory');
+        const format = book.format.toLowerCase();
+        
+        // Pro TXT soubory použijeme jiný přístup
+        if (format === 'txt') {
+            console.log('📝 Zpracovávám TXT soubor...');
+            
+            // Stáhneme TXT soubor
+            console.log('📥 Stahuji TXT soubor...');
+            const { data: fileData, error: downloadError } = await supabaseClient.storage
+                .from("Books")
+                .download(book.filePath);
+
+            if (downloadError || !fileData) {
+                console.error('❌ Chyba při stahování TXT souboru:', downloadError);
+                throw new Error(`Nepodařilo se stáhnout TXT soubor: ${downloadError?.message || 'Neznámá chyba'}`);
+            }
+
+            // Přečteme text ze souboru
+            const fullText = await fileData.text();
+            console.log('📊 Celková délka textu:', fullText.length, 'znaků');
+
+            // Vezmeme prvních 5000 slov
+            const words = fullText.split(/\s+/);
+            const first5000Words = words.slice(0, 5000).join(' ');
+            console.log('📊 Vybraných slov:', Math.min(words.length, 5000), 'z', words.length);
+            console.log('📊 Délka vzorku:', first5000Words.length, 'znaků');
+
+            // Zavoláme AI pro analýzu textu
+            console.log('🤖 Volám AI pro analýzu TXT obsahu...');
+            const result = await openRouterMetadataService.extractMetadataFromText(
+                first5000Words,
+                book.title || 'dokument.txt',
+                supabaseUrl,
+                supabaseKey
+            );
+
+            if (!result.success) {
+                throw new Error(result.error || 'Extrakce metadat z textu selhala bez zprávy');
+            }
+
+            if (!result.metadata) {
+                throw new Error('Extrakce metadat nevrátila metadata');
+            }
+
+            console.log('✅ Metadata úspěšně extrahována z TXT:', result.metadata);
+
+            // Převedeme metadata na formát Book
+            const extractedMetadata: Partial<Book> = {};
+
+            if (result.metadata.title) {
+                extractedMetadata.title = result.metadata.title;
+            }
+            if (result.metadata.author) {
+                extractedMetadata.author = result.metadata.author;
+            }
+            if (result.metadata.publicationYear) {
+                extractedMetadata.publicationYear = result.metadata.publicationYear;
+            }
+            if (result.metadata.publisher) {
+                extractedMetadata.publisher = result.metadata.publisher;
+            }
+            if (result.metadata.language) {
+                extractedMetadata.language = result.metadata.language;
+            }
+            if (result.metadata.summary) {
+                extractedMetadata.summary = result.metadata.summary;
+            }
+            if (result.metadata.keywords && result.metadata.keywords.length > 0) {
+                extractedMetadata.keywords = result.metadata.keywords;
+            }
+            if (result.metadata.releaseVersion) {
+                extractedMetadata.releaseVersion = result.metadata.releaseVersion;
+            }
+
+            console.log('✅ Metadata připravena k naplnění polí:', extractedMetadata);
+
+            return extractedMetadata;
         }
         
+        // Pro PDF soubory použijeme původní logiku
+        if (format !== 'pdf') {
+            throw new Error('Inteligentní extrakce metadat je podporována pouze pro PDF a TXT soubory');
+        }
+
         // Vytvoříme signed URL pro PDF
         console.log('📥 Vytvářím signed URL pro PDF...');
         const { data: signedUrlData, error: urlError } = await supabaseClient.storage
             .from("Books")
             .createSignedUrl(book.filePath, 60);
-        
+
         if (urlError || !signedUrlData || !signedUrlData.signedUrl) {
             console.error('❌ Chyba při vytváření signed URL:', urlError);
             throw new Error(`Nepodařilo se získat signed URL: ${urlError?.message || 'Neznámá chyba'}`);
         }
-        
+
         console.log('✅ Signed URL vytvořena:', signedUrlData.signedUrl);
-        
+
         // Zavoláme inteligentní extrakční službu
         console.log('🤖 Volám inteligentní extrakční službu...');
         const result = await openRouterMetadataService.extractMetadataIntelligent(
@@ -2090,21 +2549,21 @@ const generateMetadataIntelligent = async (book: Book): Promise<Partial<Book>> =
             supabaseUrl,
             supabaseKey
         );
-        
+
         if (!result.success) {
             throw new Error(result.error || 'Inteligentní extrakce selhala bez zprávy');
         }
-        
+
         if (!result.metadata) {
             throw new Error('Inteligentní extrakce nevrátila metadata');
         }
-        
+
         console.log('✅ Metadata úspěšně extrahována:', result.metadata);
         console.log(`📊 Použitý vstup: ${result.type} | Model: ${result.model}`);
-        
+
         // Převedeme metadata na formát Book
         const extractedMetadata: Partial<Book> = {};
-        
+
         if (result.metadata.title) {
             extractedMetadata.title = result.metadata.title;
         }
@@ -2129,11 +2588,11 @@ const generateMetadataIntelligent = async (book: Book): Promise<Partial<Book>> =
         if (result.metadata.releaseVersion) {
             extractedMetadata.releaseVersion = result.metadata.releaseVersion;
         }
-        
+
         console.log('✅ Metadata připravena k naplnění polí:', extractedMetadata);
-        
+
         return extractedMetadata;
-        
+
     } catch (error) {
         console.error('❌ Chyba při inteligentní extrakci metadat:', error);
         console.error('❌ Error details:', {
@@ -2656,6 +3115,139 @@ const extractTextViaWebhook = async (book: Book): Promise<string> => {
     }
 };
 
+// NOVÁ FUNKCE PRO TEXT-ONLY EXTRACTION 2 - LOKÁLNÍ EXTRAKCE BEZ WEBHOOKU
+const extractTextLocallyFromPDF = async (file: File): Promise<File> => {
+    try {
+        console.log('📄 Spouštím lokální extrakci textu z PDF...');
+        console.log('📄 Soubor:', file.name, 'Velikost:', (file.size / 1024).toFixed(2), 'KB');
+        
+        // Načteme PDF jako ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Použijeme globální pdfjsLib z window
+        const pdfjsLib = (window as any).pdfjsLib;
+        if (!pdfjsLib) {
+            throw new Error('PDF.js není načten. Zkuste obnovit stránku.');
+        }
+        
+        console.log('📚 Načítám PDF dokument...');
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        
+        console.log(`📄 PDF má ${pdf.numPages} stránek`);
+        
+        // Extrahujeme text ze všech stránek
+        let fullText = '';
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            
+            // Spojíme textové položky z stránky
+            const pageText = textContent.items
+                .map((item: any) => item.str)
+                .join(' ');
+            
+            fullText += `\n\n--- Stránka ${pageNum} ---\n\n${pageText}`;
+            
+            if (pageNum % 10 === 0) {
+                console.log(`📄 Zpracováno ${pageNum}/${pdf.numPages} stránek`);
+            }
+        }
+        
+        console.log('✅ Extrakce textu dokončena');
+        console.log('📊 Celková délka textu:', fullText.length, 'znaků');
+        
+        // Vytvoříme textový soubor
+        const textFileName = file.name.replace(/\.pdf$/i, '.txt');
+        const textBlob = new Blob([fullText], { type: 'text/plain; charset=utf-8' });
+        const textFile = new File([textBlob], textFileName, { type: 'text/plain' });
+        
+        console.log('✅ Vytvořen textový soubor:', {
+            name: textFileName,
+            size: textFile.size,
+            sizeKB: (textFile.size / 1024).toFixed(2),
+            type: textFile.type
+        });
+        
+        return textFile;
+        
+    } catch (error) {
+        console.error('❌ Chyba při lokální extrakci textu z PDF:', error);
+        throw error;
+    }
+};
+
+// NOVÁ FUNKCE PRO TEXT-ONLY EXTRACTION PŘES WEBHOOK (pro upload)
+const extractTextOnlyViaWebhook = async (file: File): Promise<File> => {
+    const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/3fac3a7f-9e76-4441-901b-1c69e339fe97';
+    
+    try {
+        console.log('📤 Odesílám PDF na N8N webhook pro extrakci textu...');
+        console.log('📄 Soubor:', file.name, 'Velikost:', (file.size / 1024).toFixed(2), 'KB');
+        
+        // N8N webhook očekává multipart/form-data s binárním souborem
+        const formData = new FormData();
+        formData.append('data', file, file.name);  // 'data' je klíč který N8N webhook očekává
+        
+        console.log('📤 POST request na:', webhookUrl);
+        
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            body: formData
+            // Neposíláme Content-Type header - browser ho nastaví automaticky s boundary
+        });
+        
+        console.log('✅ Response status:', response.status);
+        console.log('✅ Response ok:', response.ok);
+        console.log('📋 Response headers:', {
+            contentType: response.headers.get('content-type'),
+            contentLength: response.headers.get('content-length')
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Response error:', errorText);
+            throw new Error(`Webhook vrátil chybu (${response.status}): ${errorText}`);
+        }
+        
+        // N8N vrátí textový soubor jako blob
+        const blob = await response.blob();
+        console.log('✅ Přijat blob:', {
+            size: blob.size,
+            sizeKB: (blob.size / 1024).toFixed(2),
+            type: blob.type
+        });
+        
+        if (blob.size === 0) {
+            throw new Error('Webhook vrátil prázdný soubor (0 bajtů). Zkontrolujte konfiguraci N8N workflow.');
+        }
+        
+        // Pokusíme se přečíst malý vzorek obsahu pro validaci (jen pro kontrolu, malé soubory jsou OK)
+        const previewSize = Math.min(100, blob.size);
+        const textPreview = await blob.slice(0, previewSize).text();
+        console.log('📝 Preview prvních znaků:', textPreview.substring(0, Math.min(100, textPreview.length)));
+        
+        // Poznámka: Malé soubory jsou v pořádku, nevalidujeme velikost
+        
+        // Vytvoříme File objekt s .txt příponou
+        const textFileName = file.name.replace(/\.pdf$/i, '.txt');
+        const textFile = new File([blob], textFileName, { type: 'text/plain' });
+        
+        console.log('✅ Vytvořen textový soubor:', {
+            name: textFileName,
+            size: textFile.size,
+            sizeKB: (textFile.size / 1024).toFixed(2),
+            type: textFile.type
+        });
+        
+        return textFile;
+        
+    } catch (error) {
+        console.error('❌ Chyba při volání N8N webhook:', error);
+        throw error;
+    }
+};
+
 // NOVÁ FUNKCE PRO LLM KONTEXT WEBHOOK S LIMITEM 50 STRÁNEK
 const sendToLLMContextWebhook = async (book: Book): Promise<string> => {
     const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/c2d2f94f-1be3-4d68-a2ec-12f23b3580e1';
@@ -3094,7 +3686,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
     
     // Upload processing modal
     const [isUploadProcessingModalOpen, setUploadProcessingModalOpen] = useState(false);
-    const [uploadOptions, setUploadOptions] = useState({ performOCR: false, performCompression: false });
+    const [uploadOptions, setUploadOptions] = useState({ performOCR: false, performCompression: false, textOnly: false, textOnly2: false });
     const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
     const [selectedOCRLanguage, setSelectedOCRLanguage] = useState<string>('Angličtina');
     const [selectedCompressionLevel, setSelectedCompressionLevel] = useState<string>('recommended');
@@ -3343,7 +3935,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
         // Pro PDF soubory zobrazíme modal s možnostmi zpracování
         if (file.type === 'application/pdf') {
             setPendingUploadFile(file);
-            setUploadOptions({ performOCR: false, performCompression: false });
+            setUploadOptions({ performOCR: false, performCompression: false, textOnly: false, textOnly2: false });
             
             // Pokusíme se detekovat jazyk z názvu souboru a nastavit nejlepší shodu
             const extractedMetadata = await extractMetadataFromFile(file);
@@ -3356,10 +3948,10 @@ const App = ({ currentUser }: { currentUser: User }) => {
         }
 
         // Pro ostatní formáty pokračujeme přímo s uplodem
-        await processFileUpload(file, { performOCR: false, performCompression: false }, 'Angličtina');
+        await processFileUpload(file, { performOCR: false, performCompression: false, textOnly: false, textOnly2: false }, 'Angličtina');
     };
 
-    const processFileUpload = async (file: File, options: { performOCR: boolean; performCompression: boolean }, ocrLanguage: string, compressionLevel: string = 'recommended') => {
+    const processFileUpload = async (file: File, options: { performOCR: boolean; performCompression: boolean; textOnly: boolean; textOnly2: boolean }, ocrLanguage: string, compressionLevel: string = 'recommended') => {
         setIsLoading(true);
         try {
             // 1. Extract metadata from the file FIRST
@@ -3370,11 +3962,84 @@ const App = ({ currentUser }: { currentUser: User }) => {
                 format: extractedMetadata.format
             });
             
-            // 2. Zpracovat soubor pomocí iLovePDF pokud je to PDF a jsou zvolené možnosti
+            // 2. Zpracovat soubor - buď textOnly, textOnly2 nebo iLovePDF
             let finalFile = file;
             let hasOCRAfterProcessing = extractedMetadata.hasOCR;
             
-            if (file.type === 'application/pdf' && (options.performOCR || options.performCompression)) {
+            // 2a. Text-only režim - extrahovat pouze text přes webhook
+            if (file.type === 'application/pdf' && options.textOnly) {
+                console.log('📄 Spouštím text-only extrakci přes N8N webhook...');
+                
+                try {
+                    finalFile = await extractTextOnlyViaWebhook(file);
+                    hasOCRAfterProcessing = true; // Textový soubor má "OCR" (extrahovaný text)
+                    console.log('✅ Text-only extrakce dokončena:', finalFile.name);
+                } catch (textOnlyError: any) {
+                    console.error('❌ Text-only extrakce selhala:', textOnlyError.message);
+                    
+                    const dialogMessage = [
+                        `Extrakce textu pomocí N8N webhook se nezdařila:`,
+                        ``,
+                        `${textOnlyError.message}`,
+                        ``,
+                        `Můžete:`,
+                        `• ZRUŠIT nahrání a zkusit to později`,
+                        `• POKRAČOVAT a nahrát původní PDF bez extrakce`,
+                        ``,
+                        `Chcete pokračovat s nahráním PDF bez extrakce textu?`
+                    ].join('\n');
+                    
+                    const userWantsToContinue = confirm(dialogMessage);
+                    
+                    if (!userWantsToContinue) {
+                        throw new Error(`Upload zrušen uživatelem. Původní chyba: ${textOnlyError.message}`);
+                    }
+                    
+                    console.log('📁 Pokračuji s nahráváním původního PDF...');
+                    alert(`✅ Pokračuji s nahráním PDF\n\nSoubor bude nahrán jako PDF bez extrakce textu.\nExtrakci můžete zkusit později.`);
+                    
+                    // finalFile zůstává původní PDF
+                    hasOCRAfterProcessing = extractedMetadata.hasOCR;
+                }
+            }
+            // 2b. Text-only 2 režim - lokální extrakce textu bez webhooku
+            else if (file.type === 'application/pdf' && options.textOnly2) {
+                console.log('📄 Spouštím lokální text-only 2 extrakci...');
+                
+                try {
+                    finalFile = await extractTextLocallyFromPDF(file);
+                    hasOCRAfterProcessing = true; // Textový soubor má "OCR" (extrahovaný text)
+                    console.log('✅ Text-only 2 extrakce dokončena:', finalFile.name);
+                } catch (textOnly2Error: any) {
+                    console.error('❌ Text-only 2 extrakce selhala:', textOnly2Error.message);
+                    
+                    const dialogMessage = [
+                        `Lokální extrakce textu se nezdařila:`,
+                        ``,
+                        `${textOnly2Error.message}`,
+                        ``,
+                        `Můžete:`,
+                        `• ZRUŠIT nahrání a zkusit to později`,
+                        `• POKRAČOVAT a nahrát původní PDF bez extrakce`,
+                        ``,
+                        `Chcete pokračovat s nahráním PDF bez extrakce textu?`
+                    ].join('\n');
+                    
+                    const userWantsToContinue = confirm(dialogMessage);
+                    
+                    if (!userWantsToContinue) {
+                        throw new Error(`Upload zrušen uživatelem. Původní chyba: ${textOnly2Error.message}`);
+                    }
+                    
+                    console.log('📁 Pokračuji s nahráváním původního PDF...');
+                    alert(`✅ Pokračuji s nahráním PDF\n\nSoubor bude nahrán jako PDF bez extrakce textu.\nExtrakci můžete zkusit později.`);
+                    
+                    // finalFile zůstává původní PDF
+                    hasOCRAfterProcessing = extractedMetadata.hasOCR;
+                }
+            }
+            // 2b. iLovePDF zpracování (OCR/komprese)
+            else if (file.type === 'application/pdf' && (options.performOCR || options.performCompression)) {
                 const operationsText = [];
                 if (options.performOCR) operationsText.push('OCR');
                 if (options.performCompression) operationsText.push('komprese');
@@ -3465,8 +4130,13 @@ const App = ({ currentUser }: { currentUser: User }) => {
             
             const { filePath, fileSize } = await api.uploadFileWithId(finalFile, 'Books', bookId);
 
-            // 5. Generate and upload cover if it's a PDF.
-            let coverImageUrl = `https://placehold.co/150x225/f3eee8/4a4a4a?text=${extractedMetadata.format || file.name.split('.').pop()?.toUpperCase()}`;
+            // 5. Určit formát souboru PŘED generováním coveru
+            const bookFormat = (options.textOnly || options.textOnly2) && finalFile.name.endsWith('.txt')
+                ? 'TXT'
+                : (extractedMetadata.format || file.name.split('.').pop()?.toUpperCase() || 'N/A');
+
+            // 6. Generate and upload cover if it's a PDF.
+            let coverImageUrl = `https://placehold.co/150x225/f3eee8/4a4a4a?text=${bookFormat}`;
             if (finalFile.type === 'application/pdf') {
                 try {
                     console.log('Starting PDF cover generation...');
@@ -3540,7 +4210,9 @@ const App = ({ currentUser }: { currentUser: User }) => {
                 }
             }
 
-            // 5. Create book record with extracted metadata
+            // 7. Create book record with extracted metadata
+            // bookFormat už byl určen výše (před generováním coveru)
+            
             const newBookData: Omit<Book, 'id' | 'dateAdded' | 'content'> = {
                 title: extractedMetadata.title || file.name.replace(/\.[^/.]+$/, ""),
                 author: extractedMetadata.author || 'Neznámý',
@@ -3549,7 +4221,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                 summary: extractedMetadata.summary || '',
                 keywords: extractedMetadata.keywords || [],
                 language: extractedMetadata.language || 'Neznámý',
-                format: extractedMetadata.format || file.name.split('.').pop()?.toUpperCase() || 'N/A',
+                format: bookFormat,
                 fileSize: fileSize,
                 coverImageUrl: coverImageUrl,
                 publicationTypes: extractedMetadata.publicationTypes || [],
@@ -3565,8 +4237,8 @@ const App = ({ currentUser }: { currentUser: User }) => {
             const createdBook = await api.createBook(newBookData);
             console.log('✅ Kniha vytvořena, nyní detekuji skutečný OCR stav...');
 
-            // 6. Pokud jsme neprovádeli OCR pomocí iLovePDF, detekujeme OCR ze storage
-            if (!options.performOCR) {
+            // 6. Pokud jsme neprovádeli OCR pomocí iLovePDF a není to textOnly nebo textOnly2, detekujeme OCR ze storage
+            if (!options.performOCR && !options.textOnly && !options.textOnly2) {
                 try {
                     const realOCRStatus = await api.detectOCRFromStorage(filePath);
                     console.log('🔍 Skutečný OCR stav:', realOCRStatus);
@@ -4030,6 +4702,57 @@ const App = ({ currentUser }: { currentUser: User }) => {
             }
         } catch (error) {
             console.error('❌ Chyba při komunikaci s webhookem:', error);
+            
+            // Aktualizujeme knihu v seznamu
+            setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
+        } finally {
+            // Odebereme knihu z loading stavu
+            setVectorProcessingBooks(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(book.id);
+                return newSet;
+            });
+        }
+    };
+
+    // Nová funkce pro odeslání pouze textu do vektorové databáze
+    const confirmTextOnlyVectorDatabaseAction = async () => {
+        const { book, missingFields } = vectorDbConfirmation;
+        if (!book) return;
+
+        // Zavření modalu
+        setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] });
+
+        // Pokud chybí metadata, nepokračujeme
+        if (missingFields.length > 0) {
+            return;
+        }
+        
+        // Přidáme knihu do loading stavu
+        setVectorProcessingBooks(prev => new Set([...prev, book.id]));
+        
+        try {
+            console.log('📄 Odesílání pouze textu knihy do vektorové databáze:', book.title);
+            console.log('⏳ Čekám na webhook odpověď (může trvat až 5 minut)...');
+            
+            // Voláme novou funkci pro text-only
+            const result = await api.sendTextOnlyToVectorDatabase(book, true);
+            
+            if (result.success) {
+                console.log('✅ Webhook úspěšně zpracován (text-only)');
+                alert(`✅ ${result.message}\n\n📄 Odeslán pouze extrahovaný text (bez PDF binárních dat).`);
+                
+                // Aktualizujeme knihu v seznamu na success
+                setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'success'} : b));
+            } else {
+                console.error('❌ Webhook selhal:', result.message);
+                alert(`❌ ${result.message}`);
+                
+                // Aktualizujeme knihu v seznamu na error
+                setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
+            }
+        } catch (error) {
+            console.error('❌ Chyba při komunikaci s webhookem (text-only):', error);
             
             // Aktualizujeme knihu v seznamu
             setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
@@ -4646,20 +5369,51 @@ const App = ({ currentUser }: { currentUser: User }) => {
                         <p style={{fontSize: '0.9em', color: 'var(--text-secondary)'}}>
                             Prosím doplňte tato metadata v detailu knihy a zkuste to znovu.
                         </p>
-                        <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end'}}>
-                            <button style={styles.button} onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}>
-                                Zavřít
-                            </button>
+                        <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem'}}>
                             <button 
-                                style={{...styles.button, backgroundColor: 'var(--primary-color)', color: 'white'}} 
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid var(--primary-color)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--primary-color)',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
                                 onClick={() => {
                                     setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] });
                                     if (vectorDbConfirmation.book) {
                                         setSelectedBookId(vectorDbConfirmation.book.id);
                                     }
                                 }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(var(--primary-color-rgb), 0.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
                             >
                                 Upravit knihu
+                            </button>
+                            <button 
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid var(--border-color)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--text-primary)',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
+                                onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                            >
+                                Zavřít
                             </button>
                         </div>
                     </>
@@ -4675,38 +5429,106 @@ const App = ({ currentUser }: { currentUser: User }) => {
                             </div>
                         </div>
                         <p>Opravdu chcete odeslat tuto knihu do vektorové databáze?</p>
-                        <p style={{fontSize: '0.9em', color: 'var(--text-secondary)', marginTop: '1rem'}}>
-                            ⚠️ Tato operace může trvat několik minut. Kniha bude zpracována n8n workflow a přidána do vektorové databáze.
-                        </p>
                         
-                        <div style={{margin: '1.5rem 0', padding: '1rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', border: '1px solid var(--border-color)'}}>
+                        <div style={{margin: '1.5rem 0', padding: '1rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
                             <div style={{fontSize: '0.95em'}}>
-                                <div style={{fontWeight: '500', marginBottom: '4px'}}>⏳ Čekání na zpracování</div>
-                                <div style={{fontSize: '0.85em', color: 'var(--text-secondary)'}}>
+                                <div style={{fontWeight: '500', marginBottom: '8px'}}>⏳ Čekání na zpracování</div>
+                                <div style={{fontSize: '0.85em', color: 'var(--text-secondary)', lineHeight: '1.5'}}>
                                     Aplikace bude čekat na webhook odpověď až 5 minut a zobrazí výsledek zpracování. Ikona se bude otáčet během celého procesu.
                                 </div>
                             </div>
                         </div>
                         
-                        <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end'}}>
-                            <button style={styles.button} onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}>
-                                Zrušit
-                            </button>
+                        <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem'}}>
                             <button 
-                                style={{...styles.button, backgroundColor: '#6c757d', color: 'white', border: '1px solid #6c757d'}} 
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid #6c757d',
+                                    backgroundColor: 'transparent',
+                                    color: '#6c757d',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
                                 onClick={() => {
                                     if (vectorDbConfirmation.book) {
                                         updateMetadataWebhook(vectorDbConfirmation.book);
                                     }
                                 }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
                             >
                                 🔄 Aktualizovat metadata
                             </button>
+                            
                             <button 
-                                style={{...styles.button, backgroundColor: '#007bff', color: 'white', border: '1px solid #007bff'}} 
-                                onClick={confirmVectorDatabaseAction}
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid #28a745',
+                                    backgroundColor: 'transparent',
+                                    color: '#28a745',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                onClick={confirmTextOnlyVectorDatabaseAction}
+                                title="Odešle pouze extrahovaný text do VDB (rychlejší, menší velikost)"
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
                             >
-                                <IconDatabase status="pending" /> Odeslat do VDB
+                                📄 Odeslat pouze text do VDB
+                            </button>
+                            
+                            <button 
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid #007bff',
+                                    backgroundColor: 'transparent',
+                                    color: '#007bff',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
+                                onClick={confirmVectorDatabaseAction}
+                                title="Odešle celé PDF včetně binárních dat do VDB"
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                            >
+                                📘 Odeslat PDF do VDB
+                            </button>
+                            
+                            <button 
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid var(--border-color)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--text-primary)',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    marginTop: '0.5rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
+                                onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                            >
+                                Zrušit
                             </button>
                         </div>
                     </>
@@ -4729,7 +5551,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                             <input 
                                 type="checkbox" 
                                 checked={uploadOptions.performOCR}
-                                onChange={(e) => setUploadOptions(prev => ({ ...prev, performOCR: e.target.checked }))}
+                                onChange={(e) => setUploadOptions(prev => ({ ...prev, performOCR: e.target.checked, textOnly: false, textOnly2: false }))}
                                 style={{ marginRight: '0.5rem' }}
                             />
                             <strong>Provést OCR</strong>
@@ -4774,7 +5596,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                             <input 
                                 type="checkbox" 
                                 checked={uploadOptions.performCompression}
-                                onChange={(e) => setUploadOptions(prev => ({ ...prev, performCompression: e.target.checked }))}
+                                onChange={(e) => setUploadOptions(prev => ({ ...prev, performCompression: e.target.checked, textOnly: false, textOnly2: false }))}
                                 style={{ marginRight: '0.5rem' }}
                             />
                             <strong>Provést kompresi</strong>
@@ -4828,9 +5650,86 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                 </div>
                             </div>
                         )}
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input 
+                                type="checkbox" 
+                                checked={uploadOptions.textOnly}
+                                onChange={(e) => {
+                                    const isChecked = e.target.checked;
+                                    if (isChecked) {
+                                        // Pokud je textOnly zaškrtnuto, odškrtneme ostatní možnosti
+                                        setUploadOptions({ performOCR: false, performCompression: false, textOnly: true, textOnly2: false });
+                                    } else {
+                                        setUploadOptions(prev => ({ ...prev, textOnly: false }));
+                                    }
+                                }}
+                                style={{ marginRight: '0.5rem' }}
+                            />
+                            <strong>Nahrát pouze text</strong>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9em' }}>
+                                - Extrahuje text z PDF přes webhook a uloží jako .txt soubor
+                            </span>
+                        </label>
+                        
+                        {uploadOptions.textOnly && (
+                            <div style={{ 
+                                marginLeft: '1.5rem',
+                                padding: '1rem', 
+                                backgroundColor: '#fff3cd', 
+                                borderRadius: '8px',
+                                border: '1px solid #ffc107'
+                            }}>
+                                <p style={{ margin: 0, fontSize: '0.9em', color: '#856404' }}>
+                                    ℹ️ <strong>Režim pouze text:</strong>
+                                    <br />
+                                    PDF bude zpracováno přes N8N webhook, text bude extrahován a uložen jako .txt soubor.
+                                    Tato možnost je exkluzivní - nelze kombinovat s OCR nebo kompresí.
+                                </p>
+                            </div>
+                        )}
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input 
+                                type="checkbox" 
+                                checked={uploadOptions.textOnly2}
+                                onChange={(e) => {
+                                    const isChecked = e.target.checked;
+                                    if (isChecked) {
+                                        // Pokud je textOnly2 zaškrtnuto, odškrtneme ostatní možnosti
+                                        setUploadOptions({ performOCR: false, performCompression: false, textOnly: false, textOnly2: true });
+                                    } else {
+                                        setUploadOptions(prev => ({ ...prev, textOnly2: false }));
+                                    }
+                                }}
+                                style={{ marginRight: '0.5rem' }}
+                            />
+                            <strong>Nahrát pouze text 2</strong>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9em' }}>
+                                - Lokální extrakce textu z PDF a uložení jako .txt soubor
+                            </span>
+                        </label>
+                        
+                        {uploadOptions.textOnly2 && (
+                            <div style={{ 
+                                marginLeft: '1.5rem',
+                                padding: '1rem', 
+                                backgroundColor: '#d1ecf1', 
+                                borderRadius: '8px',
+                                border: '1px solid #0dcaf0'
+                            }}>
+                                <p style={{ margin: 0, fontSize: '0.9em', color: '#055160' }}>
+                                    ℹ️ <strong>Režim pouze text 2:</strong>
+                                    <br />
+                                    Text bude extrahován lokálně z PDF bez použití webhooku a uložen jako samostatný .txt soubor.
+                                    V aplikaci bude uložen textový soubor místo PDF.
+                                    Tato možnost je exkluzivní - nelze kombinovat s OCR nebo kompresí.
+                                </p>
+                            </div>
+                        )}
                     </div>
                     
-                    {(uploadOptions.performOCR || uploadOptions.performCompression) && (
+                    {(uploadOptions.performOCR || uploadOptions.performCompression || uploadOptions.textOnly || uploadOptions.textOnly2) && (
                         <div style={{ 
                             backgroundColor: 'var(--background-tertiary)', 
                             padding: '1rem', 
@@ -4838,7 +5737,13 @@ const App = ({ currentUser }: { currentUser: User }) => {
                             border: '1px solid var(--border-color)'
                         }}>
                             <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-secondary)' }}>
-                                ⏱️ Zpracování pomocí iLovePDF API může trvat několik sekund až minut v závislosti na velikosti souboru.
+                                {uploadOptions.textOnly ? (
+                                    <>⏱️ Zpracování pomocí N8N workflow může trvat několik sekund až minut v závislosti na velikosti souboru.</>
+                                ) : uploadOptions.textOnly2 ? (
+                                    <>⏱️ Lokální extrakce textu může trvat několik sekund v závislosti na velikosti souboru.</>
+                                ) : (
+                                    <>⏱️ Zpracování pomocí iLovePDF API může trvat několik sekund až minut v závislosti na velikosti souboru.</>
+                                )}
                                 {uploadOptions.performOCR && (
                                     <>
                                         <br />
@@ -4849,6 +5754,18 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                     <>
                                         <br />
                                         🗜️ Komprese: <strong>{selectedCompressionLevel}</strong>
+                                    </>
+                                )}
+                                {uploadOptions.textOnly && (
+                                    <>
+                                        <br />
+                                        📄 Text bude extrahován přes webhook a uložen jako .txt soubor
+                                    </>
+                                )}
+                                {uploadOptions.textOnly2 && (
+                                    <>
+                                        <br />
+                                        📄 Text bude extrahován lokálně a uložen jako .txt soubor
                                     </>
                                 )}
                             </p>
@@ -4866,9 +5783,13 @@ const App = ({ currentUser }: { currentUser: User }) => {
                             style={{ ...styles.button, backgroundColor: 'var(--accent-primary)', color: 'white' }}
                             onClick={handleUploadProcessingConfirm}
                         >
-                            {uploadOptions.performOCR || uploadOptions.performCompression 
-                                ? 'Zpracovat a nahrát' 
-                                : 'Nahrát bez zpracování'
+                            {uploadOptions.textOnly
+                                ? 'Extrahovat text (webhook) a nahrát'
+                                : uploadOptions.textOnly2
+                                    ? 'Extrahovat text (lokálně) a nahrát'
+                                    : (uploadOptions.performOCR || uploadOptions.performCompression 
+                                        ? 'Zpracovat a nahrát' 
+                                        : 'Nahrát bez zpracování')
                             }
                         </button>
                     </div>
@@ -5939,22 +6860,24 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
     // NOVÝ HANDLER: Inteligentní generování metadat (auto-detekce OCR)
     const handleBulkIntelligentGenerate = async () => {
         setIsBulkGenerating(true);
-        
+
         try {
-            // Ověříme, že je to PDF soubor
-            if (localBook.format.toLowerCase() !== 'pdf') {
-                alert('⚠️ Inteligentní extrakce metadat je podporována pouze pro PDF soubory!');
+            const format = localBook.format.toLowerCase();
+            
+            // Ověříme, že je to PDF nebo TXT soubor
+            if (format !== 'pdf' && format !== 'txt') {
+                alert('⚠️ Inteligentní extrakce metadat je podporována pouze pro PDF a TXT soubory!');
                 setIsBulkGenerating(false);
                 return;
             }
-            
+
             console.log('🤖 Spouštím inteligentní extrakci metadat...');
-            
+
             // Zavoláme inteligentní funkci
             const extractedMetadata = await generateMetadataIntelligent(localBook);
-            
+
             console.log('📝 Aplikuji extrahovaná metadata:', extractedMetadata);
-            
+
             // Aktualizujeme localBook s extrahovanými daty
             updateLocalBook(prevBook => {
                 const updatedBook = {
@@ -5964,9 +6887,9 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                 console.log('📚 Aktualizovaná kniha:', updatedBook);
                 return updatedBook;
             });
-            
+
             console.log('✅ Inteligentní metadata úspěšně aplikována na knihu');
-            
+
         } catch (error) {
             console.error('❌ Chyba při inteligentní extrakci metadat:', error);
             alert(
@@ -6537,11 +7460,11 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                         
                         {/* Čtvrtá řada: Vyplnit metadata */}
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <button 
-                                style={styles.button} 
-                                onClick={handleBulkIntelligentGenerate} 
-                                disabled={isBulkGenerating || localBook.format.toLowerCase() !== 'pdf'}
-                                title="Inteligentní extrakce metadat - automaticky detekuje OCR a volá optimální AI model"
+                            <button
+                                style={styles.button}
+                                onClick={handleBulkIntelligentGenerate}
+                                disabled={isBulkGenerating || (localBook.format.toLowerCase() !== 'pdf' && localBook.format.toLowerCase() !== 'txt')}
+                                title="Inteligentní extrakce metadat - automaticky detekuje OCR a volá optimální AI model (podporuje PDF a TXT)"
                             >
                                 {isBulkGenerating ? 'Generuji...' : <><IconMagic /> Vyplnit metadata</>}
                             </button>

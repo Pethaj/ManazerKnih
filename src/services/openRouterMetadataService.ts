@@ -241,6 +241,78 @@ export async function extractMetadataIntelligent(
 }
 
 /**
+ * Extrakce metadat z textového obsahu (pro TXT soubory)
+ */
+export async function extractMetadataFromText(
+  textContent: string,
+  filename: string,
+  supabaseUrl?: string,
+  supabaseKey?: string
+): Promise<MetadataResponse> {
+  try {
+    // Pokud nemáme Supabase credentials, získáme je z prostředí
+    const finalSupabaseUrl = supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
+    const finalSupabaseKey = supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!finalSupabaseUrl || !finalSupabaseKey) {
+      throw new Error('Chybí Supabase konfigurace');
+    }
+
+    // Zavoláme Supabase Edge Function s textovým obsahem
+    const edgeFunctionUrl = `${finalSupabaseUrl}/functions/v1/extract-metadata-ai`;
+    
+    const requestData = {
+      type: 'text',
+      content: textContent,
+      fileName: filename,
+    };
+    
+    console.log('📤 Odesílám text na Edge Function:', {
+      url: edgeFunctionUrl,
+      contentLength: textContent.length,
+      fileName: filename
+    });
+    
+    const response = await fetch(edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${finalSupabaseKey}`,
+      },
+      body: JSON.stringify(requestData),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Edge Function chyba: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Edge Function vrátila chybu');
+    }
+    
+    return {
+      success: true,
+      metadata: {
+        ...result.metadata,
+        hasOCR: true, // TXT soubor je už text
+      },
+      type: 'text',
+      model: result.model,
+    };
+    
+  } catch (error) {
+    console.error('❌ Chyba při extrakci metadat z textu:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
  * Stará metoda - zachována pro kompatibilitu
  */
 export async function analyzeDocument(

@@ -8,8 +8,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+// === HELPER FUNKCE ===
+/**
+ * Pokusí se extrahovat konkrétní pole z textové odpovědi
+ */
+function extractFieldFromText(text: string, fieldName: string): string | undefined {
+  // Hledáme vzory jako: "title: Něco" nebo "Název: Něco" nebo "title": "Něco"
+  const patterns = [
+    new RegExp(`"${fieldName}"\\s*:\\s*"([^"]+)"`, 'i'),
+    new RegExp(`${fieldName}\\s*:\\s*"([^"]+)"`, 'i'),
+    new RegExp(`${fieldName}\\s*:\\s*([^,\\n]+)`, 'i'),
+  ];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  
+  return undefined;
+}
+
 // Modely pro různé typy vstupů
-const TEXT_MODEL = "meta-llama/llama-3.1-8b-instruct"; // Levný, rychlý pro textový vstup
+// Používáme GPT-4o-mini i pro text - lépe respektuje JSON formát než Llama
+const TEXT_MODEL = "openai/gpt-4o-mini"; // Stabilní JSON výstup pro textový vstup
 const VISION_MODEL = "openai/gpt-4o-mini"; // Vision support pro obrázky
 
 interface MetadataRequest {
@@ -52,7 +75,10 @@ DŮLEŽITÁ PRAVIDLA:
 5. Pro language: Nikdy neodpovídej "neznámý" - vyber konkrétní jazyk na základě textu
 
 FORMÁT ODPOVĚDI:
-Vrať POUZE validní JSON objekt (bez jakéhokoliv dalšího textu) ve formátu:
+KRITICKY DŮLEŽITÉ: Vrať POUZE validní JSON objekt! Žádný text před nebo za JSON!
+Nepřidávej žádné vysvětlení, úvod ani závěr. POUZE čistý JSON objekt.
+
+Formát:
 {
   "title": "...",
   "author": "...",
@@ -62,7 +88,9 @@ Vrať POUZE validní JSON objekt (bez jakéhokoliv dalšího textu) ve formátu:
   "summary": "...",
   "keywords": ["...", "...", "..."],
   "releaseVersion": "..."
-}`;
+}
+
+OPAKUJI: Začni přímo znakem { a skonči znakem }. Žádný text navíc!`;
 
 // === Hlavní handler ===
 Deno.serve(async (req) => {
@@ -184,6 +212,20 @@ Deno.serve(async (req) => {
 
     console.log(`📡 Volám OpenRouter API s modelem: ${model}`);
 
+    // Připravíme request body s vynuceným JSON režimem
+    const requestBody: any = {
+      model: model,
+      messages: messages,
+      max_tokens: 2000,
+      temperature: 0.1, // Snížená teplota pro konzistentnější výstup
+    };
+
+    // Pro OpenAI modely (GPT-4, GPT-3.5) vynucujeme JSON režim
+    if (model.includes("gpt-4") || model.includes("gpt-3.5") || model.includes("openai/")) {
+      requestBody.response_format = { type: "json_object" };
+      console.log("✅ JSON režim aktivován pro OpenAI model");
+    }
+
     // Zavoláme OpenRouter API
     const response = await fetch(OPENROUTER_API_URL, {
       method: "POST",
@@ -193,12 +235,7 @@ Deno.serve(async (req) => {
         "HTTP-Referer": "https://medbase.bewit.love", // Pro OpenRouter analytics
         "X-Title": "MedBase - Metadata Extraction",
       },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        max_tokens: 2000,
-        temperature: 0.3,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -221,24 +258,56 @@ Deno.serve(async (req) => {
       throw new Error("OpenRouter vrátil prázdnou odpověď");
     }
 
-    console.log(`📄 Response text length: ${responseText.length} znaků`);
+    console.log(`📄 Response text (first 200 chars): ${responseText.substring(0, 200)}`);
 
-    // Parsujeme JSON odpověď
-    let jsonText = responseText;
-
-    // Odebereme markdown code blocky pokud existují
-    const jsonMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[1];
-    }
-
+    // === ROBUSTNÍ JSON PARSING ===
     let metadata: ExtractedMetadata;
+    
     try {
-      metadata = JSON.parse(jsonText);
-    } catch (parseError) {
-      console.error("❌ Chyba při parsování JSON:", parseError);
-      console.error("📄 Odpověď:", responseText);
-      throw new Error(`Nepodařilo se parsovat JSON odpověď: ${parseError.message}`);
+      // Pokus 1: Přímý parsing (většina případů)
+      metadata = JSON.parse(responseText);
+      console.log("✅ JSON parsován přímo");
+    } catch (e1) {
+      console.log("⚠️ Přímý parsing selhal, zkouším extrakci z markdown...");
+      
+      try {
+        // Pokus 2: Extrakce z markdown code blocks (```json ... ```)
+        const jsonMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        if (jsonMatch) {
+          metadata = JSON.parse(jsonMatch[1]);
+          console.log("✅ JSON extrahován z markdown code block");
+        } else {
+          throw new Error("Markdown code block nenalezen");
+        }
+      } catch (e2) {
+        console.log("⚠️ Markdown extrakce selhala, zkouším regex extrakci...");
+        
+        try {
+          // Pokus 3: Najít první JSON objekt v textu pomocí regex
+          const jsonRegex = /\{[\s\S]*?\}/;
+          const match = responseText.match(jsonRegex);
+          if (match) {
+            metadata = JSON.parse(match[0]);
+            console.log("✅ JSON extrahován pomocí regex");
+          } else {
+            throw new Error("JSON objekt v textu nenalezen");
+          }
+        } catch (e3) {
+          // Pokus 4: Fallback - vytvoř základní metadata z textu
+          console.error("❌ Všechny pokusy o parsing JSON selhaly");
+          console.error("📄 Původní odpověď:", responseText);
+          
+          // Pokusíme se extrahovat alespoň nějaké informace z textu
+          metadata = {
+            title: extractFieldFromText(responseText, "title") || "Neznámý název",
+            author: extractFieldFromText(responseText, "author"),
+            language: extractFieldFromText(responseText, "language") || "Neznámý",
+            summary: responseText.substring(0, 200) + "...",
+          };
+          
+          console.log("⚠️ Použit fallback s částečnými metadaty:", metadata);
+        }
+      }
     }
 
     console.log("✅ Metadata úspěšně extrahována:", metadata);

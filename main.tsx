@@ -1807,6 +1807,44 @@ const Modal = ({ isOpen, onClose, title, children }: ModalProps): React.ReactNod
     );
 };
 
+// TextBookViewer komponenta pro zobrazení textových souborů
+interface TextBookViewerProps {
+    isOpen: boolean;
+    onClose: () => void;
+    bookTitle: string;
+    textContent: string;
+}
+const TextBookViewer = ({ isOpen, onClose, bookTitle, textContent }: TextBookViewerProps): React.ReactNode => {
+    if (!isOpen) return null;
+    
+    return (
+        <div style={styles.modalOverlay} onClick={onClose}>
+            <div style={{...styles.modalContent, maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column'}} onClick={e => e.stopPropagation()}>
+                <div style={styles.modalHeader}>
+                    <h3>{bookTitle}</h3>
+                    <button style={styles.modalCloseButton} onClick={onClose}><IconClose /></button>
+                </div>
+                <div style={{
+                    ...styles.modalBody,
+                    overflow: 'auto',
+                    flex: 1,
+                    padding: '1.5rem',
+                    backgroundColor: 'var(--background-primary)',
+                    borderRadius: '8px',
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: '16px',
+                    lineHeight: '1.6',
+                    color: 'var(--text-primary)',
+                    whiteSpace: 'pre-wrap',
+                    wordWrap: 'break-word'
+                }}>
+                    {textContent || 'Načítám obsah...'}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const TagSelector = ({ selectedTags, allTags, onChange, onAddNewTag, onDeleteTag, promptText, creationText }: {selectedTags: string[], allTags: string[], onChange: (tags: string[]) => void, onAddNewTag: (tag: string) => void, onDeleteTag?: (tag: string) => void, promptText: string, creationText: string}) => {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [isAddModalOpen, setAddModalOpen] = useState(false);
@@ -2018,6 +2056,7 @@ const App = () => {
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; book: Book | null }>({ isOpen: false, book: null });
     const [isBulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
     const [vectorDbConfirmation, setVectorDbConfirmation] = useState<{ isOpen: boolean; book: Book | null; missingFields: string[] }>({ isOpen: false, book: null, missingFields: [] });
+    const [textBookViewer, setTextBookViewer] = useState<{ isOpen: boolean; title: string; content: string }>({ isOpen: false, title: '', content: '' });
     
     const [allLabels, setAllLabels] = useState<string[]>([]);
     const [allCategories, setAllCategories] = useState<string[]>(['Aromaterapie', 'Masáže', 'Akupunktura', 'Diagnostika']);
@@ -2663,17 +2702,51 @@ const App = () => {
         setSelectedBookIds(new Set());
     };
 
-    const handleReadBook = (bookToRead: Book | undefined) => {
+    const handleReadBook = async (bookToRead: Book | undefined) => {
         if (!bookToRead || !bookToRead.filePath) {
             alert("K této knize není přiřazen žádný soubor.");
             return;
         }
-        const { data } = supabaseClient.storage.from('Books').getPublicUrl(bookToRead.filePath);
         
-        if (data && data.publicUrl) {
-            window.open(data.publicUrl, '_blank', 'noopener,noreferrer');
+        // Kontrola, zda je soubor textový (.txt nebo format 'TXT')
+        const isTxtFile = bookToRead.filePath.toLowerCase().endsWith('.txt') || 
+                         bookToRead.format?.toUpperCase() === 'TXT';
+        
+        if (isTxtFile) {
+            // Pro textové soubory - načteme obsah a zobrazíme v modalu
+            try {
+                const { data, error } = await supabaseClient.storage
+                    .from('Books')
+                    .download(bookToRead.filePath);
+                
+                if (error) {
+                    console.error('Chyba při stahování textového souboru:', error);
+                    alert('Nepodařilo se načíst textový soubor.');
+                    return;
+                }
+                
+                // Převedeme Blob na text
+                const text = await data.text();
+                
+                // Otevřeme modal s textem
+                setTextBookViewer({
+                    isOpen: true,
+                    title: bookToRead.title,
+                    content: text
+                });
+            } catch (err) {
+                console.error('Chyba při načítání textového souboru:', err);
+                alert('Nepodařilo se načíst obsah textového souboru.');
+            }
         } else {
-            alert("Nepodařilo se získat veřejnou URL adresu souboru.");
+            // Pro ostatní formáty (PDF, EPUB, atd.) - otevřeme v novém okně
+            const { data } = supabaseClient.storage.from('Books').getPublicUrl(bookToRead.filePath);
+            
+            if (data && data.publicUrl) {
+                window.open(data.publicUrl, '_blank', 'noopener,noreferrer');
+            } else {
+                alert("Nepodařilo se získat veřejnou URL adresu souboru.");
+            }
         }
     };
 
@@ -2831,20 +2904,51 @@ const App = () => {
                         <p style={{fontSize: '0.9em', color: 'var(--text-secondary)'}}>
                             Prosím doplňte tato metadata v detailu knihy a zkuste to znovu.
                         </p>
-                        <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end'}}>
-                            <button style={styles.button} onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}>
-                                Zavřít
-                            </button>
+                        <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem'}}>
                             <button 
-                                style={{...styles.button, backgroundColor: 'var(--primary-color)', color: 'white'}} 
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid var(--primary-color)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--primary-color)',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
                                 onClick={() => {
                                     setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] });
                                     if (vectorDbConfirmation.book) {
                                         setSelectedBookId(vectorDbConfirmation.book.id);
                                     }
                                 }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(var(--primary-color-rgb), 0.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
                             >
                                 Upravit knihu
+                            </button>
+                            <button 
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid var(--border-color)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--text-primary)',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
+                                onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                            >
+                                Zavřít
                             </button>
                         </div>
                     </>
@@ -2863,20 +2967,58 @@ const App = () => {
                         <p style={{fontSize: '0.9em', color: 'var(--text-secondary)', marginTop: '1rem'}}>
                             ⚠️ Tato operace může trvat několik minut. Kniha bude zpracována n8n workflow a přidána do vektorové databáze.
                         </p>
-                        <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end'}}>
-                            <button style={styles.button} onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}>
-                                Zrušit
+                        <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem'}}>
+                            <button 
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid var(--primary-color)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--primary-color)',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
+                                onClick={confirmVectorDatabaseAction}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(var(--primary-color-rgb), 0.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                            >
+                                📘 Odeslat do VDB
                             </button>
                             <button 
-                                style={{...styles.button, backgroundColor: 'var(--primary-color)', color: 'white'}} 
-                                onClick={confirmVectorDatabaseAction}
+                                style={{
+                                    ...styles.button,
+                                    border: '2px solid var(--border-color)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--text-primary)',
+                                    fontWeight: '500',
+                                    padding: '0.75rem 1.25rem',
+                                    transition: 'all 0.2s ease'
+                                }} 
+                                onClick={() => setVectorDbConfirmation({ isOpen: false, book: null, missingFields: [] })}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
                             >
-                                <IconDatabase status="pending" /> Odeslat do VDB
+                                Zrušit
                             </button>
                         </div>
                     </>
                 )}
             </Modal>
+
+            <TextBookViewer
+                isOpen={textBookViewer.isOpen}
+                onClose={() => setTextBookViewer({ isOpen: false, title: '', content: '' })}
+                bookTitle={textBookViewer.title}
+                textContent={textBookViewer.content}
+            />
         </div>
     );
 };
