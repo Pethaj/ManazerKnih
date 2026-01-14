@@ -43,6 +43,7 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
     book_database: true,
     use_feed_1: true,
     use_feed_2: true,
+    webhook_url: undefined as string | undefined,  // 🆕 N8N webhook URL
     enable_product_router: true,   // 🆕 Produktový router (defaultně zapnutý)
     enable_manual_funnel: false,   // 🆕 Manuální funnel (defaultně vypnutý)
   });
@@ -93,9 +94,12 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
           book_database: filters.bookDatabase,
           use_feed_1: filters.useFeed1,
           use_feed_2: filters.useFeed2,
+          webhook_url: filters.webhookUrl,  // 🆕 N8N webhook URL
           enable_product_router: filters.enableProductRouter,   // 🆕 Produktový router
           enable_manual_funnel: filters.enableManualFunnel,     // 🆕 Manuální funnel
         };
+        
+        console.log('🔗 Webhook URL načten z databáze:', filters.webhookUrl);
         
         setChatbotSettings(newSettings);
         

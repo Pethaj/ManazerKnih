@@ -126,38 +126,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return new Response(
-      JSON.stringify({ 
-        ok: false, 
-        error: "Chybí Supabase konfigurace (SB_URL nebo SB_SERVICE_ROLE_KEY)" 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, "content-type": "application/json" } 
-      }
-    );
-  }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-  const { data: log } = await supabase
-    .from("sync_logs")
-    .insert({
-      sync_type: "product_feed_2",
-      status: "running",
-      started_at: nowIso(),
-      feed_url: FEED_URL
-    })
-    .select("id")
-    .single();
-
-  const logId = log?.id ?? -1;
+// Asynchronní funkce pro dlouhou synchronizaci
+async function performSyncInBackground(logId: number, supabase: any) {
   let processed = 0;
   let inserted = 0;
   let updated = 0;
@@ -340,23 +310,6 @@ Deno.serve(async (req) => {
 ⚠️ N8N webhooks selhalo: ${webhooksFailed}
     `);
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        processed,
-        inserted,
-        updated,
-        failed,
-        webhooks: {
-          sent: webhooksSent,
-          failed: webhooksFailed
-        }
-      }),
-      {
-        headers: { ...corsHeaders, "content-type": "application/json" }
-      }
-    );
-
   } catch (e) {
     console.error("❌ Kritická chyba při synchronizaci:", e);
     
@@ -372,15 +325,73 @@ Deno.serve(async (req) => {
         error_message: String(e?.message ?? e)
       })
       .eq("id", logId);
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return new Response(
+      JSON.stringify({ 
+        ok: false, 
+        error: "Chybí Supabase konfigurace (SB_URL nebo SB_SERVICE_ROLE_KEY)" 
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, "content-type": "application/json" } 
+      }
+    );
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  try {
+    // Vytvoříme sync log
+    const { data: log, error: logError } = await supabase
+      .from("sync_logs")
+      .insert({
+        sync_type: "product_feed_2",
+        status: "running",
+        started_at: nowIso(),
+        feed_url: FEED_URL
+      })
+      .select("id")
+      .single();
+
+    if (logError || !log) {
+      throw new Error("Nepodařilo se vytvořit sync log: " + (logError?.message || "Neznámá chyba"));
+    }
+
+    const logId = log.id;
+
+    // Okamžitě vrátíme odpověď, že synchronizace byla spuštěna
+    // Synchronizace poběží na pozadí
+    performSyncInBackground(logId, supabase).catch(err => {
+      console.error("❌ Chyba v background synchronizaci:", err);
+    });
 
     return new Response(
       JSON.stringify({
+        ok: true,
+        message: "Synchronizace Feed 2 byla spuštěna na pozadí",
+        logId: logId,
+        status: "running"
+      }),
+      {
+        headers: { ...corsHeaders, "content-type": "application/json" }
+      }
+    );
+
+  } catch (e) {
+    console.error("❌ Chyba při spuštění synchronizace:", e);
+    
+    return new Response(
+      JSON.stringify({
         ok: false,
-        error: String(e?.message ?? e),
-        processed,
-        inserted,
-        updated,
-        failed
+        error: String(e?.message ?? e)
       }),
       {
         status: 500,

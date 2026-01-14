@@ -38,18 +38,42 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
   const [n8nProgress, setN8nProgress] = useState({ current: 0, total: 0, productName: '' });
   const [itemsPerPage, setItemsPerPage] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [loadedCount, setLoadedCount] = useState<number>(1000); // Počet načtených položek z databáze
+  const [totalCount, setTotalCount] = useState<number>(0); // Celkový počet v databázi
+  const [loadingMore, setLoadingMore] = useState(false); // Indikátor načítání dalších položek
 
   // Načti produkty z product_feed_2 tabulky + status embeddingů
-  const loadProducts = useCallback(async () => {
-    setLoading(true);
-    console.log('🔍 Načítám produkty z product_feed_2 tabulky...');
+  const loadProducts = async (append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+    
+    const offset = append ? products.length : 0;
+    const limit = append ? itemsPerPage : 1000; // První load = 1000, další loady = podle pagination
+    
+    console.log(`🔍 Načítám produkty z product_feed_2 tabulky... (offset: ${offset}, limit: ${limit})`);
     
     try {
-      // Načti všechny produkty z Feed 2 včetně embedding_status přímo z tabulky
+      // Získej celkový počet (pouze při prvním načtení)
+      if (!append) {
+        const { count, error: countError } = await supabase
+          .from('product_feed_2')
+          .select('*', { count: 'exact', head: true });
+        
+        if (!countError && count !== null) {
+          setTotalCount(count);
+          console.log(`📊 Celkový počet produktů v databázi: ${count}`);
+        }
+      }
+      
+      // Načti produkty s limitem a offsetem
       const { data: productsData, error: productsError } = await supabase
         .from('product_feed_2')
         .select('id, product_code, product_name, description_short, description_long, category, price, currency, url, thumbnail, embedding_status, embedding_generated_at')
-        .order('product_name');
+        .order('product_name')
+        .range(offset, offset + limit - 1);
 
       console.log('📊 Products Feed 2 response:', { productsData, productsError });
 
@@ -78,19 +102,32 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
         };
       });
 
-      console.log(`✅ Načteno ${transformedProducts.length} produktů z Feed 2`);
-      setProducts(transformedProducts);
+      if (append) {
+        console.log(`✅ Načteno dalších ${transformedProducts.length} produktů z Feed 2`);
+        setProducts(prev => [...prev, ...transformedProducts]);
+        setLoadedCount(prev => prev + transformedProducts.length);
+      } else {
+        console.log(`✅ Načteno ${transformedProducts.length} produktů z Feed 2 (prvotní načtení)`);
+        setProducts(transformedProducts);
+        setLoadedCount(transformedProducts.length);
+      }
     } catch (error) {
       console.error('❌ Chyba při načítání produktů Feed 2:', error);
       alert(`Chyba při načítání produktů Feed 2: ${error}`);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    loadProducts(false);
+  }, []);
+  
+  // Funkce pro načtení dalších položek
+  const handleLoadMore = () => {
+    loadProducts(true);
+  };
 
   // Filtrované produkty
   const filteredProducts = products.filter(product => {
@@ -513,10 +550,18 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
 
         {/* Statistiky */}
         <div style={styles.statsSection}>
+          <div style={styles.loadInfoBanner}>
+            📦 Načteno: <strong>{loadedCount}</strong> z <strong>{totalCount}</strong> produktů
+            {loadedCount < totalCount && (
+              <span style={{ marginLeft: '16px', color: '#007bff' }}>
+                (Zbývá načíst: {totalCount - loadedCount})
+              </span>
+            )}
+          </div>
           <div style={styles.statsGrid}>
             <div style={styles.statCard}>
               <div style={styles.statNumber}>{stats.total}</div>
-              <div style={styles.statLabel}>Celkem</div>
+              <div style={styles.statLabel}>V paměti</div>
             </div>
             <div style={styles.statCard}>
               <div style={styles.statNumber}>{stats.no_embedding}</div>
@@ -605,7 +650,7 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
             
             <div style={styles.paginationControls}>
               <label style={styles.paginationLabel}>
-                Záznamů na stránku:
+                Načíst po:
                 <select
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
@@ -665,6 +710,26 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
               </div>
             </div>
           </div>
+          
+          {/* Tlačítko pro načtení dalších položek */}
+          {loadedCount < totalCount && currentPage === totalPages && (
+            <div style={styles.loadMoreRow}>
+              <button
+                style={styles.loadMoreButton}
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <>⏳ Načítám dalších {itemsPerPage} položek...</>
+                ) : (
+                  <>📥 Načíst dalších {Math.min(itemsPerPage, totalCount - loadedCount)} položek</>
+                )}
+              </button>
+              <div style={styles.loadMoreInfo}>
+                Zbývá načíst: <strong>{totalCount - loadedCount}</strong> produktů
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Progress */}
@@ -1120,6 +1185,44 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: '#333',
     fontWeight: '500',
     padding: '0 8px',
+  },
+
+  loadInfoBanner: {
+    backgroundColor: '#e7f3ff',
+    padding: '12px 16px',
+    borderRadius: '8px',
+    marginBottom: '16px',
+    fontSize: '14px',
+    color: '#333',
+    border: '1px solid #b3d9ff',
+  },
+
+  loadMoreRow: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '8px',
+    marginTop: '16px',
+    paddingTop: '16px',
+    borderTop: '1px solid #e0e0e0',
+  },
+
+  loadMoreButton: {
+    padding: '12px 24px',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    backgroundColor: '#007bff',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: '600',
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)',
+  },
+
+  loadMoreInfo: {
+    fontSize: '13px',
+    color: '#666',
   },
 };
 

@@ -1198,7 +1198,7 @@ const api = {
     },
     
     // Funkce pro odesílání dat do n8n webhook pro vektorovou databázi
-    async sendToVectorDatabase(book: Book, waitForResponse: boolean = false): Promise<{success: boolean, message: string, details?: any}> {
+    async sendToVectorDatabase(book: Book, waitForResponse: boolean = false, skipPageCheck: boolean = false): Promise<{success: boolean, message: string, details?: any}> {
         const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/10f5ed9e-e0b1-465d-8bc8-b2ba9a37bc58';
         
         try {
@@ -1216,7 +1216,49 @@ const api = {
                 throw new Error(`Nepodařilo se stáhnout soubor: ${downloadError?.message}`);
             }
             
-            console.log('✅ Soubor stažen, velikost:', fileData.size, 'bytes');
+            console.log('✅ Soubor stážen, velikost:', fileData.size, 'bytes');
+            
+            // ⚠️ KONTROLA POČTU STRÁNEK PDF - VAROVÁNÍ PRO VELKÉ SOUBORY
+            if (book.format.toLowerCase() === 'pdf' && !skipPageCheck) {
+                console.log('📄 Kontroluji počet stránek PDF před odesláním do VDB...');
+                
+                try {
+                    const pdfLib = getPdfjsLib();
+                    if (!pdfLib) {
+                        console.warn('⚠️ PDF.js není dostupný, přeskakuji kontrolu počtu stránek');
+                    } else {
+                        const fileBuffer = await fileData.arrayBuffer();
+                        const loadingTask = pdfLib.getDocument(fileBuffer);
+                        const pdf = await loadingTask.promise;
+                        const pageCount = pdf.numPages;
+                    
+                        console.log(`📊 PDF má ${pageCount} stránek`);
+                        
+                        // Varování pro velké PDF soubory (více než 1000 stránek)
+                        if (pageCount > 1000) {
+                            console.warn(`⚠️ PDF má ${pageCount} stránek, což je více než doporučený limit 1000 stránek!`);
+                            
+                            // Resetujeme status zpět na none před zobrazením modalu
+                            await api.updateBook({...book, vectorStatus: 'none'});
+                            
+                            // Vyhazujeme speciální error s informací o počtu stránek
+                            // Ten bude zachycen v App komponentě a otevře modal
+                            const error: any = new Error('LARGE_PDF_WARNING');
+                            error.pageCount = pageCount;
+                            error.book = book;
+                            throw error;
+                        }
+                    }
+                } catch (pdfError: any) {
+                    // Pokud je to náš speciální error pro velké PDF, přehodíme ho dál
+                    if (pdfError.message === 'LARGE_PDF_WARNING') {
+                        throw pdfError;
+                    }
+                    
+                    console.warn('⚠️ Nepodařilo se zkontrolovat počet stránek PDF:', pdfError);
+                    // Pokračujeme i při jiných chybách kontroly stránek
+                }
+            }
             
             // Vytvoříme FormData s binárním souborem a strukturovanými metadaty
             const formData = new FormData();
@@ -1527,7 +1569,12 @@ const api = {
                 };
             }
             
-        } catch (error) {
+        } catch (error: any) {
+            // Pokud je to náš speciální error pro velké PDF, přehodíme ho dál
+            if (error.message === 'LARGE_PDF_WARNING') {
+                throw error; // Přehodíme error dál do confirmVectorDatabaseAction
+            }
+            
             console.error('Chyba při odesílání do vektorové databáze:', error);
             
             // Aktualizujeme status na error
@@ -3677,6 +3724,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; book: Book | null }>({ isOpen: false, book: null });
     const [isBulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
     const [vectorDbConfirmation, setVectorDbConfirmation] = useState<{ isOpen: boolean; book: Book | null; missingFields: string[] }>({ isOpen: false, book: null, missingFields: [] });
+    const [largePdfWarning, setLargePdfWarning] = useState<{ isOpen: boolean; book: Book | null; pageCount: number }>({ isOpen: false, book: null, pageCount: 0 });
     const [vectorProcessingBooks, setVectorProcessingBooks] = useState<Set<string>>(new Set()); // Sleduje, které knihy se právě zpracovávají
     const [isChatbotManagementOpen, setChatbotManagementOpen] = useState(false);
     const [activeChatbot, setActiveChatbot] = useState<{id: string, features: any} | null>(null);
@@ -4700,13 +4748,122 @@ const App = ({ currentUser }: { currentUser: User }) => {
                 // Aktualizujeme knihu v seznamu na error
                 setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
             }
-        } catch (error) {
+        } catch (error: any) {
+            // Zkontrolujeme, zda je to varování o velkém PDF
+            if (error.message === 'LARGE_PDF_WARNING') {
+                console.log('📊 Otevírám modal s varováním o velkém PDF...');
+                console.log('📊 Počet stránek:', error.pageCount);
+                
+                // Otevřeme modal s varováním
+                setLargePdfWarning({
+                    isOpen: true,
+                    book: error.book,
+                    pageCount: error.pageCount
+                });
+                
+                // Odebereme knihu z loading stavu
+                setVectorProcessingBooks(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(book.id);
+                    return newSet;
+                });
+                
+                return; // Ukončíme funkci BEZ zobrazení alertu - modal se postará o vše
+            }
+            
             console.error('❌ Chyba při komunikaci s webhookem:', error);
+            alert(`❌ Chyba: ${error instanceof Error ? error.message : 'Neznámá chyba'}`);
             
             // Aktualizujeme knihu v seznamu
             setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
         } finally {
-            // Odebereme knihu z loading stavu
+            // Odebereme knihu z loading stavu (pokud ještě nebyl odebrán výše)
+            setVectorProcessingBooks(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(book.id);
+                return newSet;
+            });
+        }
+    };
+
+    // Funkce pro pokračování s PDF i přes varování
+    const handleContinueWithLargePdf = async () => {
+        const { book } = largePdfWarning;
+        if (!book) return;
+        
+        // Zavřeme modal s varováním
+        setLargePdfWarning({ isOpen: false, book: null, pageCount: 0 });
+        
+        // Přidáme knihu do loading stavu
+        setVectorProcessingBooks(prev => new Set([...prev, book.id]));
+        
+        try {
+            console.log('⚠️ Uživatel potvrdil odeslání velkého PDF, pokračuji...');
+            console.log('📤 Odesílání knihy do vektorové databáze:', book.title);
+            console.log('⏳ Čekám na webhook odpověď (může trvat až 5 minut)...');
+            
+            // Nastavíme status na pending
+            await api.updateBook({...book, vectorStatus: 'pending'});
+            setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'pending'} : b));
+            
+            // Pokračujeme s odesláním (skipneme kontrolu stránek, protože už jsme je zkontrolovali)
+            const result = await api.sendToVectorDatabase(book, true, true);
+            
+            if (result.success) {
+                console.log('✅ Webhook úspěšně zpracován');
+                alert(`✅ ${result.message}`);
+                setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'success'} : b));
+            } else {
+                console.error('❌ Webhook selhal:', result.message);
+                alert(`❌ ${result.message}`);
+                setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
+            }
+        } catch (error: any) {
+            // Při druhém pokusu již nebude vyhozen LARGE_PDF_WARNING error
+            console.error('❌ Chyba při komunikaci s webhookem:', error);
+            alert(`❌ Chyba: ${error instanceof Error ? error.message : 'Neznámá chyba'}`);
+            setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
+        } finally {
+            setVectorProcessingBooks(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(book.id);
+                return newSet;
+            });
+        }
+    };
+    
+    // Funkce pro odeslání jako text místo PDF
+    const handleSendLargePdfAsText = async () => {
+        const { book } = largePdfWarning;
+        if (!book) return;
+        
+        // Zavřeme modal s varováním
+        setLargePdfWarning({ isOpen: false, book: null, pageCount: 0 });
+        
+        // Přidáme knihu do loading stavu
+        setVectorProcessingBooks(prev => new Set([...prev, book.id]));
+        
+        try {
+            console.log('📄 Uživatel zvolil odeslat pouze text místo PDF');
+            console.log('📄 Odesílání pouze textu knihy do vektorové databáze:', book.title);
+            console.log('⏳ Čekám na webhook odpověď (může trvat až 5 minut)...');
+            
+            const result = await api.sendTextOnlyToVectorDatabase(book, true);
+            
+            if (result.success) {
+                console.log('✅ Webhook úspěšně zpracován (text-only)');
+                alert(`✅ ${result.message}\n\n📄 Odeslán pouze extrahovaný text.`);
+                setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'success'} : b));
+            } else {
+                console.error('❌ Webhook selhal:', result.message);
+                alert(`❌ ${result.message}`);
+                setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
+            }
+        } catch (error) {
+            console.error('❌ Chyba při komunikaci s webhookem (text-only):', error);
+            alert(`❌ Chyba: ${error instanceof Error ? error.message : 'Neznámá chyba'}`);
+            setBooks(prev => prev.map(b => b.id === book.id ? {...b, vectorStatus: 'error'} : b));
+        } finally {
             setVectorProcessingBooks(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(book.id);
@@ -5439,6 +5596,19 @@ const App = ({ currentUser }: { currentUser: User }) => {
                             </div>
                         </div>
                         
+                        <div style={{margin: '1.5rem 0', padding: '1rem', backgroundColor: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107'}}>
+                            <div style={{fontSize: '0.95em'}}>
+                                <div style={{fontWeight: '500', marginBottom: '8px', color: '#856404'}}>💡 Doporučení pro velké PDF</div>
+                                <div style={{fontSize: '0.85em', color: '#856404', lineHeight: '1.5'}}>
+                                    <strong>PDF s více než 1000 stránkami:</strong> Doporučujeme použít tlačítko <strong>"Odeslat pouze text do VDB"</strong> 
+                                    pro rychlejší zpracování a nižší náklady. Systém automaticky varuje při detekci velkých souborů.
+                                </div>
+                                <div style={{fontSize: '0.85em', color: '#856404', lineHeight: '1.5', marginTop: '8px'}}>
+                                    <strong>Text-only výhody:</strong> ⚡ Rychlejší • 💰 Nižší náklady • ✅ Spolehlivější pro velké soubory
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem'}}>
                             <button 
                                 style={{
@@ -5533,6 +5703,107 @@ const App = ({ currentUser }: { currentUser: User }) => {
                         </div>
                     </>
                 )}
+            </Modal>
+
+            {/* Modal pro varování o velkém PDF */}
+            <Modal
+                isOpen={largePdfWarning.isOpen}
+                onClose={() => setLargePdfWarning({ isOpen: false, book: null, pageCount: 0 })}
+                title="Velký PDF soubor"
+            >
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1.5rem'}}>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                        <div style={{fontSize: '3rem'}}>⚠️</div>
+                        <div>
+                            <p style={{margin: 0, fontSize: '1.1em', fontWeight: '500'}}>
+                                Tento PDF má <strong>{largePdfWarning.pageCount} stránek</strong>
+                            </p>
+                            <p style={{margin: '8px 0 0 0', fontSize: '0.95em', color: 'var(--text-secondary)'}}>
+                                Zpracování může trvat několik minut
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div style={{
+                        padding: '1rem',
+                        backgroundColor: 'var(--bg-secondary)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)'
+                    }}>
+                        <p style={{margin: 0, fontSize: '0.95em', lineHeight: '1.6'}}>
+                            <strong>💡 Doporučení:</strong> Pro rychlejší zpracování doporučujeme odeslat pouze extrahovaný text místo celého PDF souboru.
+                        </p>
+                    </div>
+                    
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
+                        <button
+                            style={{
+                                ...styles.button,
+                                border: '2px solid #28a745',
+                                backgroundColor: 'transparent',
+                                color: '#28a745',
+                                fontWeight: '500',
+                                padding: '0.75rem 1.25rem',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onClick={handleSendLargePdfAsText}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.1)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                        >
+                            📄 Odeslat jako text (doporučeno)
+                        </button>
+                        
+                        <button
+                            style={{
+                                ...styles.button,
+                                border: '2px solid #6c757d',
+                                backgroundColor: 'transparent',
+                                color: '#6c757d',
+                                fontWeight: '500',
+                                padding: '0.75rem 1.25rem',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onClick={handleContinueWithLargePdf}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.1)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                        >
+                            📘 Pokračovat s PDF
+                        </button>
+                        
+                        <button
+                            style={{
+                                ...styles.button,
+                                border: '2px solid var(--border-color)',
+                                backgroundColor: 'transparent',
+                                color: 'var(--text-primary)',
+                                fontWeight: '500',
+                                padding: '0.75rem 1.25rem',
+                                justifyContent: 'center',
+                                marginTop: '0.5rem',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onClick={() => setLargePdfWarning({ isOpen: false, book: null, pageCount: 0 })}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                        >
+                            Zrušit
+                        </button>
+                    </div>
+                </div>
             </Modal>
 
             {/* Modal pro volbu OCR a komprese při uploadu */}

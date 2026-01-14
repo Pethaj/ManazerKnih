@@ -26,6 +26,7 @@ interface ChatWidgetProps {
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
+        webhook_url?: string;  // 🆕 N8N webhook URL
         enable_product_router?: boolean;  // 🆕 Produktový router
         enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
     };
@@ -44,6 +45,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
+        webhook_url?: string;  // 🆕 N8N webhook URL
         allowed_categories?: string[];  // 🆕 Povolené kategorie (UUID)
         allowed_labels?: string[];  // 🆕 Povolené štítky (UUID)
         allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
@@ -128,6 +130,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     book_database: settings.book_database !== undefined ? settings.book_database : true,
                     use_feed_1: settings.use_feed_1 !== undefined ? settings.use_feed_1 : true,
                     use_feed_2: settings.use_feed_2 !== undefined ? settings.use_feed_2 : true,
+                    webhook_url: settings.webhook_url,  // 🆕 PŘIDÁNO: Webhook URL z databáze
                     // 🆕 Přidáme filtry z nastavení chatbota
                     allowed_categories: settings.allowed_categories || [],
                     allowed_labels: settings.allowed_labels || [],
@@ -137,6 +140,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     enable_manual_funnel: settings.enable_manual_funnel === true,    // default false
                 });
                 console.log(`✅ Načten chatbot: ${settings.chatbot_name}`, {
+                    chatbot_id: settings.chatbot_id,
+                    webhook_url: settings.webhook_url,  // 🆕 PŘIDÁNO: Debug log
                     categories: settings.allowed_categories?.length || 0,
                     labels: settings.allowed_labels?.length || 0,
                     publicationTypes: settings.allowed_publication_types?.length || 0,

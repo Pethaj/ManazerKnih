@@ -22,6 +22,18 @@ const ChatIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+/**
+ * Funkce pro určení barvy ikony podle chatbot_id
+ */
+const getChatbotIconColor = (chatbotId: string): string => {
+  // Wany.Chat Local má červenou ikonu
+  if (chatbotId === 'wany_chat_local') {
+    return '#dc3545'; // Červená
+  }
+  // Všechny ostatní mají modrou ikonu
+  return '#2563eb'; // bewit-blue
+};
+
 const CloseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <line x1="18" y1="6" x2="6" y2="18"/>
@@ -58,39 +70,49 @@ const ChatbotSelector: React.FC<ChatbotSelectorProps> = ({ chatbots, onSelect, o
             </div>
           ) : (
             <div className="space-y-3">
-              {chatbots.map((chatbot) => (
-                <button
-                  key={chatbot.id}
-                  onClick={() => onSelect(chatbot.chatbot_id)}
-                  className="w-full text-left p-4 rounded-lg border-2 border-gray-200 hover:border-bewit-blue hover:bg-blue-50 transition-all duration-200 group"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-12 h-12 bg-bewit-blue rounded-full flex items-center justify-center text-white group-hover:scale-110 transition-transform duration-200">
-                      <ChatIcon />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-lg mb-1 group-hover:text-bewit-blue transition-colors">
-                        {chatbot.chatbot_name}
-                      </h3>
-                      {chatbot.description && (
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          {chatbot.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex-shrink-0">
-                      <svg
-                        className="w-5 h-5 text-gray-400 group-hover:text-bewit-blue transition-colors"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+              {chatbots.map((chatbot) => {
+                const iconColor = getChatbotIconColor(chatbot.chatbot_id);
+                const hoverBgColor = chatbot.chatbot_id === 'wany_chat_local' ? 'hover:bg-red-50' : 'hover:bg-blue-50';
+                const hoverBorderColor = chatbot.chatbot_id === 'wany_chat_local' ? 'hover:border-red-500' : 'hover:border-bewit-blue';
+                const hoverTextColor = chatbot.chatbot_id === 'wany_chat_local' ? 'group-hover:text-red-600' : 'group-hover:text-bewit-blue';
+                
+                return (
+                  <button
+                    key={chatbot.id}
+                    onClick={() => onSelect(chatbot.chatbot_id)}
+                    className={`w-full text-left p-4 rounded-lg border-2 border-gray-200 ${hoverBorderColor} ${hoverBgColor} transition-all duration-200 group`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div 
+                        className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white group-hover:scale-110 transition-transform duration-200"
+                        style={{ backgroundColor: iconColor }}
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                        <ChatIcon />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`font-semibold text-gray-900 text-lg mb-1 ${hoverTextColor} transition-colors`}>
+                          {chatbot.chatbot_name}
+                        </h3>
+                        {chatbot.description && (
+                          <p className="text-sm text-gray-600 line-clamp-2">
+                            {chatbot.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0">
+                        <svg
+                          className={`w-5 h-5 text-gray-400 ${hoverTextColor} transition-colors`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

@@ -110,6 +110,7 @@ export interface ChatbotFilters {
   bookDatabase: boolean;
   useFeed1: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
   useFeed2: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
+  webhookUrl?: string;  // 🆕 N8N webhook URL pro tento chatbot
   // 🆕 Nastavení produktového routeru a manuálního funnelu
   enableProductRouter: boolean;  // Zapnutí/vypnutí automatického produktového routeru
   enableManualFunnel: boolean;   // Zapnutí manuálního funnel spouštěče
@@ -410,6 +411,7 @@ export class ChatbotSettingsService {
         bookDatabase: settings.book_database,
         useFeed1: settings.use_feed_1 !== false, // default true
         useFeed2: settings.use_feed_2 !== false, // default true
+        webhookUrl: settings.webhook_url,  // 🆕 N8N webhook URL
         // 🆕 Nastavení produktového routeru a manuálního funnelu
         enableProductRouter: settings.enable_product_router !== false, // default true
         enableManualFunnel: settings.enable_manual_funnel === true,    // default false
