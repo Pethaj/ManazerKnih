@@ -498,19 +498,46 @@ const ProductSyncAdmin: React.FC = () => {
     const handleManualSyncFeed2 = async () => {
         setIsLoadingFeed2(true);
         try {
-            
             const success = await syncProductsFeed2();
             
             if (success) {
+                // Zobrazíme zprávu, že synchronizace byla spuštěna
+                alert('✅ Synchronizace Feed 2 byla spuštěna na pozadí. Sledujte stav na této stránce.');
+                
+                // Začneme polling stavu synchronizace každých 5 sekund
+                const pollInterval = setInterval(async () => {
+                    await loadSyncStatusFeed2();
+                    await loadProductCountFeed2();
+                    
+                    // Pokud synchronizace už není running, zastavíme polling
+                    const { data: latestLog } = await supabaseClient
+                        .from('sync_logs')
+                        .select('*')
+                        .eq('sync_type', 'product_feed_2')
+                        .order('started_at', { ascending: false })
+                        .limit(1)
+                        .single();
+                    
+                    if (latestLog && latestLog.status !== 'running') {
+                        clearInterval(pollInterval);
+                        setIsLoadingFeed2(false);
+                        
+                        if (latestLog.status === 'success') {
+                            alert(`✅ Synchronizace Feed 2 dokončena!\n\n📊 Zpracováno: ${latestLog.records_processed}\n➕ Vloženo: ${latestLog.records_inserted}\n🔄 Aktualizováno: ${latestLog.records_updated}\n❌ Selhalo: ${latestLog.records_failed}`);
+                        } else {
+                            alert(`❌ Synchronizace Feed 2 selhala: ${latestLog.error_message || 'Neznámá chyba'}`);
+                        }
+                    }
+                }, 5000); // Kontrolujeme každých 5 sekund
+                
+                // Zároveň refresh data hned
                 await loadSyncStatusFeed2();
                 await loadProductCountFeed2();
-                alert('✅ Synchronizace Feed 2 úspěšně dokončena!');
             } else {
-                throw new Error('Synchronizace Feed 2 selhala');
+                throw new Error('Nepodařilo se spustit synchronizaci Feed 2');
             }
         } catch (error) {
-            alert('❌ Chyba při synchronizaci Feed 2: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
-        } finally {
+            alert('❌ Chyba při spouštění synchronizace Feed 2: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
             setIsLoadingFeed2(false);
         }
     };
