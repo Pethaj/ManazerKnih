@@ -201,9 +201,11 @@ Symptomy zákazníka: ${symptomsList}
         // N8N vrátil konkrétní product codes - najdeme je v recommendedProducts
         console.log('   🎯 Filtrujeme produkty podle selectedProductCodes:', selectedProductCodes);
         productsToEnrich = recommendedProducts.filter(p => {
-          // Product code může být ve formátu "004" nebo "2737"
-          // Musíme zkusit match na product_name (obsahuje "004 -") nebo na product_code
-          const nameMatch = selectedProductCodes.some(code => p.product_name.startsWith(`${code} -`));
+          // Matchujeme podle substring v product_name nebo přesný product_code
+          // Např: "Nobapa" matchne "Nobapa esenciální olej"
+          const nameMatch = selectedProductCodes.some(code => 
+            p.product_name.toLowerCase().includes(code.toLowerCase())
+          );
           const codeMatch = selectedProductCodes.includes(p.product_code);
           
           if (nameMatch || codeMatch) {
@@ -214,8 +216,13 @@ Symptomy zákazníka: ${symptomsList}
         });
         
         if (productsToEnrich.length === 0) {
-          console.warn('   ⚠️ Žádné produkty neodpovídají selectedProductCodes, použiji první 2');
+          console.warn('   ⚠️ Žádné produkty neodpovídají selectedProductCodes:', selectedProductCodes);
+          console.warn('   📦 Dostupné produkty:', recommendedProducts.map(p => p.product_name));
+          console.warn('   🔄 Fallback: použiji první 2 produkty');
           productsToEnrich = recommendedProducts.slice(0, 2);
+        } else {
+          console.log('   ✅ Nalezeno produktů:', productsToEnrich.length);
+          productsToEnrich.forEach(p => console.log(`      - ${p.product_name}`));
         }
       } else {
         // Fallback: použijeme první 2 produkty

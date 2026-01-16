@@ -53,25 +53,27 @@ Tvým úkolem je identifikovat v textu POUZE **KONKRÉTNÍ NÁZVY PRODUKTŮ**.
 - Preferuj názvy v UPPERCASE nebo s číselnými kódy (např. "DENT", "009")
 - Pinyin názvy obvykle obsahují slova jako "Wan", "Tang", "Pian"
 
-**VÝSTUP:**
-Vrať POUZE validní JSON pole stringů bez markdown, bez vysvětlení:
-["produkt1", "produkt2"]
+**KRITICKÉ PRAVIDLO PRO VÝSTUP:**
+- Vrať VÝHRADNĚ validní JSON array - žádný text před ani za
+- NEPIŠ: "Zde je seznam...", "Produkty/wany:", "Zdravotní témata:", vysvětlení, komentáře
+- NEPOUŽÍVEJ: markdown code blocks ani žádné formátování
+- POUZE čistý JSON: ["produkt1", "produkt2"]
+- Prázdný výsledek: []
+- ŽÁDNÝ další text, žádné odstavce, žádné seznamy - POUZE JSON array
 
-**PŘÍKLADY:**
+**PŘÍKLADY SPRÁVNÉHO VÝSTUPU:**
 
-✅ SPRÁVNĚ:
-Text: "Doporučuji směs DENT pro ústní hygienu a PEPPERMINT."
-Výstup: ["DENT", "PEPPERMINT"]
+Input: "Doporučuji směs DENT pro ústní hygienu a PEPPERMINT."
+Output: ["DENT", "PEPPERMINT"]
 
-Text: "Wan 009 - Čistý dech nebo Te Xiao Bi Min Gan Wan."
-Výstup: ["009", "Te Xiao Bi Min Gan Wan"]
+Input: "Wan 009 - Čistý dech nebo Te Xiao Bi Min Gan Wan."
+Output: ["009", "Te Xiao Bi Min Gan Wan"]
 
-❌ ŠPATNĚ:
-Text: "Ústní voda pro svěží dech a zdraví zubů."
-Výstup: []  (žádné konkrétní produkty)
+Input: "Ústní voda pro svěží dech a zdraví zubů."
+Output: []
 
-Text: "Pomáhá při zánětech dásní a posiluje obranyschopnost."
-Výstup: []  (pouze účinky, ne produkty)`;
+Input: "Pomáhá při zánětech dásní a posiluje obranyschopnost."
+Output: []`;
 
 // ============================================================================
 // HLAVNÍ FUNKCE
