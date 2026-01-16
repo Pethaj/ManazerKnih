@@ -29,26 +29,49 @@ export interface ScreeningResult {
 // SYSTEM PROMPT PRO PRODUCT SCREENING
 // ============================================================================
 
-const SYSTEM_PROMPT = `Jsi expert na tradiční čínskou medicínu a přírodní léčbu BEWIT.
+const SYSTEM_PROMPT = `Jsi expert na tradiční čínskou medicínu a esenciální oleje BEWIT.
 
-Tvým úkolem je identifikovat v textu:
-1. **Názvy produktů/wanů** (čínské bylinné směsi)
-2. **Pinyin názvy** (romanizovaná čínština)
-3. **Zdravotní témata** relevantní pro BEWIT produkty
+Tvým úkolem je identifikovat v textu POUZE **KONKRÉTNÍ NÁZVY PRODUKTŮ**.
 
-**PRAVIDLA:**
-- Hledej POUZE produkty/témata zmíněné V TEXTU
-- Nevymýšlej si názvy, které v textu nejsou
-- Zahrň jak pinyin názvy (např. "Shi Xiao Wan") tak české názvy
-- Pro témata použij široké pojmy (např. "bolest hlavy", "trávení")
+**CO IDENTIFIKOVAT:**
+1. **Názvy esenciálních olejů** - např. "DENT", "PEPPERMINT", "EUKALYPTUS"
+2. **Názvy směsí** - např. "Imm", "Pure", "Relax"
+3. **Wany (čínské směsi)** - např. "009 - Čistý dech", "Shi Xiao Wan"
+4. **Pinyin názvy** - např. "Te Xiao Bi Min Gan Wan", "Chuan Xiong Cha Tiao Wan"
+5. **Produktové kódy** - např. "009", "033", "BEWIT KOKOSOVÝ OLEJ"
+
+**CO NEIDENTIFIKOVAT (IGNORUJ):**
+❌ Obecné fráze typu: "svěží dech", "zdraví zubů", "bolest hlavy"
+❌ Účinky produktů: "antibakteriální", "protizánětlivé", "povzbuzující"
+❌ Tělesné části: "ústní dutina", "dásně", "zuby"
+❌ Symptomy: "záněty", "citlivost", "paradontóza"
+❌ Popisné fráze v kontextu "něco PRO X": "výplach PRO svěží dech", "pasta NA zuby"
+
+**KLÍČOVÁ PRAVIDLA:**
+- Identifikuj POUZE pokud je text **přímo název produktu**, ne jeho účinek nebo použití
+- Pokud vidíš frázi v kontextu "pro/na + X", IGNORUJ "X" (např. "voda pro svěží dech" → NEIDENTIFIKUJ "svěží dech")
+- Preferuj názvy v UPPERCASE nebo s číselnými kódy (např. "DENT", "009")
+- Pinyin názvy obvykle obsahují slova jako "Wan", "Tang", "Pian"
 
 **VÝSTUP:**
 Vrať POUZE validní JSON pole stringů bez markdown, bez vysvětlení:
-["produkt1", "produkt2", "téma1"]
+["produkt1", "produkt2"]
 
-**PŘÍKLAD:**
-Text: "Pro bolest hlavy doporučuji Chuan Xiong Cha Tiao Wan..."
-Výstup: ["Chuan Xiong Cha Tiao Wan", "bolest hlavy"]`;
+**PŘÍKLADY:**
+
+✅ SPRÁVNĚ:
+Text: "Doporučuji směs DENT pro ústní hygienu a PEPPERMINT."
+Výstup: ["DENT", "PEPPERMINT"]
+
+Text: "Wan 009 - Čistý dech nebo Te Xiao Bi Min Gan Wan."
+Výstup: ["009", "Te Xiao Bi Min Gan Wan"]
+
+❌ ŠPATNĚ:
+Text: "Ústní voda pro svěží dech a zdraví zubů."
+Výstup: []  (žádné konkrétní produkty)
+
+Text: "Pomáhá při zánětech dásní a posiluje obranyschopnost."
+Výstup: []  (pouze účinky, ne produkty)`;
 
 // ============================================================================
 // HLAVNÍ FUNKCE

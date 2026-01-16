@@ -8,7 +8,6 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import ProductSyncAdmin from './ProductSync';
 import { ProductCarousel } from '../ProductCarousel';
 import { ProductRecommendationButton } from '../ProductRecommendationButton';
-import { ProductPill } from '../ProductPill';  // 🆕 Inline product buttons
 import { ProductFunnelMessage } from '../ProductFunnelMessage';  // 🆕 Product Funnel UI
 import { ManualFunnelButton } from '../ManualFunnelButton';  // 🆕 Manuální funnel spouštěč
 import { ProductRecommendation } from '../../services/productSearchService';
@@ -20,6 +19,9 @@ import { performCombinedSearch } from '../../services/combinedSearchService';
 import { getHybridProductRecommendations, HybridProductRecommendation } from '../../services/hybridProductService';
 // 🆕 Intent Routing pro Wany Chat (routing agent - rozhoduje směr: chat vs funnel)
 import { routeUserIntent, extractProductsFromHistory, enrichFunnelProductsFromDatabase, RecommendedProduct } from '../../services/intentRoutingService';
+// 🆕 Inline Product Screening & Matching (product pills)
+import { screenTextForProducts } from '../../services/inlineProductScreeningService';
+import { matchProductNames } from '../../services/productNameMatchingService';
 // FunnelProduct typ pro metadata ve zprávě
 import type { FunnelProduct } from '../../services/productFunnelService';
 // 🆕 Jednotná hlavička chatu
@@ -392,11 +394,6 @@ const sendMessageToAPI = async (
         console.log('═══════════════════════════════════════════════════════════');
         
         try {
-            // Import služeb dynamicky, aby se nenačítaly pokud nejsou potřeba
-            const { screenTextForProducts } = await import('../../services/inlineProductScreeningService');
-            const { matchProductNames } = await import('../../services/productNameMatchingService');
-            
-            console.log('✅ Služby úspěšně importovány');
             console.log('🔍 Zahajuji screening produktů z odpovědi...');
             
             // 1. Screening - extrakce názvů produktů z textu pomocí GPT
