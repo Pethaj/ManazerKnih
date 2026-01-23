@@ -66,10 +66,10 @@ const ProductChat: React.FC<ProductChatProps> = ({ onClose }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom when new message arrives
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // ❌ AUTOMATICKÝ SCROLL ZAKÁZÁN - uživatel scrolluje pouze manuálně
+  // useEffect(() => {
+  //   messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // }, [messages]);
 
   // Focus input on mount
   useEffect(() => {

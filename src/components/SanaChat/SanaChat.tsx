@@ -30,6 +30,10 @@ import ChatHeader from '../ui/ChatHeader';
 import LoadingPhrases from './LoadingPhrases';
 // 🆕 WaveLoader - animovaný loader s pulzujícími kroužky
 import WaveLoader from './WaveLoader';
+// 🆕 User typ pro informace o přihlášeném uživateli
+import { User } from '../../services/customAuthService';
+// 🆕 Chat History Service - ukládání párů otázka-odpověď
+import { saveChatPairToHistory } from '../../utils/chatHistoryUtils';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -119,6 +123,7 @@ interface ChatMetadata {
 
 // Props pro SanaChat komponentu
 interface SanaChatProps {
+  currentUser?: User;  // 🆕 Přihlášený uživatel
   selectedCategories: string[];
   selectedLabels: string[];
   selectedPublicationTypes: string[];
@@ -233,14 +238,12 @@ const sendMessageToAPI = async (
     webhookUrl?: string, 
     chatbotId?: string,
     intent?: 'chat' | 'funnel' | 'update_funnel',  // 🆕 Intent pro N8N routing
-    detectedSymptoms?: string[]  // 🆕 Symptomy pro N8N (i když je intent chat)
+    detectedSymptoms?: string[],  // 🆕 Symptomy pro N8N (i když je intent chat)
+    currentUser?: User  // 🆕 Informace o přihlášeném uživateli
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
-        // 🔥 HARDCODED: Wany-chat má svůj vlastní webhook
-        let N8N_WEBHOOK_URL = webhookUrl || DEFAULT_N8N_WEBHOOK_URL;
-        if (chatbotId === 'vany_chat') {
-            N8N_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/22856d03-acea-4174-89ae-1b6f0c8ede71/chat';
-        }
+        // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
+        const N8N_WEBHOOK_URL = webhookUrl || DEFAULT_N8N_WEBHOOK_URL;
         
         const payload: any = {
             sessionId: sessionId,
@@ -258,6 +261,17 @@ const sendMessageToAPI = async (
         // Přidej metadata pouze pokud obsahují zaškrtnuté filtry
         if (metadata && Object.keys(metadata).length > 0) {
             payload.metadata = metadata;
+        }
+
+        // 🆕 Přidej informace o uživateli pokud je přihlášen
+        if (currentUser) {
+            payload.user = {
+                id: currentUser.id,
+                email: currentUser.email,
+                firstName: currentUser.firstName,
+                lastName: currentUser.lastName,
+                role: currentUser.role
+            };
         }
 
         // Detailní logování před odesláním
@@ -710,11 +724,43 @@ const Message: React.FC<{
         return processedText;
     };
     
-    // 🆕 Funkce pro rendering textu s inline produktovými linky
+    // 🆕 Funkce pro extrakci všech product markerů z textu (pro horní sekci)
+    /**
+     * Extrahuje všechny product markery z textu zprávy
+     * @returns Array objektů s daty produktů
+     */
+    const extractAllProductMarkers = () => {
+        const text = message.text || '';
+        const productMarkerRegex = /<<<PRODUCT:([^|]+)\|\|\|([^|]+)\|\|\|([^|]+)\|\|\|([^>]+)>>>/g;
+        const products: Array<{
+            productCode: string;
+            productUrl: string;
+            productName: string;
+            pinyinName: string;
+        }> = [];
+        
+        let match;
+        while ((match = productMarkerRegex.exec(text)) !== null) {
+            const [, productCode, productUrl, productName, pinyinName] = match;
+            products.push({
+                productCode: productCode.trim(),
+                productUrl: productUrl.trim(),
+                productName: productName.trim(),
+                pinyinName: pinyinName.trim()
+            });
+        }
+        
+        return products;
+    };
+    
+    // 🆕 Funkce pro rendering textu s inline produktovými linky + horní sekce
     /**
      * 🆕 Renderuje text s inline product buttons
      * Parsuje text s product markery: <<<PRODUCT:code|||url|||name|||pinyin>>>
      * a vytváří pole React elementů: [ReactMarkdown, ProductPill, ReactMarkdown, ...]
+     * 
+     * NOVINKA: Pokud je chatbotSettings.inline_product_links === true,
+     * vloží sekci "Související produkty BEWIT" po prvním odstavci
      */
     const renderTextWithProductButtons = () => {
         const text = message.text || '';
@@ -727,10 +773,20 @@ const Message: React.FC<{
         // Formát: <<<PRODUCT:code|||url|||name|||pinyin>>>
         const productMarkerRegex = /<<<PRODUCT:([^|]+)\|\|\|([^|]+)\|\|\|([^|]+)\|\|\|([^>]+)>>>/g;
         
+        // Nejdřív extrahujeme všechny produkty pro horní sekci
+        const allProducts = chatbotSettings?.inline_product_links ? extractAllProductMarkers() : [];
+        
+        // Najdeme pozici prvního dvojitého nového řádku (konec prvního odstavce)
+        const firstParagraphEnd = text.indexOf('\n\n');
+        const insertProductsSectionAt = firstParagraphEnd > 0 ? firstParagraphEnd : -1;
+        
+        console.log('📍 První odstavec končí na pozici:', insertProductsSectionAt);
+        
         const segments: React.ReactNode[] = [];
         let lastIndex = 0;
         let match;
         let segmentIndex = 0;
+        let productsSectionInserted = false; // Flag pro vložení horní sekce
         
         // Najdeme všechny product markery v textu
         while ((match = productMarkerRegex.exec(text)) !== null) {
@@ -741,42 +797,159 @@ const Message: React.FC<{
             // Text před product markerem - renderujeme přes ReactMarkdown
             if (matchStart > lastIndex) {
                 const textSegment = text.substring(lastIndex, matchStart);
-                segments.push(
-                    <ReactMarkdown
-                        key={`text-${segmentIndex}`}
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
-                        components={{
-                            h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
-                            h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
-                            h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
-                            p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
-                            strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
-                            a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
-                            ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
-                            li: ({node, ...props}) => <li className="ml-4" {...props} />,
-                            code: ({node, inline, ...props}: any) => 
-                                inline ? (
-                                    <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
-                                ) : (
-                                    <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                
+                // 🆕 Pokud máme produkty a ještě jsme je nevložili, zkontroluj, jestli jsme za prvním odstavcem
+                if (!productsSectionInserted && allProducts.length > 0 && insertProductsSectionAt > 0 && lastIndex <= insertProductsSectionAt && matchStart > insertProductsSectionAt) {
+                    // Rozdělíme text na dvě části: před a po konci prvního odstavce
+                    const beforeSection = textSegment.substring(0, insertProductsSectionAt - lastIndex);
+                    const afterSection = textSegment.substring(insertProductsSectionAt - lastIndex);
+                    
+                    // První část textu (do konce prvního odstavce)
+                    if (beforeSection.trim()) {
+                        segments.push(
+                            <ReactMarkdown
+                                key={`text-${segmentIndex}`}
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
+                                components={{
+                                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                                    h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                                    h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                                    strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                                    a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                                    li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                                    code: ({node, inline, ...props}: any) => 
+                                        inline ? (
+                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                        ) : (
+                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                        ),
+                                    table: ({node, ...props}) => (
+                                        <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                                            <table className="min-w-full border-collapse bg-white" {...props} />
+                                        </div>
+                                    ),
+                                    thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
+                                    tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
+                                    tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
+                                    td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                                }}
+                            >
+                                {beforeSection}
+                            </ReactMarkdown>
+                        );
+                        segmentIndex++;
+                    }
+                    
+                    // 🆕 VLOŽENÍ SEKCE "Související produkty BEWIT"
+                    console.log('📦 Vkládám sekci s produkty po prvním odstavci');
+                    segments.push(
+                        <div key={`products-section`} className="my-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
+                            <h4 className="text-sm font-semibold text-bewit-blue mb-3 flex items-center gap-2">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="9" cy="21" r="1"></circle>
+                                    <circle cx="20" cy="21" r="1"></circle>
+                                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                                </svg>
+                                Související produkty BEWIT
+                            </h4>
+                            <div className="flex flex-col gap-2">
+                                {allProducts.map((product, index) => (
+                                    <ProductPill
+                                        key={`top-product-${index}`}
+                                        productName={product.productName}
+                                        pinyinName={product.pinyinName}
+                                        url={product.productUrl}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    );
+                    segmentIndex++;
+                    productsSectionInserted = true;
+                    
+                    // Druhá část textu (po sekci produktů)
+                    if (afterSection.trim()) {
+                        segments.push(
+                            <ReactMarkdown
+                                key={`text-${segmentIndex}`}
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
+                                components={{
+                                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                                    h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                                    h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                                    strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                                    a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                                    li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                                    code: ({node, inline, ...props}: any) => 
+                                        inline ? (
+                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                        ) : (
+                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                        ),
+                                    table: ({node, ...props}) => (
+                                        <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                                            <table className="min-w-full border-collapse bg-white" {...props} />
+                                        </div>
+                                    ),
+                                    thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
+                                    tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
+                                    tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
+                                    td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                                }}
+                            >
+                                {afterSection}
+                            </ReactMarkdown>
+                        );
+                    }
+                } else {
+                    // Normální rendering bez vložení sekce
+                    segments.push(
+                        <ReactMarkdown
+                            key={`text-${segmentIndex}`}
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
+                            components={{
+                                h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                                h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                                h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                                p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                                strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                                a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                                ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                                li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                                code: ({node, inline, ...props}: any) => 
+                                    inline ? (
+                                        <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                    ) : (
+                                        <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                    ),
+                                table: ({node, ...props}) => (
+                                    <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                                        <table className="min-w-full border-collapse bg-white" {...props} />
+                                    </div>
                                 ),
-                            table: ({node, ...props}) => (
-                                <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
-                                    <table className="min-w-full border-collapse bg-white" {...props} />
-                                </div>
-                            ),
-                            thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
-                            tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
-                            tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-                            th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
-                            td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
-                        }}
-                    >
-                        {textSegment}
-                    </ReactMarkdown>
-                );
+                                thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
+                                tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
+                                tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                                th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
+                                td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                            }}
+                        >
+                            {textSegment}
+                        </ReactMarkdown>
+                    );
+                }
             }
             
             // Product button - parsujeme data z markeru
@@ -1086,45 +1259,27 @@ const ChatWindow: React.FC<{
     const [showScrollButton, setShowScrollButton] = useState(false);
     
     useEffect(() => {
-        // Pouze scrolluj pokud:
-        // 1. Je povoleno auto-scroll
-        // 2. Přibyly nové zprávy (ne jen aktualizace existujících)
-        // 3. Nebo je loading stav (typing indicator)
+        // ❌ AUTOMATICKÝ SCROLL ZAKÁZÁN - uživatel scrolluje pouze manuálně
+        // Pouze sledujeme změny zpráv pro potenciální zobrazení indikátoru
         const newMessageAdded = messages.length > lastMessageCount;
         
-        if (shouldAutoScroll && (newMessageAdded || isLoading)) {
-            console.log('🔄 Auto-scroll:', { 
-                shouldAutoScroll, 
-                newMessageAdded, 
-                isLoading,
+        if (newMessageAdded) {
+            console.log('📩 Nová zpráva přidána (bez auto-scroll):', { 
                 messageCount: messages.length,
                 lastCount: lastMessageCount 
             });
-            // Auto-scroll pomocí scroll containeru
-            setTimeout(() => {
-                if (chatContainerRef.current) {
-                    chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-                } else {
-                    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            // Zobrazíme tlačítko pro scroll dolů, pokud uživatel není na konci
+            if (chatContainerRef.current) {
+                const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+                const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+                if (!isAtBottom) {
+                    setShowScrollButton(true);
                 }
-            }, 100);
-            setShowScrollButton(false);
-        } else if (!shouldAutoScroll) {
-            // Pokud je auto-scroll vypnutý, zkontroluj jestli se změnil obsah zpráv (produkty)
-            const hasContentChanges = messages.some((msg, index) => {
-                if (index >= lastMessageCount) return false; // Nové zprávy už jsou ošetřené výše
-                // Zkontroluj jestli se změnily produktové doporučení v existující zprávě
-                return msg.productRecommendations && msg.productRecommendations.length > 0;
-            });
-            
-            if (hasContentChanges || newMessageAdded) {
-                console.log('📍 Auto-scroll vypnutý - zobrazuji scroll tlačítko pro nový obsah');
-                setShowScrollButton(true);
             }
         }
         
         setLastMessageCount(messages.length);
-    }, [messages, isLoading, shouldAutoScroll, lastMessageCount]);
+    }, [messages, lastMessageCount]);
     
     const scrollToBottom = () => {
         // Scrolluj pomocí našeho ref
@@ -1355,6 +1510,7 @@ const languageInstructions: { [key: string]: string } = {
 
 // Komponenta jen s obsahem chatu (bez headeru)
 const SanaChatContent: React.FC<SanaChatProps> = ({ 
+    currentUser,  // 🆕 Přihlášený uživatel
     selectedCategories, 
     selectedLabels, 
     selectedPublicationTypes,
@@ -1418,6 +1574,12 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         
         // Zapneme auto-scroll při novém dotazu uživatele
         setAutoScroll(true);
+
+        // Připravíme metadata pro ukládání (uložíme až po odpovědi bota)
+        const currentMetadataForHistory: any = {};
+        if (selectedCategories.length > 0) currentMetadataForHistory.categories = selectedCategories;
+        if (selectedLabels.length > 0) currentMetadataForHistory.labels = selectedLabels;
+        if (selectedPublicationTypes.length > 0) currentMetadataForHistory.publication_types = selectedPublicationTypes;
 
         try {
             console.log('🎯 Chatbot settings v SanaChatContent:', {
@@ -1728,6 +1890,23 @@ Symptomy zákazníka: ${symptomsList}
                         };
                         
                         setMessages(prev => [...prev, botMessage]);
+                        
+                        // 💾 Uložíme PAR otázka-odpověď do historie
+                        saveChatPairToHistory(
+                            sessionId,
+                            currentUser?.id,
+                            chatbotId,
+                            text.trim(),  // Otázka uživatele
+                            botText,      // Odpověď bota
+                            Object.keys(currentMetadataForHistory).length > 0 ? currentMetadataForHistory : undefined,
+                            {
+                                sources: responsePayload?.sources,
+                                isFunnelMessage: true,
+                                funnelProducts: funnelProductsWithDetails,
+                                symptomList: symptoms
+                            }
+                        );
+                        
                         setIsLoading(false);
                         return; // ⚠️ UKONČIT - FUNNEL MODE ZPRACOVÁN
                         
@@ -1824,7 +2003,10 @@ Symptomy zákazníka: ${symptomsList}
                     newMessages.slice(0, -1), 
                     currentMetadata, 
                     chatbotSettings.webhook_url, 
-                    chatbotId
+                    chatbotId,
+                    undefined,  // intent
+                    undefined,  // detectedSymptoms
+                    currentUser  // 🆕 Přidáno: informace o uživateli
                 );
                 
                 // 🆕 Spočítáme produkty pro detekci calloutu
@@ -1847,6 +2029,21 @@ Symptomy zákazníka: ${symptomsList}
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
+                
+                // 💾 Uložíme PAR otázka-odpověď do historie
+                saveChatPairToHistory(
+                    sessionId,
+                    currentUser?.id,
+                    chatbotId,
+                    text.trim(),
+                    webhookResult.text,
+                    Object.keys(currentMetadataForHistory).length > 0 ? currentMetadataForHistory : undefined,
+                    {
+                        sources: webhookResult.sources,
+                        matchedProducts: webhookResult.matchedProducts,
+                        hasCallout: shouldShowCallout
+                    }
+                );
                 
             }
             // === POUZE PRODUKTOVÉ DOPORUČENÍ - HYBRIDNÍ SYSTÉM ===
@@ -1944,7 +2141,17 @@ Symptomy zákazníka: ${symptomsList}
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
-            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata, chatbotSettings.webhook_url, chatbotId);
+            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(
+                promptForBackend, 
+                sessionId, 
+                messages, 
+                currentMetadata, 
+                chatbotSettings.webhook_url, 
+                chatbotId,
+                undefined,  // intent
+                undefined,  // detectedSymptoms
+                currentUser  // 🆕 Přidáno: informace o uživateli
+            );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
                 role: 'bot', 
@@ -2022,6 +2229,7 @@ Symptomy zákazníka: ${symptomsList}
 };
 
 const SanaChat: React.FC<SanaChatProps> = ({ 
+    currentUser,  // 🆕 Přihlášený uživatel
     selectedCategories, 
     selectedLabels, 
     selectedPublicationTypes,
@@ -2158,7 +2366,17 @@ const SanaChat: React.FC<SanaChatProps> = ({
             else if (chatbotSettings.book_database) {
                 console.log('📚 Používám pouze webhook pro databázi knih - IGNORUJI produktová doporučení...');
                 
-                const webhookResult = await sendMessageToAPI(promptForBackend, sessionId, newMessages.slice(0, -1), currentMetadata, chatbotSettings.webhook_url, chatbotId);
+                const webhookResult = await sendMessageToAPI(
+                    promptForBackend, 
+                    sessionId, 
+                    newMessages.slice(0, -1), 
+                    currentMetadata, 
+                    chatbotSettings.webhook_url, 
+                    chatbotId,
+                    undefined,  // intent
+                    undefined,  // detectedSymptoms
+                    currentUser  // 🆕 Přidáno: informace o uživateli
+                );
                 
                 // 🆕 Spočítáme produkty pro detekci calloutu
                 // DŮLEŽITÉ: Počítáme POUZE skutečně vložené markery v textu, ne matchedProducts
@@ -2278,7 +2496,17 @@ const SanaChat: React.FC<SanaChatProps> = ({
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
-            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(promptForBackend, sessionId, messages, currentMetadata, chatbotSettings.webhook_url, chatbotId);
+            const { text: botText, sources, productRecommendations, matchedProducts } = await sendMessageToAPI(
+                promptForBackend, 
+                sessionId, 
+                messages, 
+                currentMetadata, 
+                chatbotSettings.webhook_url, 
+                chatbotId,
+                undefined,  // intent
+                undefined,  // detectedSymptoms
+                currentUser  // 🆕 Přidáno: informace o uživateli
+            );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
                 role: 'bot', 
@@ -2295,7 +2523,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, messages, selectedLanguage, selectedCategories, selectedLabels, selectedPublicationTypes]);
+    }, [sessionId, messages, selectedLanguage, selectedCategories, selectedLabels, selectedPublicationTypes, currentUser]);
 
     const handleNewChat = useCallback(() => {
         setMessages([]);
@@ -2380,6 +2608,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
 
 // --- KOMPONENTA S FILTERY ---
 interface FilteredSanaChatProps {
+    currentUser?: User;  // 🆕 Přihlášený uživatel
     chatbotSettings?: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;
@@ -2399,6 +2628,7 @@ interface FilteredSanaChatProps {
 }
 
 const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({ 
+    currentUser,  // 🆕 Přihlášený uživatel
     chatbotSettings = { 
         product_recommendations: false, 
         product_button_recommendations: false, 
@@ -2790,6 +3020,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                         </div>
                     ) : (
                         <SanaChatContent 
+                            currentUser={currentUser}
                             selectedCategories={selectedCategories}
                             selectedLabels={selectedLabels}
                             selectedPublicationTypes={selectedPublicationTypes}

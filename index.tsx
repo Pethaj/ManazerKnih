@@ -8436,7 +8436,7 @@ root.render(
       {(currentUser) => (
         <>
           <App currentUser={currentUser} />
-          <ChatWidget />
+          <ChatWidget currentUser={currentUser} />
         </>
       )}
     </AuthGuard>
