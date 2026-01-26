@@ -1,0 +1,4 @@
+Build timestamp: 2026-01-26T10:30:00Z
+Reason: Force rebuild for iframe user data fix
+Commit: a12566e - User data collection in iframe widget
+Previous build had cached version, forcing new build to include latest changes.
