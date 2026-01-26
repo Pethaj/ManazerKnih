@@ -17,10 +17,13 @@ import {
   widgetError,
   WidgetConfig,
 } from '../../services/widgetConfigService';
+import { getCurrentUser } from '../../services/customAuthService';
+import type { User } from '../../services/customAuthService';
 
 export const WidgetChatContainer: React.FC = () => {
   const [config, setConfig] = useState<WidgetConfig | null>(null);
   const [chatbotSettings, setChatbotSettings] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +47,15 @@ export const WidgetChatContainer: React.FC = () => {
 
       // Apply theme
       applyTheme(widgetConfig.theme);
+
+      // Check if user is logged in
+      const { user } = await getCurrentUser();
+      if (user) {
+        setCurrentUser(user);
+        widgetLog('✅ Přihlášený uživatel:', user.email);
+      } else {
+        widgetLog('ℹ️ Žádný přihlášený uživatel (anonymní chat)');
+      }
 
       // Load chatbot settings from database for vany_chat
       const settings = await getChatbotSettings('vany_chat');
@@ -91,6 +103,7 @@ export const WidgetChatContainer: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] rounded-xl shadow-2xl transition-all duration-300 ease-in-out overflow-hidden">
         <FilteredSanaChat 
+          currentUser={currentUser}
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
           onClose={() => {
