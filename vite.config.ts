@@ -13,8 +13,19 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         widget: path.resolve(__dirname, 'public/widgets/widget-chat.html'),
         embed: path.resolve(__dirname, 'embed.html')
+      },
+      output: {
+        assetFileNames: (assetInfo) => {
+          // Keep widgets in /widgets/ directory (not /public/widgets/)
+          if (assetInfo.name && assetInfo.name.includes('widget')) {
+            return 'widgets/[name]-[hash][extname]';
+          }
+          return 'assets/[name]-[hash][extname]';
+        }
       }
-    }
+    },
+    // Copy public/widgets/ to dist/widgets/ (flatten structure)
+    copyPublicDir: true
   },
   server: {
     port: 5173,
