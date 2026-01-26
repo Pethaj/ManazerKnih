@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && cp -r dist/public/widgets dist/ && echo '✅ Widgets zkopírovány do dist/widgets/'",
     "preview": "vite preview"
   },
   "dependencies": {
