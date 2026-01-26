@@ -140,6 +140,14 @@ interface SanaChatProps {
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
+  externalUserInfo?: {  // 🆕 External user data z iframe embedu
+    external_user_id?: string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    position?: string;
+    [key: string]: any;
+  };
 }
 
 
@@ -239,7 +247,15 @@ const sendMessageToAPI = async (
     chatbotId?: string,
     intent?: 'chat' | 'funnel' | 'update_funnel',  // 🆕 Intent pro N8N routing
     detectedSymptoms?: string[],  // 🆕 Symptomy pro N8N (i když je intent chat)
-    currentUser?: User  // 🆕 Informace o přihlášeném uživateli
+    currentUser?: User,  // 🆕 Informace o přihlášeném uživateli
+    externalUserInfo?: {  // 🆕 External user data z iframe embedu
+        external_user_id?: string;
+        first_name?: string;
+        last_name?: string;
+        email?: string;
+        position?: string;
+        [key: string]: any;
+    }
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
         // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
@@ -264,7 +280,14 @@ const sendMessageToAPI = async (
         }
 
         // 🆕 VŽDY přidej pole user (prázdné nebo plné) - stejná struktura jako Wany.chat
-        payload.user = currentUser ? {
+        // Priorita: externalUserInfo (z iframe embedu) > currentUser (přihlášený) > prázdné
+        payload.user = externalUserInfo ? {
+            id: externalUserInfo.external_user_id || "",
+            email: externalUserInfo.email || "",
+            firstName: externalUserInfo.first_name || "",
+            lastName: externalUserInfo.last_name || "",
+            role: externalUserInfo.position || ""  // position se mapuje na role
+        } : currentUser ? {
             id: currentUser.id,
             email: currentUser.email,
             firstName: currentUser.firstName,
@@ -1529,7 +1552,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         enable_manual_funnel: false    // 🆕 Defaultně vypnutý
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
-    onClose
+    onClose,
+    externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
     // 🚨 EXTREME DIAGNOSTIKA #2 - SANACHATCONTENT
     console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #FF0000; color: #FFFFFF; font-size: 20px; font-weight: bold;');
@@ -1907,7 +1931,8 @@ Symptomy zákazníka: ${symptomsList}
                                 sources: responsePayload?.sources,
                                 isFunnelMessage: true,
                                 funnelProducts: funnelProductsWithDetails,
-                                symptomList: symptoms
+                                symptomList: symptoms,
+                                user_info: externalUserInfo  // 🆕 External user data z iframe
                             }
                         );
                         
@@ -2010,7 +2035,8 @@ Symptomy zákazníka: ${symptomsList}
                     chatbotId,
                     undefined,  // intent
                     undefined,  // detectedSymptoms
-                    currentUser  // 🆕 Přidáno: informace o uživateli
+                    currentUser,  // 🆕 Přidáno: informace o uživateli
+                    externalUserInfo  // 🆕 External user data z iframe
                 );
                 
                 // 🆕 Spočítáme produkty pro detekci calloutu
@@ -2045,7 +2071,8 @@ Symptomy zákazníka: ${symptomsList}
                     {
                         sources: webhookResult.sources,
                         matchedProducts: webhookResult.matchedProducts,
-                        hasCallout: shouldShowCallout
+                        hasCallout: shouldShowCallout,
+                        user_info: externalUserInfo  // 🆕 External user data z iframe
                     }
                 );
                 
@@ -2154,7 +2181,8 @@ Symptomy zákazníka: ${symptomsList}
                 chatbotId,
                 undefined,  // intent
                 undefined,  // detectedSymptoms
-                currentUser  // 🆕 Přidáno: informace o uživateli
+                currentUser,  // 🆕 Přidáno: informace o uživateli
+                externalUserInfo  // 🆕 External user data z iframe
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
@@ -2248,7 +2276,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
         enable_manual_funnel: false    // 🆕 Defaultně vypnutý
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
-    onClose
+    onClose,
+    externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
     // 🚨 EXTREME DIAGNOSTIKA #1 - SANACHAT WRAPPER
     console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #0000FF; color: #FFFFFF; font-size: 20px; font-weight: bold;');
@@ -2379,7 +2408,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     chatbotId,
                     undefined,  // intent
                     undefined,  // detectedSymptoms
-                    currentUser  // 🆕 Přidáno: informace o uživateli
+                    currentUser,  // 🆕 Přidáno: informace o uživateli
+                    externalUserInfo  // 🆕 External user data z iframe
                 );
                 
                 // 🆕 Spočítáme produkty pro detekci calloutu
@@ -2509,7 +2539,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 chatbotId,
                 undefined,  // intent
                 undefined,  // detectedSymptoms
-                currentUser  // 🆕 Přidáno: informace o uživateli
+                currentUser,  // 🆕 Přidáno: informace o uživateli
+                externalUserInfo  // 🆕 External user data z iframe
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
@@ -2629,6 +2660,14 @@ interface FilteredSanaChatProps {
     };
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;
+    externalUserInfo?: {  // 🆕 External user data z iframe embedu
+        external_user_id?: string;
+        first_name?: string;
+        last_name?: string;
+        email?: string;
+        position?: string;
+        [key: string]: any;
+    };
 }
 
 const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({ 
@@ -2644,7 +2683,8 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
         enable_manual_funnel: false    // 🆕 Defaultně vypnutý
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
-    onClose
+    onClose,
+    externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
     // Uložíme nastavení do state pro správný scope v useCallback
     const [settings, setSettings] = useState(chatbotSettings);
@@ -3030,6 +3070,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                             selectedPublicationTypes={selectedPublicationTypes}
                             chatbotSettings={settings}
                             chatbotId={chatbotId}
+                            externalUserInfo={externalUserInfo}
                             onClose={onClose}
                         />
                     )}

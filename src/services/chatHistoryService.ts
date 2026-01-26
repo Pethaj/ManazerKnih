@@ -33,6 +33,14 @@ export interface ChatHistoryMessage {
     symptomList?: string[];
     isUpdateFunnel?: boolean;
     hasCallout?: boolean;
+    user_info?: {
+      external_user_id?: string;
+      first_name?: string;
+      last_name?: string;
+      email?: string;
+      position?: string;
+      [key: string]: any; // Flexibilní pro budoucí rozšíření
+    };
   };
   conversation_metadata?: {
     categories?: string[];
@@ -109,6 +117,10 @@ export async function saveMessage(
       }
       if (message.message_data.hasCallout !== undefined) {
         filteredData.hasCallout = message.message_data.hasCallout;
+      }
+      // 🆕 Ukládání user_info z iframe embedu
+      if (message.message_data.user_info && Object.keys(message.message_data.user_info).length > 0) {
+        filteredData.user_info = message.message_data.user_info;
       }
 
       if (Object.keys(filteredData).length > 0) {
@@ -244,6 +256,14 @@ export async function saveChatPair(
     symptomList?: string[];
     isUpdateFunnel?: boolean;
     hasCallout?: boolean;
+    user_info?: {
+      external_user_id?: string;
+      first_name?: string;
+      last_name?: string;
+      email?: string;
+      position?: string;
+      [key: string]: any;
+    };
   }
 ): Promise<{ error: string | null }> {
   try {
@@ -303,6 +323,11 @@ export async function saveChatPair(
       }
       if (answerData.hasCallout !== undefined) {
         messageDataToSave.hasCallout = answerData.hasCallout;
+      }
+      
+      // 🆕 User info z iframe embedu
+      if (answerData.user_info && Object.keys(answerData.user_info).length > 0) {
+        messageDataToSave.user_info = answerData.user_info;
       }
     }
 

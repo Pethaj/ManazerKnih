@@ -40,6 +40,14 @@ export async function saveChatPairToHistory(
     symptomList?: string[];
     isUpdateFunnel?: boolean;
     hasCallout?: boolean;
+    user_info?: {
+      external_user_id?: string;
+      first_name?: string;
+      last_name?: string;
+      email?: string;
+      position?: string;
+      [key: string]: any;
+    };
   }
 ): Promise<void> {
   try {

@@ -178,14 +178,52 @@ Klient vloží tento kód na svůj web před `</body>` tag:
 ```html
 <!-- Wany Chat Widget -->
 <iframe
+  id="wany-chat-iframe"
   src="https://medbase.cz/embed.html"
   style="position:fixed; right:24px; bottom:24px; width:1200px; height:700px; 
          border:0; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); 
          z-index:999999;"
   allow="clipboard-write"
   title="Wany Chat"
+  data-user-id="<?php echo $user->id; ?>"
+  data-firstname="<?php echo $user->firstName; ?>"
+  data-lastname="<?php echo $user->lastName; ?>"
+  data-email="<?php echo $user->email; ?>"
+  data-position="<?php echo $user->position; ?>"
 ></iframe>
+
+<script>
+(function() {
+  const iframe = document.getElementById('wany-chat-iframe');
+  if (!iframe) return;
+  
+  iframe.addEventListener('load', function() {
+    iframe.contentWindow.postMessage({
+      type: 'USER_DATA',
+      user: {
+        id: iframe.getAttribute('data-user-id'),
+        firstName: iframe.getAttribute('data-firstname'),
+        lastName: iframe.getAttribute('data-lastname'),
+        email: iframe.getAttribute('data-email'),
+        position: iframe.getAttribute('data-position')
+      }
+    }, 'https://medbase.cz');
+  });
+})();
+</script>
 ```
+
+**User Data Atributy (volitelné, ale doporučené):**
+- `data-user-id` - ID uživatele v systému klienta
+- `data-firstname` - Křestní jméno
+- `data-lastname` - Příjmení
+- `data-email` - Email
+- `data-position` - Pozice/Role
+
+**Důležité:**
+- User data se ukládají do Supabase v `message_data.user_info`
+- Data jsou přístupná v N8N webhooku v `payload.user` objektu
+- Pokud uživatelská data nejsou dostupná, vynechte `data-*` atributy a JavaScript - chat bude fungovat normálně
 
 ### Varianta B: S tlačítkem pro otevření/zavření
 
@@ -206,6 +244,11 @@ Klient vloží tento kód na svůj web před `</body>` tag:
   style="position:fixed; right:24px; bottom:24px; width:1200px; height:700px; 
          border:0; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); 
          z-index:999999; display:none;"
+  data-user-id="<?php echo $user->id; ?>"
+  data-firstname="<?php echo $user->firstName; ?>"
+  data-lastname="<?php echo $user->lastName; ?>"
+  data-email="<?php echo $user->email; ?>"
+  data-position="<?php echo $user->position; ?>"
 ></iframe>
 
 <script>
@@ -225,6 +268,20 @@ Klient vloží tento kód na svůj web před `</body>` tag:
       toggleBtn.textContent = '💬';
       toggleBtn.style.background = '#2563eb';
     }
+  });
+  
+  // Pošleme user data do iframe
+  chatIframe.addEventListener('load', function() {
+    chatIframe.contentWindow.postMessage({
+      type: 'USER_DATA',
+      user: {
+        id: chatIframe.getAttribute('data-user-id'),
+        firstName: chatIframe.getAttribute('data-firstname'),
+        lastName: chatIframe.getAttribute('data-lastname'),
+        email: chatIframe.getAttribute('data-email'),
+        position: chatIframe.getAttribute('data-position')
+      }
+    }, 'https://medbase.cz');
   });
 </script>
 ```
