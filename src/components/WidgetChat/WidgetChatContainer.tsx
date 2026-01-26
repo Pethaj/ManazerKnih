@@ -103,7 +103,7 @@ export const WidgetChatContainer: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] rounded-xl shadow-2xl transition-all duration-300 ease-in-out overflow-hidden">
         <FilteredSanaChat 
-          currentUser={currentUser}
+          currentUser={currentUser}  // ✅ Předáváme informace o uživateli do chatu
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
           onClose={() => {

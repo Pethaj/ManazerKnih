@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test iframe widgetu - Simple</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    
+    h1 {
+      color: #333;
+    }
+    
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    iframe {
+      width: 100%;
+      height: 700px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+    }
+    
+    .info {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 12px;
+      margin: 10px 0;
+    }
+    
+    .warning {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 12px;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Test - Iframe Widget (Jednoduchá verze)</h1>
+    
+    <div class="info">
+      <strong>ℹ️ Jak testovat:</strong>
+      <ol>
+        <li>Otevři v novém tabu: <a href="http://localhost:5172" target="_blank">http://localhost:5172</a></li>
+        <li>Přihlaš se pomocí magického odkazu</li>
+        <li>Vrať se na tuto stránku</li>
+        <li>Widget by měl automaticky načíst tvé údaje</li>
+        <li>Napiš zkušební zprávu a zkontroluj Network tab v DevTools</li>
+      </ol>
+    </div>
+    
+    <div class="warning">
+      <strong>⚠️ Pro zobrazení user dat v payloadu:</strong><br>
+      Otevři DevTools (F12) → Network → filtr "XHR" → pošli zprávu → klikni na request do n8n → zkontroluj Request Payload
+    </div>
+  </div>
+  
+  <div class="container">
+    <h2>💬 Iframe Widget</h2>
+    
+    <!-- IFRAME WIDGET -->
+    <iframe 
+      src="http://localhost:5172/widgets/widget-chat.html?chatbot=vany_chat&theme=light"
+      title="BEWIT Chat Widget"
+    ></iframe>
+  </div>
+  
+  <script>
+    console.log('🚀 Testovací stránka načtena');
+    console.log('📍 Widget URL:', 'http://localhost:5172/widgets/widget-chat.html?chatbot=vany_chat&theme=light');
+    
+    // Zkontroluj přihlášení
+    const session = localStorage.getItem('userSession');
+    if (session) {
+      try {
+        const userData = JSON.parse(session);
+        console.log('✅ Přihlášen jako:', userData.email);
+        console.log('👤 User data:', userData);
+      } catch (e) {
+        console.log('⚠️ Nepodařilo se načíst user data z localStorage');
+      }
+    } else {
+      console.log('❌ Nejsi přihlášen. Přihlas se na http://localhost:5172');
+    }
+  </script>
+</body>
+</html>
