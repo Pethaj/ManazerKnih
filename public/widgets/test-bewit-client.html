@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bewit Web - Test Wany Chat s postMessage</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 32px;
+            margin-bottom: 16px;
+        }
+
+        .info-card {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 24px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #2d3748;
+            min-width: 150px;
+        }
+
+        .info-value {
+            color: #4a5568;
+            font-family: 'Monaco', monospace;
+            background: #e2e8f0;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+
+        .alert.info {
+            background: #bee3f8;
+            color: #2c5282;
+            border-left: 4px solid #4299e1;
+        }
+
+        .alert.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #48bb78;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 16px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .code-section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            color: #2d3748;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .code-block {
+            background: #1a202c;
+            color: #48bb78;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 16px 0;
+            position: relative;
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎉 Bewit Web - Test Wany Chat s postMessage</h1>
+            <p>Simulace Bewit webu který posílá user data do iframe přes postMessage API.</p>
+
+            <div class="info-card">
+                <h3 style="margin-bottom: 16px; color: #2d3748;">👤 Simulovaný uživatel (z Bewit webu)</h3>
+                <div class="info-item">
+                    <div class="info-label">User ID:</div>
+                    <div class="info-value" id="display-userId">12345</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Email:</div>
+                    <div class="info-value" id="display-userEmail">jan.novak@bewit.cz</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Jméno:</div>
+                    <div class="info-value" id="display-firstName">Jan</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Příjmení:</div>
+                    <div class="info-value" id="display-lastName">Novák</div>
+                </div>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 Jak to funguje:</strong><br>
+                1. Iframe se načte (bez URL parametrů)<br>
+                2. JavaScript na Bewit webu pošle user data do iframe přes postMessage<br>
+                3. Iframe přijme data a použije je v N8N payloadu<br>
+                4. Otevři Developer Tools (F12) → Network → sleduj N8N webhook volání
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="openWanyChat()">
+                    🚀 Otevřít Wany Chat
+                </button>
+                <button class="btn-secondary" onclick="sendUserData()">
+                    📤 Poslat User Data znovu
+                </button>
+                <button class="btn-secondary" onclick="clearUserData()">
+                    🗑️ Vymazat User Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Implementační kód -->
+        <div class="code-section">
+            <h2>👨‍💻 Implementační kód pro Bewit web</h2>
+            
+            <h3 style="margin: 24px 0 12px; color: #2d3748; font-size: 18px;">📋 Kompletní kód (zkopíruj na Bewit web)</h3>
+            <div class="code-block">
+<pre>&lt;!-- ========================================
+     WANY CHAT WIDGET - START
+     ======================================== --&gt;
+
+&lt;!-- 1️⃣ Simulace user dat z backendu (PHP/Laravel) --&gt;
+&lt;script&gt;
+// Na produkci by user data šla z backendu
+const CURRENT_USER = {
+    id: '&lt;?php echo $user-&gt;id; ?&gt;',         // Z backendu
+    email: '&lt;?php echo $user-&gt;email; ?&gt;',   // Z backendu
+    firstName: '&lt;?php echo $user-&gt;firstName; ?&gt;',  // Z backendu
+    lastName: '&lt;?php echo $user-&gt;lastName; ?&gt;'    // Z backendu
+};
+console.log('👤 Current user:', CURRENT_USER);
+&lt;/script&gt;
+
+&lt;!-- 2️⃣ Dlaždice s tlačítkem (BEZE ZMĚN) --&gt;
+&lt;div id="wany-chat-tile" style="position:relative;background-image:url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/images/main/production/Gemini_Generated_Image_gnhw0wgnhw0wgnhw.png');background-size:cover;background-position:center;border-radius:24px;padding:40px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1);max-width:420px;margin:0 auto;text-align:center;overflow:hidden;"&gt;
+  
+  &lt;div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:1;"&gt;&lt;/div&gt;
+  
+  &lt;h2 style="position:relative;z-index:2;font-size:28px;color:#ffffff;margin:0 0 16px 0;text-shadow:0 2px 4px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"&gt;
+    Poradce na čínské wany
+  &lt;/h2&gt;
+  
+  &lt;div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:24px;"&gt;
+    &lt;p style="color:#e2e8f0;line-height:1.6;font-size:16px;margin:0;text-shadow:0 1px 3px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"&gt;
+      Náš asistent na wany dodá informace a poradí s výběrem produktu
+    &lt;/p&gt;
+    
+    &lt;button
+      id="wany-chat-open-btn"
+      onclick="openWanyChat()"
+      style="width:180px;height:51px;border-radius:15px;cursor:pointer;transition:0.3s ease;background:linear-gradient(to bottom right,#2e8eff 0%,rgba(46,142,255,0) 30%);background-color:rgba(46,142,255,0.2);border:none;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"
+      onmouseover="this.style.backgroundColor='rgba(46,142,255,0.7)';this.style.boxShadow='0 0 10px rgba(46,142,255,0.5)'"
+      onmouseout="this.style.backgroundColor='rgba(46,142,255,0.2)';this.style.boxShadow='none'"
+    &gt;
+      &lt;div style="width:176px;height:47px;border-radius:13px;background-color:#079854;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"&gt;
+        Spustit Chat
+      &lt;/div&gt;
+    &lt;/button&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;!-- 3️⃣ Overlay pozadí (BEZE ZMĚN) --&gt;
+&lt;div
+  id="wany-chat-overlay"
+  onclick="closeWanyChat()"
+  style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"
+&gt;&lt;/div&gt;
+
+&lt;!-- 4️⃣ Chat Modal Wrapper --&gt;
+&lt;div
+  id="wany-chat-wrapper"
+  style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;"
+&gt;
+  &lt;button
+    id="wany-close-btn"
+    onclick="closeWanyChat()"
+    style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;font-family:sans-serif;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;"
+    onmouseover="this.style.opacity='1';this.style.background='rgba(0,0,0,0.9)'"
+    onmouseout="this.style.opacity='0.8';this.style.background='rgba(0,0,0,0.6)'"
+  &gt;✕&lt;/button&gt;
+
+  &lt;div
+    id="wany-chat-modal"
+    style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;"
+  &gt;
+    &lt;!-- ⚠️ DŮLEŽITÉ: Přidej ID pro iframe --&gt;
+    &lt;iframe
+      id="wany-chat-iframe"
+      src="https://gr8learn.eu/embed.html"
+      style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;"
+      allow="clipboard-write"
+      title="Wany Chat"
+    &gt;&lt;/iframe&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;!-- 5️⃣ JavaScript funkce (🆕 S postMessage) --&gt;
+&lt;script&gt;
+// Otevřít chat
+function openWanyChat() {
+  const wrapper = document.getElementById('wany-chat-wrapper');
+  const overlay = document.getElementById('wany-chat-overlay');
+  const iframe = document.getElementById('wany-chat-iframe');
+  
+  if (wrapper && overlay && iframe) {
+    overlay.style.visibility = 'visible';
+    overlay.style.opacity = '1';
+    wrapper.style.visibility = 'visible';
+    wrapper.style.opacity = '1';
+    wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+    document.body.style.overflow = 'hidden';
+    
+    // 🆕 Pošli user data do iframe přes postMessage
+    setTimeout(() => {
+      iframe.contentWindow.postMessage({
+        type: 'WANY_USER_DATA',
+        user: CURRENT_USER
+      }, 'https://gr8learn.eu');
+      console.log('📤 User data poslána do iframe:', CURRENT_USER);
+    }, 500); // Malá pauza pro jistotu že iframe je načtený
+  }
+}
+
+// Zavřít chat (BEZE ZMĚN)
+function closeWanyChat() {
+  const wrapper = document.getElementById('wany-chat-wrapper');
+  const overlay = document.getElementById('wany-chat-overlay');
+  
+  if (wrapper && overlay) {
+    overlay.style.visibility = 'hidden';
+    overlay.style.opacity = '0';
+    wrapper.style.visibility = 'hidden';
+    wrapper.style.opacity = '0';
+    wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+    document.body.style.overflow = '';
+  }
+}
+
+// ESC klávesa (BEZE ZMĚN)
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const wrapper = document.getElementById('wany-chat-wrapper');
+    if (wrapper && wrapper.style.visibility === 'visible') {
+      closeWanyChat();
+    }
+  }
+});
+&lt;/script&gt;
+
+&lt;!-- Responzivní CSS (BEZE ZMĚN) --&gt;
+&lt;style&gt;
+@media (max-width: 768px) {
+  #wany-chat-tile {
+    padding: 24px !important;
+    max-width: calc(100% - 40px) !important;
+    margin: 20px auto !important;
+  }
+  #wany-chat-tile h2 {
+    font-size: 24px !important;
+  }
+  #wany-chat-tile p {
+    font-size: 15px !important;
+  }
+  #wany-chat-wrapper {
+    width: 95% !important;
+    height: 90% !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+}
+&lt;/style&gt;
+
+&lt;!-- ========================================
+     WANY CHAT WIDGET - END
+     ======================================== --&gt;</pre>
+            </div>
+
+            <div class="alert success">
+                <strong>✅ Co se změnilo oproti původní integraci:</strong><br>
+                1. Přidáno ID do iframe: <code>id="wany-chat-iframe"</code><br>
+                2. Přidán <code>postMessage</code> volání v <code>openWanyChat()</code> funkci<br>
+                3. Iframe nyní dostává user data dynamicky<br>
+                4. <strong>Všechno ostatní zůstává STEJNÉ</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================
+         DEMO WIDGET (funkční)
+         ======================================== -->
+    
+    <!-- Simulace user dat -->
+    <script>
+        const CURRENT_USER = {
+            id: '12345',
+            email: 'jan.novak@bewit.cz',
+            firstName: 'Jan',
+            lastName: 'Novák'
+        };
+        console.log('👤 CURRENT_USER:', CURRENT_USER);
+    </script>
+
+    <!-- Dlaždice -->
+    <div id="wany-chat-tile" style="position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:16px;padding:24px;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:280px;text-align:center;z-index:999997;">
+        <h3 style="color:white;margin:0 0 12px 0;font-size:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+            Wany Chat
+        </h3>
+        <button
+            onclick="openWanyChat()"
+            style="width:100%;height:48px;border-radius:12px;cursor:pointer;background:#079854;border:none;color:#fff;font-weight:600;font-size:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;transition:0.2s;"
+            onmouseover="this.style.background='#06804a'"
+            onmouseout="this.style.background='#079854'"
+        >
+            🚀 Spustit Chat
+        </button>
+    </div>
+
+    <!-- Overlay -->
+    <div
+        id="wany-chat-overlay"
+        onclick="closeWanyChat()"
+        style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"
+    ></div>
+
+    <!-- Modal Wrapper -->
+    <div
+        id="wany-chat-wrapper"
+        style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;"
+    >
+        <button
+            onclick="closeWanyChat()"
+            style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;font-family:sans-serif;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;"
+            onmouseover="this.style.opacity='1';this.style.background='rgba(0,0,0,0.9)'"
+            onmouseout="this.style.opacity='0.8';this.style.background='rgba(0,0,0,0.6)'"
+        >✕</button>
+
+        <div style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;">
+            <iframe
+                id="wany-chat-iframe"
+                src="http://localhost:5173/embed.html"
+                style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;"
+                allow="clipboard-write"
+                title="Wany Chat"
+            ></iframe>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function openWanyChat() {
+            const wrapper = document.getElementById('wany-chat-wrapper');
+            const overlay = document.getElementById('wany-chat-overlay');
+            const iframe = document.getElementById('wany-chat-iframe');
+            
+            if (wrapper && overlay && iframe) {
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                wrapper.style.visibility = 'visible';
+                wrapper.style.opacity = '1';
+                wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+                document.body.style.overflow = 'hidden';
+                
+                // 🆕 Pošli user data do iframe
+                setTimeout(() => {
+                    iframe.contentWindow.postMessage({
+                        type: 'WANY_USER_DATA',
+                        user: CURRENT_USER
+                    }, 'http://localhost:5173');
+                    console.log('📤 User data poslána do iframe:', CURRENT_USER);
+                }, 500);
+            }
+        }
+
+        function closeWanyChat() {
+            const wrapper = document.getElementById('wany-chat-wrapper');
+            const overlay = document.getElementById('wany-chat-overlay');
+            
+            if (wrapper && overlay) {
+                overlay.style.visibility = 'hidden';
+                overlay.style.opacity = '0';
+                wrapper.style.visibility = 'hidden';
+                wrapper.style.opacity = '0';
+                wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+                document.body.style.overflow = '';
+            }
+        }
+
+        function sendUserData() {
+            const iframe = document.getElementById('wany-chat-iframe');
+            if (iframe) {
+                iframe.contentWindow.postMessage({
+                    type: 'WANY_USER_DATA',
+                    user: CURRENT_USER
+                }, 'http://localhost:5173');
+                alert('✅ User data poslána do iframe!');
+            }
+        }
+
+        function clearUserData() {
+            const iframe = document.getElementById('wany-chat-iframe');
+            if (iframe) {
+                iframe.contentWindow.postMessage({
+                    type: 'WANY_USER_DATA',
+                    user: {
+                        id: '',
+                        email: '',
+                        firstName: '',
+                        lastName: ''
+                    }
+                }, 'http://localhost:5173');
+                alert('✅ User data vymazána (prázdné hodnoty poslány)!');
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const wrapper = document.getElementById('wany-chat-wrapper');
+                if (wrapper && wrapper.style.visibility === 'visible') {
+                    closeWanyChat();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

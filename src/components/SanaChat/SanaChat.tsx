@@ -263,16 +263,20 @@ const sendMessageToAPI = async (
             payload.metadata = metadata;
         }
 
-        // 🆕 Přidej informace o uživateli pokud je přihlášen
-        if (currentUser) {
-            payload.user = {
-                id: currentUser.id,
-                email: currentUser.email,
-                firstName: currentUser.firstName,
-                lastName: currentUser.lastName,
-                role: currentUser.role
-            };
-        }
+        // 🆕 VŽDY přidej pole user (prázdné nebo plné) - stejná struktura jako Wany.chat
+        payload.user = currentUser ? {
+            id: currentUser.id,
+            email: currentUser.email,
+            firstName: currentUser.firstName,
+            lastName: currentUser.lastName,
+            role: currentUser.role
+        } : {
+            id: "",
+            email: "",
+            firstName: "",
+            lastName: "",
+            role: ""
+        };
 
         // Detailní logování před odesláním
         console.log('🚀 Odesílám požadavek na N8N webhook...');

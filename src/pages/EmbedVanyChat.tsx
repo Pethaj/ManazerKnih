@@ -8,42 +8,57 @@ import { supabase } from '../lib/supabase';
  * Tato stránka je určena pro vložení do iframe na webech klientů.
  * Obsahuje POUZE Wany Chat bez jakéhokoliv layoutu MedBase.
  * 
- * Použití u klienta:
+ * Použití u klienta (Bewit web):
+ * 
+ * HTML:
  * <iframe
- *   src="https://gr8learn.eu/embed.html?userId=123&userName=Jan%20Novak&userEmail=jan@example.com"
+ *   id="wany-chat-iframe"
+ *   src="https://gr8learn.eu/embed.html"
  *   style="position:fixed;right:24px;bottom:24px;width:1200px;height:700px;border:0;border-radius:16px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);z-index:999999"
  *   allow="clipboard-write"
  * ></iframe>
  * 
- * URL parametry:
- * - userId: ID uživatele z webu klienta (povinný)
- * - userName: Jméno uživatele (nepovinný)
- * - userEmail: Email uživatele (nepovinný)
+ * JavaScript (pošle user data do iframe):
+ * <script>
+ * const iframe = document.getElementById('wany-chat-iframe');
+ * iframe.addEventListener('load', function() {
+ *   iframe.contentWindow.postMessage({
+ *     type: 'WANY_USER_DATA',
+ *     user: {
+ *       id: '12345',
+ *       email: 'jan@bewit.cz',
+ *       firstName: 'Jan',
+ *       lastName: 'Novák'
+ *     }
+ *   }, 'https://gr8learn.eu');
+ * });
+ * </script>
  */
 const EmbedVanyChat = () => {
   const [chatbotSettings, setChatbotSettings] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userContext, setUserContext] = useState<{
-    userId?: string;
-    userName?: string;
-    userEmail?: string;
+    id?: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
   }>({});
 
   useEffect(() => {
     console.log('🔥 EMBED VANY CHAT - Loading settings...');
     
-    // 🆕 Načteme user context z URL parametrů
-    const urlParams = new URLSearchParams(window.location.search);
-    const userId = urlParams.get('userId');
-    const userName = urlParams.get('userName');
-    const userEmail = urlParams.get('userEmail');
+    // 🆕 Naslouchej postMessage od rodiče (klienta) pro user data
+    const handleMessage = (event: MessageEvent) => {
+      // Bezpečnostní kontrola origin (volitelné)
+      // if (event.origin !== 'https://bewit.cz') return;
+      
+      if (event.data.type === 'WANY_USER_DATA' && event.data.user) {
+        console.log('👤 User data přijata z rodiče (Bewit web):', event.data.user);
+        setUserContext(event.data.user);
+      }
+    };
     
-    if (userId) {
-      console.log('👤 User context from URL:', { userId, userName, userEmail });
-      setUserContext({ userId, userName, userEmail });
-    } else {
-      console.warn('⚠️ No userId in URL - user tracking will not work');
-    }
+    window.addEventListener('message', handleMessage);
     
     const loadChatbotSettings = async () => {
       try {
@@ -91,6 +106,11 @@ const EmbedVanyChat = () => {
     };
 
     loadChatbotSettings();
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
   }, []);
 
   if (isLoading) {
@@ -115,12 +135,12 @@ const EmbedVanyChat = () => {
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
           onClose={undefined}
-          currentUser={userContext.userId ? {
-            id: userContext.userId,
-            email: userContext.userEmail || 'unknown@gr8learn.eu',
-            firstName: userContext.userName?.split(' ')[0] || 'Unknown',
-            lastName: userContext.userName?.split(' ').slice(1).join(' ') || '',
-            role: 'spravce' as any, // External user - role není důležitá pro embed
+          currentUser={userContext.id ? {
+            id: userContext.id,
+            email: userContext.email || '',
+            firstName: userContext.firstName || '',
+            lastName: userContext.lastName || '',
+            role: 'spravce' as any,
             createdAt: new Date().toISOString()
           } : undefined}
         />
@@ -130,4 +150,3 @@ const EmbedVanyChat = () => {
 };
 
 export default EmbedVanyChat;
-
