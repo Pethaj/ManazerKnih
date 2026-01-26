@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GR8Learn - Test integrace Wany Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 32px;
+            margin-bottom: 16px;
+        }
+
+        .info-card {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 24px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #2d3748;
+            min-width: 150px;
+        }
+
+        .info-value {
+            color: #4a5568;
+            font-family: 'Monaco', monospace;
+            background: #e2e8f0;
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 16px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+
+        .alert.info {
+            background: #bee3f8;
+            color: #2c5282;
+            border-left: 4px solid #4299e1;
+        }
+
+        .alert.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #48bb78;
+        }
+
+        .code-section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            color: #2d3748;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .code-block {
+            background: #1a202c;
+            color: #48bb78;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 16px 0;
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎉 GR8Learn - Test integrace Wany Chat s user tracking</h1>
+            <p>Simulace webu GR8Learn s předáním uživatelských dat do Wany Chat iframe.</p>
+
+            <div class="info-card">
+                <h3 style="margin-bottom: 16px; color: #2d3748;">👤 Simulovaný uživatel</h3>
+                <div class="info-item">
+                    <div class="info-label">User ID:</div>
+                    <div class="info-value" id="display-userId">12345</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Jméno:</div>
+                    <div class="info-value" id="display-userName">Jan Novák</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Email:</div>
+                    <div class="info-value" id="display-userEmail">jan.novak@gr8learn.eu</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Iframe URL:</div>
+                    <div class="info-value" id="display-iframeUrl" style="font-size: 11px; word-break: break-all;">
+                        http://localhost:5173/embed.html?userId=12345&userName=Jan%20Novák&userEmail=jan.novak@gr8learn.eu
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 Test:</strong> Otevři Developer Tools (F12) → Network tab a sleduj N8N webhook volání. V payloadu by mělo být pole "user" s těmito údaji.
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="openWanyChat()">
+                    🚀 Otevřít Wany Chat
+                </button>
+                <button class="btn-secondary" onclick="openDevTools()">
+                    🔍 Otevřít Dev Tools
+                </button>
+            </div>
+        </div>
+
+        <!-- Implementační kód -->
+        <div class="code-section">
+            <h2>👨‍💻 Implementační kód pro GR8Learn</h2>
+            <p style="margin-bottom: 20px; color: #4a5568;">
+                Tento kód vložte na GR8Learn web. Automaticky načte userId a userName z session/cookies/localStorage.
+            </p>
+
+            <h3 style="margin: 24px 0 12px; color: #2d3748; font-size: 18px;">📋 Krok 1: Získání user dat</h3>
+            <p style="margin-bottom: 12px; color: #4a5568;">
+                Na GR8Learn webu získej userId, userName a userEmail z backendu/session:
+            </p>
+            <div class="code-block">
+<button class="copy-btn" onclick="copyCode('code1')">Kopírovat</button>
+<code id="code1">&lt;!-- V hlavičce stránky (před načtením chatu) --&gt;
+&lt;script&gt;
+// Příklad: Získání user dat z backendu (Laravel, PHP session)
+// Např. v Blade template nebo PHP:
+const CURRENT_USER = {
+    userId: '&lt;?php echo $user-&gt;id; ?&gt;',          // Z backendu
+    userName: '&lt;?php echo $user-&gt;name; ?&gt;',      // Z backendu
+    userEmail: '&lt;?php echo $user-&gt;email; ?&gt;'     // Z backendu
+};
+
+// NEBO z localStorage/sessionStorage:
+// const CURRENT_USER = {
+//     userId: localStorage.getItem('userId'),
+//     userName: localStorage.getItem('userName'),
+//     userEmail: localStorage.getItem('userEmail')
+// };
+&lt;/script&gt;</code>
+            </div>
+
+            <h3 style="margin: 24px 0 12px; color: #2d3748; font-size: 18px;">📋 Krok 2: Widget kód (stejný jako máte)</h3>
+            <div class="code-block">
+<button class="copy-btn" onclick="copyCode('code2')">Kopírovat</button>
+<code id="code2">&lt;!-- Dlaždice s tlačítkem --&gt;
+&lt;div id="wany-chat-tile" style="position:relative;background-image:url('...');background-size:cover;..."&gt;
+  &lt;h2&gt;Poradce na čínské wany&lt;/h2&gt;
+  &lt;button id="wany-chat-open-btn" onclick="openWanyChat()"&gt;
+    Spustit Chat
+  &lt;/button&gt;
+&lt;/div&gt;
+
+&lt;!-- Overlay + Modal Wrapper --&gt;
+&lt;div id="wany-chat-overlay" onclick="closeWanyChat()" style="..."&gt;&lt;/div&gt;
+&lt;div id="wany-chat-wrapper" style="..."&gt;
+  &lt;button id="wany-close-btn" onclick="closeWanyChat()"&gt;✕&lt;/button&gt;
+  &lt;div id="wany-chat-modal"&gt;
+    &lt;!-- ⚠️ DŮLEŽITÁ ZMĚNA: Iframe src bude dynamický --&gt;
+    &lt;iframe
+      id="wany-chat-iframe"
+      style="..."
+      allow="clipboard-write"
+      title="Wany Chat"
+    &gt;&lt;/iframe&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code>
+            </div>
+
+            <h3 style="margin: 24px 0 12px; color: #2d3748; font-size: 18px;">📋 Krok 3: Upravený JavaScript (s user tracking)</h3>
+            <div class="code-block">
+<button class="copy-btn" onclick="copyCode('code3')">Kopírovat</button>
+<code id="code3">&lt;script&gt;
+// 🆕 Funkce pro sestavení iframe URL s user parametry
+function buildWanyChatUrl() {
+  const baseUrl = 'https://gr8learn.eu/embed.html';
+  
+  // Zkontroluj zda jsou user data dostupná
+  if (typeof CURRENT_USER === 'undefined' || !CURRENT_USER.userId) {
+    console.warn('⚠️ User data nejsou dostupná - chat bude bez user tracking');
+    return baseUrl;
+  }
+  
+  // Sestav URL s parametry
+  const params = new URLSearchParams();
+  params.append('userId', CURRENT_USER.userId);
+  if (CURRENT_USER.userName) params.append('userName', CURRENT_USER.userName);
+  if (CURRENT_USER.userEmail) params.append('userEmail', CURRENT_USER.userEmail);
+  
+  const finalUrl = `${baseUrl}?${params.toString()}`;
+  console.log('🔗 Wany Chat URL:', finalUrl);
+  return finalUrl;
+}
+
+// Otevřít chat - UPRAVENÁ FUNKCE
+function openWanyChat() {
+  const wrapper = document.getElementById('wany-chat-wrapper');
+  const overlay = document.getElementById('wany-chat-overlay');
+  const iframe = document.getElementById('wany-chat-iframe');
+  
+  if (wrapper && overlay && iframe) {
+    // 🆕 Nastav iframe src pouze pokud ještě není nastavené (lazy loading)
+    if (!iframe.src) {
+      iframe.src = buildWanyChatUrl();
+    }
+    
+    overlay.style.visibility = 'visible';
+    overlay.style.opacity = '1';
+    wrapper.style.visibility = 'visible';
+    wrapper.style.opacity = '1';
+    wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+// Zavřít chat - STEJNÉ jako dříve
+function closeWanyChat() {
+  const wrapper = document.getElementById('wany-chat-wrapper');
+  const overlay = document.getElementById('wany-chat-overlay');
+  
+  if (wrapper && overlay) {
+    overlay.style.visibility = 'hidden';
+    overlay.style.opacity = '0';
+    wrapper.style.visibility = 'hidden';
+    wrapper.style.opacity = '0';
+    wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+    document.body.style.overflow = '';
+  }
+}
+
+// ESC klávesa - STEJNÉ jako dříve
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const wrapper = document.getElementById('wany-chat-wrapper');
+    if (wrapper && wrapper.style.visibility === 'visible') {
+      closeWanyChat();
+    }
+  }
+});
+&lt;/script&gt;</code>
+            </div>
+
+            <div class="alert success">
+                <strong>✅ Co se změnilo:</strong><br>
+                1. Přidal se kód pro načtení user dat (Krok 1)<br>
+                2. Iframe src se nastaví až při prvním otevření (lazy loading)<br>
+                3. URL obsahuje userId, userName a userEmail jako parametry<br>
+                4. N8N webhook dostane tyto údaje v poli "user"
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================
+         WANY CHAT WIDGET - START
+         ======================================== -->
+ 
+    <!-- Simulace user dat z backendu -->
+    <script>
+        // Simulace user dat (na produkci by šlo z backendu)
+        const CURRENT_USER = {
+            userId: '12345',
+            userName: 'Jan Novák',
+            userEmail: 'jan.novak@gr8learn.eu'
+        };
+        console.log('👤 CURRENT_USER:', CURRENT_USER);
+    </script>
+
+    <!-- Dlaždice s tlačítkem (zkrácená verze pro test) -->
+    <div id="wany-chat-tile" style="position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:16px;padding:24px;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:280px;text-align:center;z-index:999997;">
+        <h3 style="color:white;margin:0 0 12px 0;font-size:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+            Wany Chat
+        </h3>
+        <button
+            id="wany-chat-open-btn"
+            onclick="openWanyChat()"
+            style="width:100%;height:48px;border-radius:12px;cursor:pointer;background:#079854;border:none;color:#fff;font-weight:600;font-size:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;transition:0.2s;"
+            onmouseover="this.style.background='#06804a'"
+            onmouseout="this.style.background='#079854'"
+        >
+            🚀 Spustit Chat
+        </button>
+    </div>
+ 
+    <!-- Overlay pozadí -->
+    <div
+        id="wany-chat-overlay"
+        onclick="closeWanyChat()"
+        style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"
+    ></div>
+ 
+    <!-- Chat Modal Wrapper -->
+    <div
+        id="wany-chat-wrapper"
+        style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;"
+    >
+        <button
+            id="wany-close-btn"
+            onclick="closeWanyChat()"
+            style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;font-family:sans-serif;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;"
+            onmouseover="this.style.opacity='1';this.style.background='rgba(0,0,0,0.9)'"
+            onmouseout="this.style.opacity='0.8';this.style.background='rgba(0,0,0,0.6)'"
+        >✕</button>
+ 
+        <div
+            id="wany-chat-modal"
+            style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;"
+        >
+            <!-- Chat Iframe (src se nastaví až při otevření) -->
+            <iframe
+                id="wany-chat-iframe"
+                style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;"
+                allow="clipboard-write"
+                title="Wany Chat"
+            ></iframe>
+        </div>
+    </div>
+ 
+    <!-- JavaScript funkce -->
+    <script>
+        // 🆕 Funkce pro sestavení iframe URL s user parametry
+        function buildWanyChatUrl() {
+            const baseUrl = 'http://localhost:5173/embed.html';
+            
+            if (typeof CURRENT_USER === 'undefined' || !CURRENT_USER.userId) {
+                console.warn('⚠️ User data nejsou dostupná - chat bude bez user tracking');
+                return baseUrl;
+            }
+            
+            const params = new URLSearchParams();
+            params.append('userId', CURRENT_USER.userId);
+            if (CURRENT_USER.userName) params.append('userName', CURRENT_USER.userName);
+            if (CURRENT_USER.userEmail) params.append('userEmail', CURRENT_USER.userEmail);
+            
+            const finalUrl = `${baseUrl}?${params.toString()}`;
+            console.log('🔗 Wany Chat URL:', finalUrl);
+            return finalUrl;
+        }
+
+        // Otevřít chat
+        function openWanyChat() {
+            const wrapper = document.getElementById('wany-chat-wrapper');
+            const overlay = document.getElementById('wany-chat-overlay');
+            const iframe = document.getElementById('wany-chat-iframe');
+            
+            if (wrapper && overlay && iframe) {
+                // 🆕 Nastav iframe src pouze pokud ještě není nastavené (lazy loading)
+                if (!iframe.src) {
+                    iframe.src = buildWanyChatUrl();
+                    console.log('✅ Iframe src nastaven:', iframe.src);
+                }
+                
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                wrapper.style.visibility = 'visible';
+                wrapper.style.opacity = '1';
+                wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        // Zavřít chat
+        function closeWanyChat() {
+            const wrapper = document.getElementById('wany-chat-wrapper');
+            const overlay = document.getElementById('wany-chat-overlay');
+            
+            if (wrapper && overlay) {
+                overlay.style.visibility = 'hidden';
+                overlay.style.opacity = '0';
+                wrapper.style.visibility = 'hidden';
+                wrapper.style.opacity = '0';
+                wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+                document.body.style.overflow = '';
+            }
+        }
+
+        // ESC klávesa
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const wrapper = document.getElementById('wany-chat-wrapper');
+                if (wrapper && wrapper.style.visibility === 'visible') {
+                    closeWanyChat();
+                }
+            }
+        });
+
+        // Helper funkce
+        function openDevTools() {
+            alert('Stiskni F12 nebo Cmd+Option+I (Mac) pro otevření Developer Tools.\n\nSleduj:\n- Console: Uvidíš user data a iframe URL\n- Network: Uvidíš N8N webhook volání s user payloadem');
+        }
+
+        function copyCode(codeId) {
+            const codeBlock = document.getElementById(codeId);
+            const text = codeBlock.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Kód zkopírován do schránky!');
+            }).catch(err => {
+                console.error('Chyba při kopírování:', err);
+            });
+        }
+    </script>
+
+    <!-- ========================================
+         WANY CHAT WIDGET - END
+         ======================================== -->
+</body>
+</html>

@@ -10,17 +10,40 @@ import { supabase } from '../lib/supabase';
  * 
  * Použití u klienta:
  * <iframe
- *   src="https://VASE-DOMENA.cz/embed/vany-chat"
+ *   src="https://gr8learn.eu/embed.html?userId=123&userName=Jan%20Novak&userEmail=jan@example.com"
  *   style="position:fixed;right:24px;bottom:24px;width:1200px;height:700px;border:0;border-radius:16px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);z-index:999999"
  *   allow="clipboard-write"
  * ></iframe>
+ * 
+ * URL parametry:
+ * - userId: ID uživatele z webu klienta (povinný)
+ * - userName: Jméno uživatele (nepovinný)
+ * - userEmail: Email uživatele (nepovinný)
  */
 const EmbedVanyChat = () => {
   const [chatbotSettings, setChatbotSettings] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userContext, setUserContext] = useState<{
+    userId?: string;
+    userName?: string;
+    userEmail?: string;
+  }>({});
 
   useEffect(() => {
     console.log('🔥 EMBED VANY CHAT - Loading settings...');
+    
+    // 🆕 Načteme user context z URL parametrů
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('userId');
+    const userName = urlParams.get('userName');
+    const userEmail = urlParams.get('userEmail');
+    
+    if (userId) {
+      console.log('👤 User context from URL:', { userId, userName, userEmail });
+      setUserContext({ userId, userName, userEmail });
+    } else {
+      console.warn('⚠️ No userId in URL - user tracking will not work');
+    }
     
     const loadChatbotSettings = async () => {
       try {
@@ -92,6 +115,14 @@ const EmbedVanyChat = () => {
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
           onClose={undefined}
+          currentUser={userContext.userId ? {
+            id: userContext.userId,
+            email: userContext.userEmail || 'unknown@gr8learn.eu',
+            firstName: userContext.userName?.split(' ')[0] || 'Unknown',
+            lastName: userContext.userName?.split(' ').slice(1).join(' ') || '',
+            role: 'spravce' as any, // External user - role není důležitá pro embed
+            createdAt: new Date().toISOString()
+          } : undefined}
         />
       </div>
     </div>
