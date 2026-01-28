@@ -110,6 +110,15 @@ const EmbedVanyChat = () => {
       console.log('⚠️ window.frameElement není dostupný (možná není v iframe)');
     }
     
+    // 🚀 READY SIGNÁL: Pošli rodičovskému oknu, že iframe je připraven
+    const sendReadySignal = () => {
+      if (window.parent !== window) {
+        console.log('📤 Odesílám IFRAME_READY signál rodičovskému oknu...');
+        window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+        console.log('✅ IFRAME_READY signál odeslán');
+      }
+    };
+    
     // 🆕 Naslouchej postMessage od rodiče (fallback nebo override pro data-* atributy)
     const handleMessage = (event: MessageEvent) => {
       // 🔍 DEBUG: Loguj VŠECHNY příchozí postMessage
@@ -123,6 +132,8 @@ const EmbedVanyChat = () => {
       const allowedOrigins = [
         'https://www.bewit.cz',
         'https://bewit.cz',
+        'https://mybewit.com',  // Bewit intelligence
+        'https://www.mybewit.com',
         // Pro testování (odstraň v produkci):
         'http://localhost:3000',
         'http://localhost:5173',  // Vite default
@@ -191,6 +202,10 @@ const EmbedVanyChat = () => {
         });
       } finally {
         setIsLoading(false);
+        // 🚀 Pošli READY signál AŽ PO dokončení načítání
+        setTimeout(() => {
+          sendReadySignal();
+        }, 500); // Malý delay pro jistotu, že React dokončil render
       }
     };
 
