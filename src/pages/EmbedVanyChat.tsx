@@ -112,18 +112,29 @@ const EmbedVanyChat = () => {
     
     // 🆕 Naslouchej postMessage od rodiče (fallback nebo override pro data-* atributy)
     const handleMessage = (event: MessageEvent) => {
+      // 🔍 DEBUG: Loguj VŠECHNY příchozí postMessage
+      console.log('📨 PostMessage přijata:', {
+        origin: event.origin,
+        type: event.data?.type,
+        hasUser: !!event.data?.user
+      });
+      
       // 🔒 Bezpečnostní kontrola originu - přijímej jen z důvěryhodných domén
       const allowedOrigins = [
         'https://www.bewit.cz',
         'https://bewit.cz',
         // Pro testování (odstraň v produkci):
         'http://localhost:3000',
-        'http://localhost:5174',
+        'http://localhost:5173',  // Vite default
+        'http://localhost:5174',  // Tvůj custom
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:5174',
       ];
       
       // Pokud origin není v allowlistu, ignoruj zprávu
       if (!allowedOrigins.includes(event.origin)) {
         console.warn('⚠️ PostMessage ODMÍTNUTA - nepovolený origin:', event.origin);
+        console.warn('   Data zprávy:', event.data);
         console.warn('   Povolené originy:', allowedOrigins);
         return;
       }
