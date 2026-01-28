@@ -34,6 +34,8 @@ import WaveLoader from './WaveLoader';
 import { User } from '../../services/customAuthService';
 // 🆕 Chat History Service - ukládání párů otázka-odpověď
 import { saveChatPairToHistory } from '../../utils/chatHistoryUtils';
+// 🆕 JEDNODUCHÁ SUMARIZACE
+import { createSimpleSummary } from '../../services/simpleChatSummary';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -137,6 +139,7 @@ interface SanaChatProps {
     webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
     enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí automatického produktového routeru
     enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
+    summarize_history?: boolean;  // 🆕 Automatická sumarizace historie pro N8N webhook
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
@@ -238,6 +241,8 @@ const FilterIcon: React.FC<IconProps> = (props) => (
 // Default webhook URL (fallback pro starší chatboty bez nastaveného webhook_url)
 const DEFAULT_N8N_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/97dc857e-352b-47b4-91cb-bc134afc764c/chat';
 
+// Stará trigger funkce odstraněna - používáme createSimpleSummary
+
 const sendMessageToAPI = async (
     message: string, 
     sessionId: string, 
@@ -255,7 +260,8 @@ const sendMessageToAPI = async (
         email?: string;
         position?: string;
         [key: string]: any;
-    }
+    },
+    summarizedHistory?: string[]  // 🆕 Sumarizovaná historie (místo plné historie)
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
         // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
@@ -265,8 +271,8 @@ const sendMessageToAPI = async (
             sessionId: sessionId,
             action: "sendMessage",
             chatInput: message,
-            chatHistory: history,
-            intent: intent || 'chat',  // 🆕 Posíláme intent do N8N
+            chatHistory: history,  // 🔥 Historie už je připravená (buď sumarizace nebo normální zprávy)
+            intent: intent || 'chat',
         };
         
         // 🆕 Pokud byly detekovány symptomy, přidáme je do payloadu (i pro chat intent)
@@ -1549,7 +1555,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         use_feed_1: true,
         use_feed_2: true,
         enable_product_router: true,   // 🆕 Defaultně zapnutý
-        enable_manual_funnel: false    // 🆕 Defaultně vypnutý
+        enable_manual_funnel: false,    // 🆕 Defaultně vypnutý
+        summarize_history: false       // 🆕 Defaultně vypnutá sumarizace
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
@@ -1567,6 +1574,10 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     const [sessionId, setSessionId] = useState<string>('');
     const [selectedLanguage, setSelectedLanguage] = useState<string>('cs');
     const [autoScroll, setAutoScroll] = useState<boolean>(true);
+    // 🆕 State pro sumarizovanou historii (pro N8N webhook)
+    const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
+    // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
+    const summarizedHistoryRef = useRef<string[]>([]);
 
     useEffect(() => {
         setSessionId(generateSessionId());
@@ -1614,7 +1625,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 book_database: chatbotSettings.book_database,
                 product_recommendations: chatbotSettings.product_recommendations,
                 willUseCombinedSearch: chatbotSettings.book_database && chatbotSettings.product_recommendations,
-                webhook_url: chatbotSettings.webhook_url
+                webhook_url: chatbotSettings.webhook_url,
+                summarize_history: chatbotSettings.summarize_history  // 🆕 DEBUG
             });
             
             // Připravíme metadata pro filtry
@@ -2024,24 +2036,47 @@ Symptomy zákazníka: ${symptomsList}
             else if (chatbotSettings.book_database) {
                 console.log('📚 Používám pouze webhook pro databázi knih - IGNORUJI produktová doporučení...');
                 
+                // 🔥 SUMARIZACE: Pokud je zapnutá, vytvoříme sumarizovanou historii MÍSTO plné historie
+                // Používáme REF protože React state je asynchronní!
+                console.log('🔍 DEBUG PŘED PODMÍNKOU:');
+                console.log('  - summarize_history:', chatbotSettings.summarize_history);
+                console.log('  - summarizedHistoryRef.current.length:', summarizedHistoryRef.current.length);
+                console.log('  - summarizedHistoryRef.current:', summarizedHistoryRef.current);
+                
+                let historyToSend;
+                if (chatbotSettings.summarize_history && summarizedHistoryRef.current.length > 0) {
+                    // Převedeme sumarizace do formátu ChatMessage
+                    historyToSend = summarizedHistoryRef.current.map((summary, index) => ({
+                        id: `summary-${index}`,
+                        role: 'summary' as const,
+                        text: summary
+                    }));
+                    console.log('═══════════════════════════════════════════════════════════');
+                    console.log('📤 POSÍLÁM SUMARIZACE MÍSTO HISTORIE');
+                    console.log('📊 Počet sumarizací:', summarizedHistoryRef.current.length);
+                    console.log('═══════════════════════════════════════════════════════════');
+                } else {
+                    // Normální historie zpráv
+                    historyToSend = newMessages.slice(0, -1);
+                }
+                
                 // Standardní chat - bez intent routingu (žádný callout v historii)
                 // N8N sám přidá žlutý callout pokud detekuje zdravotní symptomy
                 const webhookResult = await sendMessageToAPI(
                     promptForBackend, 
                     sessionId, 
-                    newMessages.slice(0, -1), 
+                    historyToSend,  // 🔥 BUĎTO sumarizace NEBO celá historie
                     currentMetadata, 
                     chatbotSettings.webhook_url, 
                     chatbotId,
                     undefined,  // intent
                     undefined,  // detectedSymptoms
                     currentUser,  // 🆕 Přidáno: informace o uživateli
-                    externalUserInfo  // 🆕 External user data z iframe
+                    externalUserInfo,  // 🆕 External user data z iframe
+                    undefined  // Tenhle parametr už nepoužíváme - posíláme přímo v history
                 );
                 
                 // 🆕 Spočítáme produkty pro detekci calloutu
-                // DŮLEŽITÉ: Počítáme POUZE skutečně vložené markery v textu, ne matchedProducts
-                // matchedProducts obsahuje produkty nalezené v DB, ale ne všechny musí být vloženy do textu
                 const markerCount = (webhookResult.text?.match(/<<<PRODUCT:/g) || []).length;
                 const shouldShowCallout = markerCount > 2;
                 
@@ -2052,10 +2087,9 @@ Symptomy zákazníka: ${symptomsList}
                     role: 'bot', 
                     text: webhookResult.text, 
                     sources: webhookResult.sources || [],
-                    // NIKDY nepředávat produktová doporučení pokud je zapnutá pouze databáze knih
                     productRecommendations: undefined,
-                    matchedProducts: webhookResult.matchedProducts || [], // 🆕 Přidáme matched produkty
-                    hasCallout: shouldShowCallout // 🆕 Flag pro žlutý callout (více než 2 produkty)
+                    matchedProducts: webhookResult.matchedProducts || [],
+                    hasCallout: shouldShowCallout
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
@@ -2072,9 +2106,29 @@ Symptomy zákazníka: ${symptomsList}
                         sources: webhookResult.sources,
                         matchedProducts: webhookResult.matchedProducts,
                         hasCallout: shouldShowCallout,
-                        user_info: externalUserInfo  // 🆕 External user data z iframe
+                        user_info: externalUserInfo
                     }
                 );
+                
+                // 🔥 OKAMŽITĚ vytvoříme sumarizaci AKTUÁLNÍ Q&A páru (na pozadí)
+                // Sumarizace se přidá do REF i STATE - REF je okamžitě dostupný!
+                if (chatbotSettings.summarize_history) {
+                    createSimpleSummary(text.trim(), webhookResult.text).then(summary => {
+                        if (summary) {
+                            // Aktualizuj REF (okamžitě dostupné)
+                            summarizedHistoryRef.current = [...summarizedHistoryRef.current, summary];
+                            
+                            // Aktualizuj STATE (pro React rendering)
+                            setSummarizedHistory(prev => {
+                                const newHistory = [...prev, summary];
+                                console.log('✅ Sumarizace připravena pro příští zprávu. Celkem:', newHistory.length);
+                                return newHistory;
+                            });
+                        }
+                    }).catch(err => {
+                        console.error('❌ Chyba při sumarizaci:', err);
+                    });
+                }
                 
             }
             // === POUZE PRODUKTOVÉ DOPORUČENÍ - HYBRIDNÍ SYSTÉM ===
@@ -2182,7 +2236,8 @@ Symptomy zákazníka: ${symptomsList}
                 undefined,  // intent
                 undefined,  // detectedSymptoms
                 currentUser,  // 🆕 Přidáno: informace o uživateli
-                externalUserInfo  // 🆕 External user data z iframe
+                externalUserInfo,  // 🆕 External user data z iframe
+                chatbotSettings.summarize_history ? summarizedHistory : undefined  // 🆕 Sumarizovaná historie
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
@@ -2193,6 +2248,18 @@ Symptomy zákazníka: ${symptomsList}
                 matchedProducts: matchedProducts // 🆕 Přidáme matched produkty
             };
             setMessages(prev => [...prev, botMessage]);
+            
+            // 🔥 SUMARIZACE - pokud je zapnutá v nastavení
+            if (chatbotSettings.summarize_history) {
+                const summary = await createSimpleSummary(text.trim(), botText);
+                if (summary) {
+                    setSummarizedHistory(prev => {
+                        const newHistory = [...prev, summary];
+                        console.log('📊 Celkem sumarizací:', newHistory.length);
+                        return newHistory;
+                    });
+                }
+            }
         } catch (error) {
             const errorMessageText = error instanceof Error ? error.message : 'Omlouvám se, došlo k neznámé chybě.';
             const errorMessage: ChatMessage = { id: (Date.now() + 1).toString(), role: 'bot', text: errorMessageText };
@@ -2200,10 +2267,11 @@ Symptomy zákazníka: ${symptomsList}
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, messages, selectedLanguage, selectedCategories, selectedLabels, selectedPublicationTypes]);
+    }, [sessionId, messages, selectedLanguage, selectedCategories, selectedLabels, selectedPublicationTypes, summarizedHistory, chatbotSettings.summarize_history]);
 
     const handleNewChat = useCallback(() => {
         setMessages([]);
+        setSummarizedHistory([]);  // 🆕 Vyčistíme i sumarizace
         setSessionId(generateSessionId());
         startNewChatOnAPI();
     }, []);
@@ -2273,7 +2341,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
         use_feed_1: true,
         use_feed_2: true,
         enable_product_router: true,   // 🆕 Defaultně zapnutý
-        enable_manual_funnel: false    // 🆕 Defaultně vypnutý
+        enable_manual_funnel: false,    // 🆕 Defaultně vypnutý
+        summarize_history: false       // 🆕 Defaultně vypnutá sumarizace
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
@@ -2291,6 +2360,10 @@ const SanaChat: React.FC<SanaChatProps> = ({
     const [selectedLanguage, setSelectedLanguage] = useState<string>('cs');
     const [autoScroll, setAutoScroll] = useState<boolean>(true);
     const [isFilterPanelVisible, setIsFilterPanelVisible] = useState<boolean>(false);
+    // 🆕 State pro sumarizovanou historii (pro N8N webhook)
+    const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
+    // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
+    const summarizedHistoryRef = useRef<string[]>([]);
 
     useEffect(() => {
         setSessionId(generateSessionId());
@@ -2399,22 +2472,38 @@ const SanaChat: React.FC<SanaChatProps> = ({
             else if (chatbotSettings.book_database) {
                 console.log('📚 Používám pouze webhook pro databázi knih - IGNORUJI produktová doporučení...');
                 
+                // 🔥 SUMARIZACE: Pokud je zapnutá, vytvoříme sumarizovanou historii MÍSTO plné historie
+                // Používáme REF protože React state je asynchronní!
+                let historyToSend;
+                if (settings.summarize_history && summarizedHistoryRef.current.length > 0) {
+                    historyToSend = summarizedHistoryRef.current.map((summary, index) => ({
+                        id: `summary-${index}`,
+                        role: 'summary' as const,
+                        text: summary
+                    }));
+                    console.log('═══════════════════════════════════════════════════════════');
+                    console.log('📤 POSÍLÁM SUMARIZACE MÍSTO HISTORIE');
+                    console.log('📊 Počet sumarizací:', summarizedHistoryRef.current.length);
+                    console.log('═══════════════════════════════════════════════════════════');
+                } else {
+                    historyToSend = newMessages.slice(0, -1);
+                }
+                
                 const webhookResult = await sendMessageToAPI(
                     promptForBackend, 
                     sessionId, 
-                    newMessages.slice(0, -1), 
+                    historyToSend,  // 🔥 BUĎTO sumarizace NEBO celá historie
                     currentMetadata, 
                     chatbotSettings.webhook_url, 
                     chatbotId,
                     undefined,  // intent
                     undefined,  // detectedSymptoms
                     currentUser,  // 🆕 Přidáno: informace o uživateli
-                    externalUserInfo  // 🆕 External user data z iframe
+                    externalUserInfo,  // 🆕 External user data z iframe
+                    undefined  // Tenhle parametr už nepoužíváme
                 );
                 
                 // 🆕 Spočítáme produkty pro detekci calloutu
-                // DŮLEŽITÉ: Počítáme POUZE skutečně vložené markery v textu, ne matchedProducts
-                // matchedProducts obsahuje produkty nalezené v DB, ale ne všechny musí být vloženy do textu
                 const markerCount = (webhookResult.text?.match(/<<<PRODUCT:/g) || []).length;
                 const shouldShowCallout = markerCount > 2;
                 
@@ -2425,13 +2514,31 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     role: 'bot', 
                     text: webhookResult.text, 
                     sources: webhookResult.sources || [],
-                    // NIKDY nepředávat produktová doporučení pokud je zapnutá pouze databáze knih
                     productRecommendations: undefined,
-                    matchedProducts: webhookResult.matchedProducts || [], // 🆕 Přidáme matched produkty
-                    hasCallout: shouldShowCallout // 🆕 Flag pro žlutý callout (více než 2 produkty)
+                    matchedProducts: webhookResult.matchedProducts || [],
+                    hasCallout: shouldShowCallout
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
+                
+                // 🔥 OKAMŽITĚ vytvoříme sumarizaci AKTUÁLNÍ Q&A páru (na pozadí)
+                if (settings.summarize_history) {
+                    createSimpleSummary(text.trim(), webhookResult.text).then(summary => {
+                        if (summary) {
+                            // Aktualizuj REF (okamžitě dostupné)
+                            summarizedHistoryRef.current = [...summarizedHistoryRef.current, summary];
+                            
+                            // Aktualizuj STATE (pro React rendering)
+                            setSummarizedHistory(prev => {
+                                const newHistory = [...prev, summary];
+                                console.log('✅ Sumarizace připravena pro příští zprávu. Celkem:', newHistory.length);
+                                return newHistory;
+                            });
+                        }
+                    }).catch(err => {
+                        console.error('❌ Chyba při sumarizaci:', err);
+                    });
+                }
                 
             }
             // === POUZE PRODUKTOVÉ DOPORUČENÍ - HYBRIDNÍ SYSTÉM ===
@@ -2540,7 +2647,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 undefined,  // intent
                 undefined,  // detectedSymptoms
                 currentUser,  // 🆕 Přidáno: informace o uživateli
-                externalUserInfo  // 🆕 External user data z iframe
+                externalUserInfo,  // 🆕 External user data z iframe
+                chatbotSettings.summarize_history ? summarizedHistory : undefined  // 🆕 Sumarizovaná historie
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
@@ -2551,6 +2659,18 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 matchedProducts: matchedProducts // 🆕 Přidáme matched produkty
             };
             setMessages(prev => [...prev, botMessage]);
+            
+            // 🔥 SUMARIZACE - pokud je zapnutá v nastavení
+            if (settings.summarize_history) {
+                const summary = await createSimpleSummary(text.trim(), botText);
+                if (summary) {
+                    setSummarizedHistory(prev => {
+                        const newHistory = [...prev, summary];
+                        console.log('📊 Celkem sumarizací:', newHistory.length);
+                        return newHistory;
+                    });
+                }
+            }
         } catch (error) {
             const errorMessageText = error instanceof Error ? error.message : 'Omlouvám se, došlo k neznámé chybě.';
             const errorMessage: ChatMessage = { id: (Date.now() + 1).toString(), role: 'bot', text: errorMessageText };
@@ -2558,10 +2678,11 @@ const SanaChat: React.FC<SanaChatProps> = ({
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, messages, selectedLanguage, selectedCategories, selectedLabels, selectedPublicationTypes, currentUser]);
+    }, [sessionId, messages, selectedLanguage, selectedCategories, selectedLabels, selectedPublicationTypes, currentUser, summarizedHistory, settings.summarize_history]);
 
     const handleNewChat = useCallback(() => {
         setMessages([]);
+        setSummarizedHistory([]);  // 🆕 Vyčistíme i sumarizace
         setSessionId(generateSessionId());
         startNewChatOnAPI();
     }, []);
@@ -2657,6 +2778,7 @@ interface FilteredSanaChatProps {
         allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
         enable_product_router?: boolean;  // 🆕 Produktový router
         enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
+        summarize_history?: boolean;      // 🆕 Sumarizace historie
     };
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;
@@ -2680,7 +2802,8 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
         use_feed_1: true,
         use_feed_2: true,
         enable_product_router: true,   // 🆕 Defaultně zapnutý
-        enable_manual_funnel: false    // 🆕 Defaultně vypnutý
+        enable_manual_funnel: false,   // 🆕 Defaultně vypnutý
+        summarize_history: false       // 🆕 Defaultně vypnutá sumarizace
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,

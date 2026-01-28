@@ -9,10 +9,10 @@ import { supabase } from '../lib/supabase';
  * Obsahuje POUZE Wany Chat bez jakéhokoliv layoutu MedBase.
  * 
  * ========================================
- * POUŽITÍ U KLIENTA:
+ * POUŽITÍ U KLIENTA (2 ZPŮSOBY):
  * ========================================
  * 
- * 1. HTML - vložte iframe s data-* atributy:
+ * ZPŮSOB 1 - Data-* atributy (DOPORUČENO - jednodušší):
  * 
  * <iframe
  *   id="wany-chat-iframe"
@@ -22,9 +22,21 @@ import { supabase } from '../lib/supabase';
  *   data-lastname="Novák"
  *   data-email="jan@firma.cz"
  *   data-position="Manager"
+ *   style="width:100%;height:100%;border:0;"
  * ></iframe>
  * 
- * 2. JavaScript - pošlete data do iframe:
+ * ✅ Výhody: Jednoduchý, žádný JavaScript, funguje okamžitě
+ * ⚠️  Nevýhody: Data viditelná v HTML source
+ * 
+ * ---
+ * 
+ * ZPŮSOB 2 - PostMessage (bezpečnější):
+ * 
+ * <iframe
+ *   id="wany-chat-iframe"
+ *   src="https://gr8learn.eu/embed.html"
+ *   style="width:100%;height:100%;border:0;"
+ * ></iframe>
  * 
  * <script>
  *   const iframe = document.getElementById('wany-chat-iframe');
@@ -32,15 +44,24 @@ import { supabase } from '../lib/supabase';
  *     iframe.contentWindow.postMessage({
  *       type: 'USER_DATA',
  *       user: {
- *         id: iframe.getAttribute('data-user-id'),
- *         firstName: iframe.getAttribute('data-firstname'),
- *         lastName: iframe.getAttribute('data-lastname'),
- *         email: iframe.getAttribute('data-email'),
- *         position: iframe.getAttribute('data-position')
+ *         id: '123',
+ *         firstName: 'Jan',
+ *         lastName: 'Novák',
+ *         email: 'jan@firma.cz',
+ *         position: 'Manager'
  *       }
  *     }, 'https://gr8learn.eu');
  *   });
  * </script>
+ * 
+ * ✅ Výhody: Bezpečnější, data nejsou v HTML
+ * ⚠️  Nevýhody: Vyžaduje JavaScript
+ * 
+ * ---
+ * 
+ * KOMBINACE OBOU ZPŮSOBŮ:
+ * - Můžete použít data-* atributy jako výchozí hodnoty
+ * - A postMessage je může přepsat/aktualizovat později
  * 
  * ========================================
  * CO SE DĚJE S DATY:
@@ -67,13 +88,50 @@ const EmbedVanyChat = () => {
   useEffect(() => {
     console.log('🔥 EMBED VANY CHAT - Loading settings...');
     
-    // 🆕 Naslouchej postMessage od rodiče (klienta) pro user data
-    const handleMessage = (event: MessageEvent) => {
-      // Bezpečnostní kontrola origin (volitelné - v produkci odkomentovat)
-      // if (event.origin !== 'https://bewit.cz' && event.origin !== 'https://klient.cz') return;
+    // 🆕 Načti data přímo z data-* atributů iframe (pokud existují)
+    const iframe = window.frameElement as HTMLIFrameElement | null;
+    if (iframe) {
+      const userData = {
+        id: iframe.dataset.userId || '',
+        email: iframe.dataset.email || '',
+        firstName: iframe.dataset.firstname || '',
+        lastName: iframe.dataset.lastname || '',
+        position: iframe.dataset.position || ''
+      };
       
+      // Pokud nějaké data existují, nastav je okamžitě
+      if (userData.id || userData.email) {
+        console.log('📋 User data načtena z data-* atributů iframe:', userData);
+        setUserContext(userData);
+      } else {
+        console.log('⚠️ Žádná user data v data-* atributech nenalezena');
+      }
+    } else {
+      console.log('⚠️ window.frameElement není dostupný (možná není v iframe)');
+    }
+    
+    // 🆕 Naslouchej postMessage od rodiče (fallback nebo override pro data-* atributy)
+    const handleMessage = (event: MessageEvent) => {
+      // 🔒 Bezpečnostní kontrola originu - přijímej jen z důvěryhodných domén
+      const allowedOrigins = [
+        'https://www.bewit.cz',
+        'https://bewit.cz',
+        // Pro testování (odstraň v produkci):
+        'http://localhost:3000',
+        'http://localhost:5174',
+      ];
+      
+      // Pokud origin není v allowlistu, ignoruj zprávu
+      if (!allowedOrigins.includes(event.origin)) {
+        console.warn('⚠️ PostMessage ODMÍTNUTA - nepovolený origin:', event.origin);
+        console.warn('   Povolené originy:', allowedOrigins);
+        return;
+      }
+      
+      // Validace struktury dat
       if (event.data.type === 'USER_DATA' && event.data.user) {
-        console.log('👤 User data přijata z rodiče přes postMessage:', event.data.user);
+        console.log('✅ PostMessage PŘIJATA z důvěryhodného originu:', event.origin);
+        console.log('👤 User data:', event.data.user);
         setUserContext(event.data.user);
       }
     };

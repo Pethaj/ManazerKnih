@@ -31,6 +31,7 @@ interface ChatWidgetProps {
         webhook_url?: string;  // 🆕 N8N webhook URL
         enable_product_router?: boolean;  // 🆕 Produktový router
         enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
+        summarize_history?: boolean;  // 🆕 Sumarizace historie
     };
 }
 
@@ -54,6 +55,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
         enable_product_router?: boolean;  // 🆕 Produktový router
         enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
+        summarize_history?: boolean;  // 🆕 Sumarizace historie
     } | null>(null);
     const [chatbotId, setChatbotId] = useState<string>('sana_chat'); // 🆕 Pro markdown rendering
     const [isLoading, setIsLoading] = useState(true);
@@ -94,6 +96,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                         allowed_publication_types: [],
                         enable_product_router: true,   // default true
                         enable_manual_funnel: false,   // default false
+                        summarize_history: false,      // default false
                     });
                 }
             } catch (error) {
@@ -110,6 +113,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     allowed_publication_types: [],
                     enable_product_router: true,   // default true
                     enable_manual_funnel: false,   // default false
+                    summarize_history: false,      // default false
                 });
             } finally {
                 setIsLoading(false);
@@ -124,9 +128,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         try {
             const settings = await ChatbotSettingsService.getChatbotSettings(chatbotIdToLoad);
             
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('🔍 CHATWIDGET: loadChatbotById');
+            console.log('📝 Chatbot ID:', chatbotIdToLoad);
+            console.log('📦 Settings z databáze:', settings);
+            console.log('🔍 summarize_history z DB:', settings?.summarize_history);
+            console.log('═══════════════════════════════════════════════════════════');
+            
             if (settings) {
                 setChatbotId(settings.chatbot_id);
-                setChatbotSettings({
+                
+                const newSettings = {
                     product_recommendations: settings.product_recommendations || false,
                     product_button_recommendations: settings.product_button_recommendations || false,
                     inline_product_links: settings.inline_product_links || false,
@@ -141,7 +153,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     // 🆕 DŮLEŽITÉ: Produktový router a manuální funnel
                     enable_product_router: settings.enable_product_router !== false, // default true
                     enable_manual_funnel: settings.enable_manual_funnel === true,    // default false
-                });
+                    // 🆕 DŮLEŽITÉ: Sumarizace historie
+                    summarize_history: settings.summarize_history === true,          // default false
+                };
+                
+                console.log('✅ Sestavené chatbotSettings:', newSettings);
+                console.log('🔍 summarize_history po sestavení:', newSettings.summarize_history);
+                console.log('═══════════════════════════════════════════════════════════');
+                
+                setChatbotSettings(newSettings);
                 console.log(`✅ Načten chatbot: ${settings.chatbot_name}`, {
                     chatbot_id: settings.chatbot_id,
                     webhook_url: settings.webhook_url,  // 🆕 PŘIDÁNO: Debug log
@@ -149,7 +169,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     labels: settings.allowed_labels?.length || 0,
                     publicationTypes: settings.allowed_publication_types?.length || 0,
                     enableProductRouter: settings.enable_product_router !== false,
-                    enableManualFunnel: settings.enable_manual_funnel === true
+                    enableManualFunnel: settings.enable_manual_funnel === true,
+                    summarizeHistory: settings.summarize_history === true  // 🆕 DEBUG: Sumarizace
                 });
             }
         } catch (error) {

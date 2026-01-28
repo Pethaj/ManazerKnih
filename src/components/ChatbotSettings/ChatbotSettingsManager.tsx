@@ -73,6 +73,8 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     // 🆕 Nastavení produktového routeru a manuálního funnelu
     enable_product_router: chatbotSettings?.enable_product_router ?? true,
     enable_manual_funnel: chatbotSettings?.enable_manual_funnel ?? false,
+    // 🆕 Nastavení sumarizace historie
+    summarize_history: chatbotSettings?.summarize_history ?? false,
   });
 
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
@@ -279,6 +281,21 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
                 </span>
               </div>
             </label>
+            <label className="flex items-start">
+              <input
+                type="checkbox"
+                checked={formData.summarize_history}
+                onChange={(e) => setFormData(prev => ({ ...prev, summarize_history: e.target.checked }))}
+                className="mr-2 mt-1"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700 font-medium">Sumarizovat historii</span>
+                <span className="text-xs text-gray-500">
+                  Automaticky sumarizuje historii konverzace pomocí LLM před odesláním do N8N webhooku. 
+                  Snižuje latenci a náklady na tokeny.
+                </span>
+              </div>
+            </label>
           </div>
         </div>
 
@@ -413,6 +430,13 @@ const ChatbotSettingsManager: React.FC = () => {
     
     setActionLoading(true);
     try {
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('💾 UKLÁDÁM NASTAVENÍ CHATBOTA');
+      console.log('📝 Chatbot ID:', editingChatbot.chatbot_id);
+      console.log('📋 Data k uložení:', data);
+      console.log('🔍 summarize_history:', data.summarize_history);
+      console.log('═══════════════════════════════════════════════════════════');
+      
       await ChatbotSettingsService.updateChatbotSettings(editingChatbot.chatbot_id, data);
       await loadChatbotSettings();
       setEditingChatbot(null);
@@ -534,8 +558,8 @@ const ChatbotSettingsManager: React.FC = () => {
               <div>Štítky: {chatbot.allowed_labels.length} povolených</div>
             </div>
 
-            {/* 🆕 Nastavení produktového routeru a funnelu */}
-            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            {/* 🆕 Nastavení produktového routeru, funnelu a sumarizace */}
+            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div className="flex items-center">
                 <span className="font-medium text-gray-700">Produktový router:</span>
                 <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
@@ -554,6 +578,16 @@ const ChatbotSettingsManager: React.FC = () => {
                     : 'bg-gray-100 text-gray-600'
                 }`}>
                   {chatbot.enable_manual_funnel === true ? 'Aktivní' : 'Vypnuto'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-gray-700">Sumarizace:</span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                  chatbot.summarize_history === true
+                    ? 'bg-blue-100 text-blue-800' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {chatbot.summarize_history === true ? 'Aktivní' : 'Vypnuto'}
                 </span>
               </div>
             </div>

@@ -635,6 +635,30 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                         Místo žlutého calloutu zobrazí tlačítko pro manuální zadání symptomů. Uživatel sám rozhodne, kdy chce doporučit produkty.
                                                     </div>
                                                 </div>
+                                                
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.summarize_history === true}
+                                                            onChange={() => updateLocalSettings(chatbot.chatbot_id, { 
+                                                                summarize_history: !(chatbot.summarize_history === true) 
+                                                            })}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                            <polyline points="10 9 9 9 8 9"></polyline>
+                                                        </svg>
+                                                        Sumarizovat historii
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Automaticky sumarizuje historii konverzace pomocí LLM před odesláním do N8N webhooku. Snižuje latenci a náklady na tokeny.
+                                                    </div>
+                                                </div>
                                             </div>
                                             
                                             {/* Filtrace kategorií - pouze pokud je povolena databáze knih */}

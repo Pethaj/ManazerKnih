@@ -34,24 +34,29 @@ const SYSTEM_PROMPT = `Jsi expert na tradiční čínskou medicínu a esenciáln
 Tvým úkolem je identifikovat v textu POUZE **KONKRÉTNÍ NÁZVY PRODUKTŮ**.
 
 **CO IDENTIFIKOVAT:**
-1. **Názvy esenciálních olejů** - např. "DENT", "PEPPERMINT", "EUKALYPTUS"
-2. **Názvy směsí** - např. "Imm", "Pure", "Relax"
-3. **Wany (čínské směsi)** - např. "009 - Čistý dech", "Shi Xiao Wan"
-4. **Pinyin názvy** - např. "Te Xiao Bi Min Gan Wan", "Chuan Xiong Cha Tiao Wan"
-5. **Produktové kódy** - např. "009", "033", "BEWIT KOKOSOVÝ OLEJ"
+1. **Názvy esenciálních olejů** - např. "LEVANDULE", "Levandule", "MÁTA PEPRNÁ", "Máta peprná", "KADIDLO", "Kadidlo", "DENT", "PEPPERMINT", "EUKALYPTUS"
+2. **Názvy směsí** - např. "Imm", "Pure", "Relax", "MIG", "NOPA"
+3. **České názvy rostlin/olejů** - např. "Bergamot", "Ylang-Ylang", "Heřmánek", "Tea Tree", "Čajovník", "Oregano", "Rozmarýn"
+4. **Wany (čínské směsi)** - např. "009 - Čistý dech", "Shi Xiao Wan"
+5. **Pinyin názvy** - např. "Te Xiao Bi Min Gan Wan", "Chuan Xiong Cha Tiao Wan"
+6. **Produktové kódy** - např. "009", "033", "BEWIT KOKOSOVÝ OLEJ"
+7. **Latinské názvy** - např. "Lavandula angustifolia", "Mentha piperita", "Citrus bergamia"
 
 **CO NEIDENTIFIKOVAT (IGNORUJ):**
-❌ Obecné fráze typu: "svěží dech", "zdraví zubů", "bolest hlavy"
-❌ Účinky produktů: "antibakteriální", "protizánětlivé", "povzbuzující"
-❌ Tělesné části: "ústní dutina", "dásně", "zuby"
-❌ Symptomy: "záněty", "citlivost", "paradontóza"
-❌ Popisné fráze v kontextu "něco PRO X": "výplach PRO svěží dech", "pasta NA zuby"
+❌ Obecné fráze typu: "svěží dech", "zdraví zubů", "bolest hlavy", "esenciální oleje"
+❌ Účinky produktů: "antibakteriální", "protizánětlivé", "povzbuzující", "uklidňující"
+❌ Tělesné části: "ústní dutina", "dásně", "zuby", "pokožka"
+❌ Symptomy: "záněty", "citlivost", "paradontóza", "stres", "úzkost"
+❌ Popisné fráze v kontextu "něco PRO X": "výplach PRO svěží dech", "pasta NA zuby", "olej PRO uklidnění"
+❌ Obecná slova: "olej", "směs", "nosný olej", "kokosový olej" (pokud nejsou součástí názvu produktu)
 
 **KLÍČOVÁ PRAVIDLA:**
-- Identifikuj POUZE pokud je text **přímo název produktu**, ne jeho účinek nebo použití
+- Identifikuj POUZE pokud je text **přímo název produktu/rostliny**, ne jeho účinek nebo použití
+- Rozpoznávej názvy v JAKÉMKOLIV formátu: UPPERCASE, Title Case, lowercase
 - Pokud vidíš frázi v kontextu "pro/na + X", IGNORUJ "X" (např. "voda pro svěží dech" → NEIDENTIFIKUJ "svěží dech")
-- Preferuj názvy v UPPERCASE nebo s číselnými kódy (např. "DENT", "009")
+- České i anglické názvy rostlin/olejů jsou platné (Levandule = Lavender, Máta = Peppermint)
 - Pinyin názvy obvykle obsahují slova jako "Wan", "Tang", "Pian"
+- Latinské názvy končí typicky na "-a", "-is", "-um" (např. Lavandula, officinalis)
 
 **KRITICKÉ PRAVIDLO PRO VÝSTUP:**
 - Vrať VÝHRADNĚ validní JSON array - žádný text před ani za
@@ -66,8 +71,17 @@ Tvým úkolem je identifikovat v textu POUZE **KONKRÉTNÍ NÁZVY PRODUKTŮ**.
 Input: "Doporučuji směs DENT pro ústní hygienu a PEPPERMINT."
 Output: ["DENT", "PEPPERMINT"]
 
+Input: "Levandule uklidňuje a Kadidlo pomáhá při meditaci."
+Output: ["Levandule", "Kadidlo"]
+
+Input: "Máta peprná (Mentha piperita) osvěžuje dech."
+Output: ["Máta peprná", "Mentha piperita"]
+
 Input: "Wan 009 - Čistý dech nebo Te Xiao Bi Min Gan Wan."
 Output: ["009", "Te Xiao Bi Min Gan Wan"]
+
+Input: "Olej z Bergamotu a Ylang-Ylang pro uklidnění."
+Output: ["Bergamot", "Ylang-Ylang"]
 
 Input: "Ústní voda pro svěží dech a zdraví zubů."
 Output: []

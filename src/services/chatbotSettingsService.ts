@@ -30,6 +30,8 @@ export interface ChatbotSettings {
   // 🆕 Nastavení produktového routeru a manuálního funnelu
   enable_product_router?: boolean;  // Zapnutí/vypnutí automatického produktového routeru
   enable_manual_funnel?: boolean;   // Zapnutí manuálního funnel spouštěče (tlačítko místo calloutu)
+  // 🆕 Nastavení sumarizace historie
+  summarize_history?: boolean;      // Zapnutí automatické sumarizace historie pro N8N webhook
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -75,6 +77,8 @@ export interface CreateChatbotSettingsData {
   // 🆕 Nastavení produktového routeru a manuálního funnelu
   enable_product_router?: boolean;
   enable_manual_funnel?: boolean;
+  // 🆕 Nastavení sumarizace historie
+  summarize_history?: boolean;
 }
 
 // Interface pro aktualizaci chatbota
@@ -97,6 +101,8 @@ export interface UpdateChatbotSettingsData {
   // 🆕 Nastavení produktového routeru a manuálního funnelu
   enable_product_router?: boolean;
   enable_manual_funnel?: boolean;
+  // 🆕 Nastavení sumarizace historie
+  summarize_history?: boolean;
 }
 
 // Interface pro filtry chatbota
@@ -114,6 +120,8 @@ export interface ChatbotFilters {
   // 🆕 Nastavení produktového routeru a manuálního funnelu
   enableProductRouter: boolean;  // Zapnutí/vypnutí automatického produktového routeru
   enableManualFunnel: boolean;   // Zapnutí manuálního funnel spouštěče
+  // 🆕 Nastavení sumarizace historie
+  summarizeHistory: boolean;     // Automatická sumarizace historie pro N8N webhook
 }
 
 export class ChatbotSettingsService {
@@ -152,6 +160,12 @@ export class ChatbotSettingsService {
         console.error('Chyba při načítání nastavení chatbota:', error);
         return null;
       }
+
+      console.log(`📥 Načteno nastavení pro chatbot "${chatbotId}":`, {
+        summarize_history: data?.summarize_history,
+        book_database: data?.book_database,
+        product_recommendations: data?.product_recommendations
+      });
 
       return data;
     } catch (error) {
@@ -237,7 +251,12 @@ export class ChatbotSettingsService {
   // Aktualizace nastavení chatbota
   static async updateChatbotSettings(chatbotId: string, data: UpdateChatbotSettingsData): Promise<ChatbotSettings> {
     try {
-      // Použij Supabase klient s RLS politikami (bez edge funkce)
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('💾 SERVICE: updateChatbotSettings');
+      console.log('📝 Chatbot ID:', chatbotId);
+      console.log('📋 Data před UPDATE:', JSON.stringify(data, null, 2));
+      console.log('🔍 summarize_history hodnota:', data.summarize_history);
+      console.log('═══════════════════════════════════════════════════════════');
       
       // Proveď UPDATE
       const { data: updateResult, error: updateError } = await supabase
@@ -260,6 +279,10 @@ export class ChatbotSettingsService {
       if (!updateResult) {
         throw new Error('UPDATE nevrátil žádná data');
       }
+
+      console.log('✅ UPDATE úspěšný, výsledek:', JSON.stringify(updateResult, null, 2));
+      console.log('🔍 summarize_history po UPDATE:', updateResult.summarize_history);
+      console.log('═══════════════════════════════════════════════════════════');
 
       return updateResult;
     } catch (error) {
@@ -415,6 +438,8 @@ export class ChatbotSettingsService {
         // 🆕 Nastavení produktového routeru a manuálního funnelu
         enableProductRouter: settings.enable_product_router !== false, // default true
         enableManualFunnel: settings.enable_manual_funnel === true,    // default false
+        // 🆕 Nastavení sumarizace historie
+        summarizeHistory: settings.summarize_history === true,         // default false
       };
     } catch (error) {
       console.error('Chyba při načítání filtrů chatbota:', error);
