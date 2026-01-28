@@ -138,8 +138,17 @@ sendUserDataToIframe = () => {
       }
     };
 
-    // Send message to iframe
-    iframe.contentWindow.postMessage(userData, 'https://gr8learn.eu');
+    // ⚠️ DŮLEŽITÉ: Target origin musí být '*' nebo konkrétní origin kde iframe běží
+    // Pokud iframe běží na stejné doméně (mybewit.com), použij '*'
+    // Pokud iframe běží na jiné doméně (gr8learn.eu), použij 'https://gr8learn.eu'
+    
+    // VARIANTA 1: Univerzální (funguje vždy, ale méně bezpečné)
+    iframe.contentWindow.postMessage(userData, '*');
+    
+    // VARIANTA 2: Bezpečnější (pokud znáš přesný origin)
+    // const iframeOrigin = new URL(iframe.src).origin; // Získej origin z iframe src
+    // iframe.contentWindow.postMessage(userData, iframeOrigin);
+    
     console.log('✅ User data sent to iframe:', userData);
   }
 };
@@ -234,6 +243,28 @@ A: Obvykle 1-2 sekundy. Iframe pošle signál až po dokončení načtení React
 
 ### **Q: Co když user zavře a znovu otevře chat?**
 A: IFRAME_READY se pošle jen JEDNOU (po prvním načtení). Při opětovném otevření se data odešlou OKAMŽITĚ (listener už běží).
+
+### **Q: Jaký target origin mám použít v postMessage?**
+A: Záleží na tom, kde iframe běží:
+
+**Pokud iframe běží na STEJNÉ doméně (mybewit.com):**
+```javascript
+iframe.contentWindow.postMessage(userData, '*');
+```
+
+**Pokud iframe běží na JINÉ doméně (gr8learn.eu):**
+```javascript
+iframe.contentWindow.postMessage(userData, 'https://gr8learn.eu');
+```
+
+**Automatická detekce:**
+```javascript
+const iframeOrigin = new URL(iframe.src).origin;
+iframe.contentWindow.postMessage(userData, iframeOrigin);
+```
+
+### **Q: Dostávám chybu "target origin does not match recipient window's origin"**
+A: To znamená, že iframe běží na jiném originu, než jaký zadáváte v postMessage. Použijte `'*'` jako target origin nebo zjistěte skutečný origin kde iframe běží (zkontrolujte v DevTools → Console).
 
 ---
 
