@@ -255,7 +255,9 @@ const EmbedVanyChat = () => {
       */}
       <div className="w-full h-full">
         {/* 🔒 External users: currentUser=undefined aby se user_id neuložil do Supabase (UUID error) */}
+        {/* 🔑 key={userContext.id || 'anonymous'} vynucuje re-render při změně user dat */}
         <FilteredSanaChat 
+          key={userContext.id || userContext.email || 'anonymous'}
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
           onClose={undefined}
