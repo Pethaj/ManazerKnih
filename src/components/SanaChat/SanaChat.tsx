@@ -36,6 +36,8 @@ import { User } from '../../services/customAuthService';
 import { saveChatPairToHistory } from '../../utils/chatHistoryUtils';
 // 🆕 JEDNODUCHÁ SUMARIZACE
 import { createSimpleSummary } from '../../services/simpleChatSummary';
+// 🔗 Product Link Service - pro přidání tokenu do URL
+import { openBewitProductLink } from '../../services/productLinkService';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -640,9 +642,6 @@ const ProductPill: React.FC<{
     sessionId?: string;  // 🆕 Pro přidání token_eshop
 }> = ({ productName, pinyinName, url, similarity, sessionId }) => {
     const [isHovered, setIsHovered] = React.useState(false);
-    
-    // 🔗 Import service pro token handling
-    const { openBewitProductLink } = require('../../services/productLinkService');
     
     const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
         e.preventDefault();
