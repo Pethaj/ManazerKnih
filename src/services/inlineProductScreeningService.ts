@@ -122,7 +122,7 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
     const { data, error } = await supabase.functions.invoke(EDGE_FUNCTION_URL, {
       body: {
         systemPrompt: SYSTEM_PROMPT,
-        userPrompt: `Analyzuj následující text a extrahuj názvy produktů/wanů a zdravotní témata:\n\n${text}`,
+        userPrompt: `Analyzuj následující text a extrahuj POUZE názvy produktů/wanů/rostlin. Vrať POUZE JSON array:\n\n${text}`,
         model: 'anthropic/claude-3-haiku',
         temperature: 0.1,
         maxTokens: 500

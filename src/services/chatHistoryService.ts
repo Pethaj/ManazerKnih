@@ -324,8 +324,6 @@ export async function saveChatPair(
       if (answerData.hasCallout !== undefined) {
         messageDataToSave.hasCallout = answerData.hasCallout;
       }
-      
-      // ❌ ODSTRANENO - user_info má jít do user_data sloupce, NE do message_data!
     }
 
     dataToSave.message_data = messageDataToSave;
