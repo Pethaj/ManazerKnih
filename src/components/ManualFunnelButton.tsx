@@ -23,6 +23,8 @@ interface ManualFunnelButtonProps {
   recommendedProducts: RecommendedProduct[];
   /** Session ID pro kontext */
   sessionId: string;
+  /** Token z externalUserInfo */
+  token?: string;
   /** Metadata pro webhook */
   metadata: {
     categories: string[];
@@ -54,6 +56,7 @@ const MANUAL_FUNNEL_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/8ed
 export const ManualFunnelButton: React.FC<ManualFunnelButtonProps> = ({
   recommendedProducts,
   sessionId,
+  token,
   metadata,
   chatHistory,
   onFunnelResponse,
@@ -276,7 +279,7 @@ Symptomy zákazníka: ${symptomsList}
           funnelText={funnelResult.text}
           selectedProducts={funnelResult.products}
           symptomList={symptomsText.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0)}
-          sessionId={sessionId}
+          token={token}
         />
       </div>
     );

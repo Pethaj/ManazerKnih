@@ -36,7 +36,7 @@ interface ProductFunnelMessageProps {
   funnelText: string;
   selectedProducts: FunnelProduct[];
   symptomList?: string[];
-  sessionId?: string;  // 🆕 Pro načtení token_eshop
+  token?: string;  // 🆕 Token z externalUserInfo
 }
 
 // ============================================================================
@@ -47,7 +47,7 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
   funnelText,
   selectedProducts,
   symptomList = [],
-  sessionId
+  token
 }) => {
   // Max 2 produkty
   const topProducts = selectedProducts.slice(0, 2);
@@ -69,11 +69,11 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
     return '';
   };
 
-  const handleBuyClick = async (e: React.MouseEvent, product: FunnelProduct) => {
+  const handleBuyClick = (e: React.MouseEvent, product: FunnelProduct) => {
     e.stopPropagation();
     if (product.url) {
       // 🔗 Otevřeme URL s tokenem (pokud existuje)
-      await openBewitProductLink(product.url, sessionId, '_blank');
+      openBewitProductLink(product.url, token, '_blank');
     }
   };
 

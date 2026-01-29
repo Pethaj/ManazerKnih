@@ -10,20 +10,20 @@ export interface ProductPillProps {
     productName: string;
     pinyinName: string;
     url: string;
-    sessionId?: string;  // 🆕 Pro načtení token_eshop
+    token?: string;  // 🆕 Token z externalUserInfo
 }
 
 export const ProductPill: React.FC<ProductPillProps> = ({ 
     productName, 
     pinyinName, 
     url,
-    sessionId
+    token
 }) => {
-    const handleClick = async (e: React.MouseEvent) => {
+    const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         
         // 🔗 Otevřeme URL s tokenem (pokud existuje)
-        await openBewitProductLink(url, sessionId, '_blank');
+        openBewitProductLink(url, token, '_blank');
     };
 
     return (

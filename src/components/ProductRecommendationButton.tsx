@@ -30,6 +30,7 @@ interface ProductRecommendationButtonProps {
   userQuery: string;        // Poslední dotaz uživatele
   botResponse: string;      // Aktuální odpověď chatbota
   sessionId: string;        // Session ID pro kontext
+  token?: string;           // 🆕 Token z externalUserInfo
   onProductsLoaded?: (products: EnrichedProduct[]) => void;  // Callback po načtení produktů
   className?: string;       // Custom CSS třídy
 }
@@ -38,6 +39,7 @@ export const ProductRecommendationButton: React.FC<ProductRecommendationButtonPr
   userQuery,
   botResponse,
   sessionId,
+  token,
   onProductsLoaded,
   className = ''
 }) => {
@@ -140,7 +142,7 @@ export const ProductRecommendationButton: React.FC<ProductRecommendationButtonPr
             }))}
             title="Doporučené produkty na základě konverzace"
             showSimilarity={false}
-            sessionId={sessionId}
+            token={token}
           />
           
           {/* Tlačítko pro zavření carousel */}

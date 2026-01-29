@@ -11,14 +11,14 @@ interface ProductCarouselProps {
   products: ProductRecommendation[];
   title?: string;
   showSimilarity?: boolean;
-  sessionId?: string;  // 🆕 Pro přidání token_eshop
+  token?: string;  // 🆕 Token z externalUserInfo
 }
 
 export const ProductCarousel: React.FC<ProductCarouselProps> = ({ 
   products, 
   title = "🛍️ Doporučené produkty",
   showSimilarity = false,
-  sessionId
+  token
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState<ProductRecommendation | null>(null);
@@ -83,11 +83,11 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
     return `${price.toLocaleString('cs-CZ')} ${currency}`;
   };
 
-  const handleBuyClick = async (e: React.MouseEvent, product: ProductRecommendation) => {
+  const handleBuyClick = (e: React.MouseEvent, product: ProductRecommendation) => {
     e.stopPropagation(); // Zabrání otevření modalu
     if (product.product_url) {
       // 🔗 Otevřeme URL s tokenem (pokud existuje)
-      await openBewitProductLink(product.product_url, sessionId, '_blank');
+      openBewitProductLink(product.product_url, token, '_blank');
     }
   };
 

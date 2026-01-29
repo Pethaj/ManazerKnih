@@ -639,14 +639,14 @@ const ProductPill: React.FC<{
     pinyinName: string;
     url: string; 
     similarity?: number;
-    sessionId?: string;  // 🆕 Pro přidání token_eshop
-}> = ({ productName, pinyinName, url, similarity, sessionId }) => {
+    token?: string;  // 🆕 Token z externalUserInfo
+}> = ({ productName, pinyinName, url, similarity, token }) => {
     const [isHovered, setIsHovered] = React.useState(false);
     
-    const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
         e.preventDefault();
         // 🔗 Otevřeme URL s tokenem (pokud existuje)
-        await openBewitProductLink(url, sessionId, '_blank');
+        openBewitProductLink(url, token, '_blank');
     };
     
     return (
@@ -717,13 +717,14 @@ const Message: React.FC<{
         enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
     };
     sessionId?: string;
+    token?: string;  // 🆕 Token z externalUserInfo
     lastUserQuery?: string;
     chatbotId?: string;  // 🆕 Pro rozlišení Sana 2 (markdown rendering)
     // 🆕 Props pro manuální funnel
     recommendedProducts?: RecommendedProduct[];  // Produkty extrahované z historie
     chatHistory?: Array<{ id: string; role: string; text: string; }>;  // Historie konverzace
     metadata?: { categories: string[]; labels: string[]; publication_types: string[]; };  // Metadata
-}> = ({ message, onSilentPrompt, chatbotSettings, sessionId, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] } }) => {
+}> = ({ message, onSilentPrompt, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] } }) => {
     const isUser = message.role === 'user';
     const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi a Wany.Chat Local používají markdown
     
@@ -920,7 +921,7 @@ const Message: React.FC<{
                                         productName={product.productName}
                                         pinyinName={product.pinyinName}
                                         url={product.productUrl}
-                                        sessionId={sessionId}
+                                        token={token}
                                     />
                                 ))}
                             </div>
@@ -1018,7 +1019,7 @@ const Message: React.FC<{
                     productName={productName}
                     pinyinName={productPinyin}
                     url={productUrl}
-                    sessionId={sessionId}
+                    token={token}
                 />
             );
             
@@ -1129,7 +1130,7 @@ const Message: React.FC<{
                         funnelText={message.text || ''}
                         selectedProducts={message.funnelProducts || []}
                         symptomList={message.symptomList || []}
-                        sessionId={sessionId}
+                        token={token}
                     />
                 ) : (
                 <div className={`px-4 py-3 rounded-2xl max-w-xl md:max-w-2xl lg:max-w-3xl shadow-sm ${isUser ? 'bg-bewit-blue text-white rounded-br-none' : 'bg-white text-bewit-dark border border-slate-200 rounded-bl-none'}`}>
@@ -1203,7 +1204,7 @@ const Message: React.FC<{
                                 products={message.productRecommendations} 
                                 showSimilarity={true}
                                 title="🛍️ Doporučené produkty"
-                                sessionId={sessionId}
+                                token={token}
                             />
                         </div>
                     )}
@@ -1220,6 +1221,7 @@ const Message: React.FC<{
                                 userQuery={lastUserQuery}
                                 botResponse={message.text}
                                 sessionId={sessionId}
+                                token={token}
                             />
                         </div>
                     )}
@@ -1237,6 +1239,7 @@ const Message: React.FC<{
                             <ManualFunnelButton
                                 recommendedProducts={recommendedProducts}
                                 sessionId={sessionId || ''}
+                                token={token}
                                 metadata={metadata}
                                 chatHistory={chatHistory}
                             />
@@ -1308,11 +1311,12 @@ const ChatWindow: React.FC<{
         enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
     };
     sessionId?: string;
+    token?: string;  // 🆕 Token z externalUserInfo
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     selectedCategories?: string[];  // 🆕 Pro manuální funnel metadata
     selectedLabels?: string[];      // 🆕 Pro manuální funnel metadata
     selectedPublicationTypes?: string[];  // 🆕 Pro manuální funnel metadata
-}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings, sessionId, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [] }) => {
+}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [] }) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -1415,6 +1419,7 @@ const ChatWindow: React.FC<{
                             onSilentPrompt={onSilentPrompt} 
                             chatbotSettings={chatbotSettings}
                             sessionId={sessionId}
+                            token={token}
                             lastUserQuery={lastUserQuery}
                             chatbotId={chatbotId}
                             // 🆕 Props pro ManualFunnelButton
@@ -1601,6 +1606,10 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     const [sessionId, setSessionId] = useState<string>('');
     const [selectedLanguage, setSelectedLanguage] = useState<string>('cs');
     const [autoScroll, setAutoScroll] = useState<boolean>(true);
+    
+    // 🔗 Token z externalUserInfo pro prokliknutí produktů
+    const userToken = externalUserInfo?.token_eshop;
+    
     // 🆕 State pro sumarizovanou historii (pro N8N webhook)
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
     // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
@@ -2341,6 +2350,7 @@ Symptomy zákazníka: ${symptomsList}
                         shouldAutoScroll={autoScroll} 
                         chatbotSettings={chatbotSettings}
                         sessionId={sessionId}
+                        token={userToken}
                         chatbotId={chatbotId}
                         selectedCategories={selectedCategories}
                         selectedLabels={selectedLabels}
@@ -2773,6 +2783,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                                 shouldAutoScroll={autoScroll} 
                                 chatbotSettings={chatbotSettings}
                                 sessionId={sessionId}
+                                token={userToken}
                                 chatbotId={chatbotId}
                                 selectedCategories={selectedCategories}
                                 selectedLabels={selectedLabels}
