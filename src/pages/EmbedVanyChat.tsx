@@ -230,6 +230,23 @@ const EmbedVanyChat = () => {
     );
   }
 
+  // 🔍 DIAGNOSTIKA userContext před renderem
+  const externalUserInfo = userContext.id || userContext.email ? {
+    external_user_id: userContext.id,
+    first_name: userContext.firstName,
+    last_name: userContext.lastName,
+    email: userContext.email,
+    position: userContext.position,
+    token_eshop: userContext.tokenEshop  // 🆕 E-shop token
+  } : undefined;
+
+  console.log('🔍 EMBED RENDER DIAGNOSTIKA:');
+  console.log('  - userContext:', userContext);
+  console.log('  - externalUserInfo:', externalUserInfo);
+  console.log('  - userContext.id:', userContext.id);
+  console.log('  - userContext.email:', userContext.email);
+  console.log('  - Podmínka (userContext.id || userContext.email):', !!(userContext.id || userContext.email));
+
   return (
     <div className="w-full h-screen overflow-hidden">
       {/* 
@@ -243,16 +260,7 @@ const EmbedVanyChat = () => {
           chatbotSettings={chatbotSettings}
           onClose={undefined}
           currentUser={undefined}
-          externalUserInfo={
-            userContext.id || userContext.email ? {
-              external_user_id: userContext.id,
-              first_name: userContext.firstName,
-              last_name: userContext.lastName,
-              email: userContext.email,
-              position: userContext.position,
-              token_eshop: userContext.tokenEshop  // 🆕 E-shop token
-            } : undefined
-          }
+          externalUserInfo={externalUserInfo}
         />
       </div>
     </div>
