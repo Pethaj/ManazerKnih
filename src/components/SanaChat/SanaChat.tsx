@@ -149,6 +149,7 @@ interface SanaChatProps {
     last_name?: string;
     email?: string;
     position?: string;
+    token_eshop?: string;  // 🆕 E-shop token z Bewit webu
     [key: string]: any;
   };
 }
@@ -259,6 +260,7 @@ const sendMessageToAPI = async (
         last_name?: string;
         email?: string;
         position?: string;
+        token_eshop?: string;  // 🆕 E-shop token z Bewit webu
         [key: string]: any;
     },
     summarizedHistory?: string[]  // 🆕 Sumarizovaná historie (místo plné historie)
@@ -292,19 +294,22 @@ const sendMessageToAPI = async (
             email: externalUserInfo.email || "",
             firstName: externalUserInfo.first_name || "",
             lastName: externalUserInfo.last_name || "",
-            role: externalUserInfo.position || ""  // position se mapuje na role
+            role: externalUserInfo.position || "",  // position se mapuje na role
+            tokenEshop: externalUserInfo.token_eshop || ""  // 🆕 E-shop token
         } : currentUser ? {
             id: currentUser.id,
             email: currentUser.email,
             firstName: currentUser.firstName,
             lastName: currentUser.lastName,
-            role: currentUser.role
+            role: currentUser.role,
+            tokenEshop: ""  // Prázdný pro interní uživatele
         } : {
             id: "",
             email: "",
             firstName: "",
             lastName: "",
-            role: ""
+            role: "",
+            tokenEshop: ""  // Prázdný pro anonymní
         };
 
         // Detailní logování před odesláním
@@ -2788,6 +2793,7 @@ interface FilteredSanaChatProps {
         last_name?: string;
         email?: string;
         position?: string;
+        token_eshop?: string;  // 🆕 E-shop token z Bewit webu
         [key: string]: any;
     };
 }

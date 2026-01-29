@@ -83,6 +83,7 @@ const EmbedVanyChat = () => {
     firstName?: string;
     lastName?: string;
     position?: string;
+    tokenEshop?: string;  // 🆕 E-shop token z Bewit webu
   }>({});
 
   useEffect(() => {
@@ -96,7 +97,8 @@ const EmbedVanyChat = () => {
         email: iframe.dataset.email || '',
         firstName: iframe.dataset.firstname || '',
         lastName: iframe.dataset.lastname || '',
-        position: iframe.dataset.position || ''
+        position: iframe.dataset.position || '',
+        tokenEshop: iframe.dataset.tokenEshop || ''  // 🆕 E-shop token
       };
       
       // Pokud nějaké data existují, nastav je okamžitě
@@ -253,7 +255,8 @@ const EmbedVanyChat = () => {
               first_name: userContext.firstName,
               last_name: userContext.lastName,
               email: userContext.email,
-              position: userContext.position
+              position: userContext.position,
+              token_eshop: userContext.tokenEshop  // 🆕 E-shop token
             } : undefined
           }
         />
