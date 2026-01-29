@@ -289,6 +289,14 @@ const sendMessageToAPI = async (
 
         // 🆕 VŽDY přidej pole user (prázdné nebo plné) - stejná struktura jako Wany.chat
         // Priorita: externalUserInfo (z iframe embedu) > currentUser (přihlášený) > prázdné
+        
+        // 🔍 DIAGNOSTIKA USER DATA
+        console.log('🔍 USER DATA DIAGNOSTIKA:');
+        console.log('  - externalUserInfo:', externalUserInfo);
+        console.log('  - currentUser:', currentUser);
+        console.log('  - externalUserInfo existuje?', !!externalUserInfo);
+        console.log('  - currentUser existuje?', !!currentUser);
+        
         payload.user = externalUserInfo ? {
             id: externalUserInfo.external_user_id || "",
             email: externalUserInfo.email || "",
@@ -311,6 +319,8 @@ const sendMessageToAPI = async (
             role: "",
             tokenEshop: ""  // Prázdný pro anonymní
         };
+        
+        console.log('  - payload.user po sestavení:', payload.user);
 
         // Detailní logování před odesláním
         console.log('🚀 Odesílám požadavek na N8N webhook...');
