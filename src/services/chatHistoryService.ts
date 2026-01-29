@@ -325,13 +325,18 @@ export async function saveChatPair(
         messageDataToSave.hasCallout = answerData.hasCallout;
       }
       
-      // 🆕 User info z iframe embedu
-      if (answerData.user_info && Object.keys(answerData.user_info).length > 0) {
-        messageDataToSave.user_info = answerData.user_info;
-      }
+      // ❌ ODSTRANENO - user_info má jít do user_data sloupce, NE do message_data!
     }
 
     dataToSave.message_data = messageDataToSave;
+    
+    // 🆕 User info z iframe embedu - uložíme do SAMOSTATNÉHO sloupce user_data
+    if (answerData?.user_info && Object.keys(answerData.user_info).length > 0) {
+      console.log('🔍 [ChatHistory] Ukládám user_info do user_data sloupce:', answerData.user_info);
+      dataToSave.user_data = answerData.user_info;
+    } else {
+      console.log('⚠️ [ChatHistory] user_info NEEXISTUJE nebo je prázdné');
+    }
 
     // Question metadata (filtry od usera) - jen pokud existují
     if (questionMetadata) {
