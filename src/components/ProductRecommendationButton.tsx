@@ -140,6 +140,7 @@ export const ProductRecommendationButton: React.FC<ProductRecommendationButtonPr
             }))}
             title="Doporučené produkty na základě konverzace"
             showSimilarity={false}
+            sessionId={sessionId}
           />
           
           {/* Tlačítko pro zavření carousel */}

@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
+import { openBewitProductLink } from '../services/productLinkService';
 
 // ============================================================================
 // INTERFACES
@@ -35,6 +36,7 @@ interface ProductFunnelMessageProps {
   funnelText: string;
   selectedProducts: FunnelProduct[];
   symptomList?: string[];
+  sessionId?: string;  // 🆕 Pro načtení token_eshop
 }
 
 // ============================================================================
@@ -44,7 +46,8 @@ interface ProductFunnelMessageProps {
 export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
   funnelText,
   selectedProducts,
-  symptomList = []
+  symptomList = [],
+  sessionId
 }) => {
   // Max 2 produkty
   const topProducts = selectedProducts.slice(0, 2);
@@ -66,10 +69,11 @@ export const ProductFunnelMessage: React.FC<ProductFunnelMessageProps> = ({
     return '';
   };
 
-  const handleBuyClick = (e: React.MouseEvent, product: FunnelProduct) => {
+  const handleBuyClick = async (e: React.MouseEvent, product: FunnelProduct) => {
     e.stopPropagation();
     if (product.url) {
-      window.open(product.url, '_blank', 'noopener,noreferrer');
+      // 🔗 Otevřeme URL s tokenem (pokud existuje)
+      await openBewitProductLink(product.url, sessionId, '_blank');
     }
   };
 

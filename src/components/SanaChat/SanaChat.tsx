@@ -637,14 +637,23 @@ const ProductPill: React.FC<{
     pinyinName: string;
     url: string; 
     similarity?: number;
-}> = ({ productName, pinyinName, url, similarity }) => {
+    sessionId?: string;  // 🆕 Pro přidání token_eshop
+}> = ({ productName, pinyinName, url, similarity, sessionId }) => {
     const [isHovered, setIsHovered] = React.useState(false);
+    
+    // 🔗 Import service pro token handling
+    const { openBewitProductLink } = require('../../services/productLinkService');
+    
+    const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+        e.preventDefault();
+        // 🔗 Otevřeme URL s tokenem (pokud existuje)
+        await openBewitProductLink(url, sessionId, '_blank');
+    };
     
     return (
         <a 
             href={url} 
-            target="_blank" 
-            rel="noopener noreferrer" 
+            onClick={handleClick}
             className="relative overflow-hidden inline-flex items-center h-8 px-4 rounded-full bg-transparent text-gray-700 text-sm font-medium border border-gray-300 transition-all duration-300 cursor-pointer ml-1"
             title={similarity ? `${pinyinName} - Shoda: ${(similarity * 100).toFixed(0)}%` : pinyinName}
             onMouseEnter={() => setIsHovered(true)}
@@ -912,6 +921,7 @@ const Message: React.FC<{
                                         productName={product.productName}
                                         pinyinName={product.pinyinName}
                                         url={product.productUrl}
+                                        sessionId={sessionId}
                                     />
                                 ))}
                             </div>
@@ -1009,6 +1019,7 @@ const Message: React.FC<{
                     productName={productName}
                     pinyinName={productPinyin}
                     url={productUrl}
+                    sessionId={sessionId}
                 />
             );
             
@@ -1119,6 +1130,7 @@ const Message: React.FC<{
                         funnelText={message.text || ''}
                         selectedProducts={message.funnelProducts || []}
                         symptomList={message.symptomList || []}
+                        sessionId={sessionId}
                     />
                 ) : (
                 <div className={`px-4 py-3 rounded-2xl max-w-xl md:max-w-2xl lg:max-w-3xl shadow-sm ${isUser ? 'bg-bewit-blue text-white rounded-br-none' : 'bg-white text-bewit-dark border border-slate-200 rounded-bl-none'}`}>
@@ -1192,6 +1204,7 @@ const Message: React.FC<{
                                 products={message.productRecommendations} 
                                 showSimilarity={true}
                                 title="🛍️ Doporučené produkty"
+                                sessionId={sessionId}
                             />
                         </div>
                     )}

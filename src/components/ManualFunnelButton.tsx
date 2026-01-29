@@ -276,6 +276,7 @@ Symptomy zákazníka: ${symptomsList}
           funnelText={funnelResult.text}
           selectedProducts={funnelResult.products}
           symptomList={symptomsText.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0)}
+          sessionId={sessionId}
         />
       </div>
     );

@@ -4,21 +4,26 @@
  */
 
 import React from 'react';
+import { openBewitProductLink } from '../services/productLinkService';
 
 export interface ProductPillProps {
     productName: string;
     pinyinName: string;
     url: string;
+    sessionId?: string;  // 🆕 Pro načtení token_eshop
 }
 
 export const ProductPill: React.FC<ProductPillProps> = ({ 
     productName, 
     pinyinName, 
-    url 
+    url,
+    sessionId
 }) => {
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = async (e: React.MouseEvent) => {
         e.preventDefault();
-        window.open(url, '_blank', 'noopener,noreferrer');
+        
+        // 🔗 Otevřeme URL s tokenem (pokud existuje)
+        await openBewitProductLink(url, sessionId, '_blank');
     };
 
     return (
