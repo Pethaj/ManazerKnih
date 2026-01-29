@@ -20,9 +20,9 @@ import { supabase } from '../lib/supabase';
 export interface ChatHistoryMessage {
   id?: string;  // UUID, generuje Supabase
   session_id: string;
-  user_id?: string | null;
+  // user_id ODSTRANĚNO - user info je v message_data.user_info
   chatbot_id: string;
-  role: 'user' | 'bot';
+  role: 'user' | 'bot' | 'pair';  // 🆕 'pair' pro otázka-odpověď páry
   message_text: string;
   message_data?: {
     sources?: Array<{ uri: string; title: string }>;
@@ -83,7 +83,7 @@ export async function saveMessage(
     // Připravíme data pro uložení - ukládáme JEN existující pole
     const dataToSave: any = {
       session_id: message.session_id,
-      user_id: message.user_id || null,
+      // user_id ODSTRANĚNO - user info je v message_data.user_info
       chatbot_id: message.chatbot_id,
       role: message.role,
       message_text: message.message_text,
@@ -170,7 +170,7 @@ export async function saveMessage(
  */
 export async function saveUserMessage(
   sessionId: string,
-  userId: string | null,
+  userId: string | null,  // DEPRECATED - ignorováno, user info je v message_data
   chatbotId: string,
   messageText: string,
   metadata?: {
@@ -181,7 +181,7 @@ export async function saveUserMessage(
 ): Promise<{ error: string | null }> {
   return saveMessage({
     session_id: sessionId,
-    user_id: userId,
+    // user_id ODSTRANĚNO
     chatbot_id: chatbotId,
     role: 'user',
     message_text: messageText,
@@ -195,7 +195,7 @@ export async function saveUserMessage(
  */
 export async function saveBotMessage(
   sessionId: string,
-  userId: string | null,
+  userId: string | null,  // DEPRECATED - ignorováno, user info je v message_data
   chatbotId: string,
   messageText: string,
   messageData?: {
@@ -211,7 +211,7 @@ export async function saveBotMessage(
 ): Promise<{ error: string | null }> {
   return saveMessage({
     session_id: sessionId,
-    user_id: userId,
+    // user_id ODSTRANĚNO
     chatbot_id: chatbotId,
     role: 'bot',
     message_text: messageText,
@@ -278,7 +278,7 @@ export async function saveChatPair(
     // Připravíme data pro uložení
     const dataToSave: any = {
       session_id: sessionId,
-      user_id: userId || null,
+      // user_id ODSTRANĚNO - user info je v answerData.user_info
       chatbot_id: chatbotId,
       role: 'pair',  // Označení že jde o pár otázka-odpověď
       message_text: userQuestion,  // Otázka uživatele (pro full-text search)
@@ -375,161 +375,45 @@ export async function saveChatPair(
 // ============================================================================
 
 /**
- * Získá seznam sessions uživatele (pro pagination v UI)
- * @param userId - ID uživatele
- * @param limit - Počet sessions na stránku (default 20)
- * @param offset - Offset pro pagination (default 0)
- * @returns { sessions, error }
+ * DEPRECATED - RPC funkce get_user_chat_sessions smazána (závisela na user_id)
+ * Pro načítání sessions použij přímý SELECT na chat_messages filtrovaný podle session_id
  */
-export async function getUserChatSessions(
-  userId: string,
-  limit: number = 20,
-  offset: number = 0
-): Promise<{ sessions: ChatSession[] | null; error: string | null }> {
-  try {
-    console.log('📖 [ChatHistory] Načítám sessions pro uživatele:', userId);
-
-    const { data, error } = await supabase
-      .rpc('get_user_chat_sessions', {
-        p_user_id: userId,
-        p_limit: limit,
-        p_offset: offset
-      });
-
-    if (error) {
-      console.error('❌ [ChatHistory] Chyba při načítání sessions:', error);
-      return { sessions: null, error: error.message };
-    }
-
-    console.log(`✅ [ChatHistory] Načteno ${data?.length || 0} sessions`);
-    return { sessions: data, error: null };
-
-  } catch (err) {
-    console.error('❌ [ChatHistory] Neočekávaná chyba při načítání sessions:', err);
-    return { sessions: null, error: err instanceof Error ? err.message : 'Neznámá chyba' };
-  }
-}
 
 // ============================================================================
 // NAČÍTÁNÍ ZPRÁV JEDNÉ SESSION (PRO LAZY LOADING)
 // ============================================================================
 
 /**
- * Získá všechny zprávy jedné session
- * @param sessionId - ID session
- * @param userId - ID uživatele (pro bezpečnostní kontrolu)
- * @returns { messages, error }
+ * DEPRECATED - RPC funkce get_session_messages smazána (závisela na user_id)
+ * Pro načítání zpráv jedné session použij přímý SELECT:
+ * 
+ * const { data } = await supabase
+ *   .from('chat_messages')
+ *   .select('*')
+ *   .eq('session_id', sessionId)
+ *   .order('created_at', { ascending: true });
  */
-export async function getSessionMessages(
-  sessionId: string,
-  userId: string
-): Promise<{ messages: ChatHistoryMessage[] | null; error: string | null }> {
-  try {
-    console.log('📖 [ChatHistory] Načítám zprávy pro session:', sessionId);
-
-    const { data, error } = await supabase
-      .rpc('get_session_messages', {
-        p_session_id: sessionId,
-        p_user_id: userId
-      });
-
-    if (error) {
-      console.error('❌ [ChatHistory] Chyba při načítání zpráv:', error);
-      return { messages: null, error: error.message };
-    }
-
-    console.log(`✅ [ChatHistory] Načteno ${data?.length || 0} zpráv`);
-    return { messages: data, error: null };
-
-  } catch (err) {
-    console.error('❌ [ChatHistory] Neočekávaná chyba při načítání zpráv:', err);
-    return { messages: null, error: err instanceof Error ? err.message : 'Neznámá chyba' };
-  }
-}
 
 // ============================================================================
 // VYHLEDÁVÁNÍ (FULL-TEXT SEARCH)
 // ============================================================================
 
 /**
- * Vyhledá zprávy obsahující text
- * @param userId - ID uživatele
- * @param searchQuery - Hledaný text
- * @param limit - Maximální počet výsledků (default 50)
- * @returns { results, error }
+ * DEPRECATED - RPC funkce search_chat_messages smazána (závisela na user_id)
+ * Pro full-text search použij přímý SELECT s textSearch:
+ * 
+ * const { data } = await supabase
+ *   .from('chat_messages')
+ *   .select('*')
+ *   .textSearch('message_text', searchQuery)
+ *   .limit(50);
  */
-export async function searchChatMessages(
-  userId: string,
-  searchQuery: string,
-  limit: number = 50
-): Promise<{ 
-  results: Array<{
-    id: string;
-    session_id: string;
-    role: string;
-    message_text: string;
-    created_at: string;
-    rank: number;
-  }> | null; 
-  error: string | null;
-}> {
-  try {
-    console.log('🔍 [ChatHistory] Vyhledávám:', searchQuery);
-
-    const { data, error } = await supabase
-      .rpc('search_chat_messages', {
-        p_user_id: userId,
-        p_search_query: searchQuery,
-        p_limit: limit
-      });
-
-    if (error) {
-      console.error('❌ [ChatHistory] Chyba při vyhledávání:', error);
-      return { results: null, error: error.message };
-    }
-
-    console.log(`✅ [ChatHistory] Nalezeno ${data?.length || 0} výsledků`);
-    return { results: data, error: null };
-
-  } catch (err) {
-    console.error('❌ [ChatHistory] Neočekávaná chyba při vyhledávání:', err);
-    return { results: null, error: err instanceof Error ? err.message : 'Neznámá chyba' };
-  }
-}
 
 // ============================================================================
 // SMAZÁNÍ (VOLITELNÉ)
 // ============================================================================
 
 /**
- * Smaže všechny zprávy jedné session
- * @param sessionId - ID session
- * @param userId - ID uživatele (pro bezpečnostní kontrolu)
- * @returns { error }
+ * DEPRECATED - Zprávy jsou immutable (audit trail)
+ * Mazání je zakázáno RLS policies
  */
-export async function deleteSession(
-  sessionId: string,
-  userId: string
-): Promise<{ error: string | null }> {
-  try {
-    console.log('🗑️ [ChatHistory] Mažu session:', sessionId);
-
-    const { error } = await supabase
-      .from('chat_messages')
-      .delete()
-      .eq('session_id', sessionId)
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('❌ [ChatHistory] Chyba při mazání session:', error);
-      return { error: error.message };
-    }
-
-    console.log('✅ [ChatHistory] Session úspěšně smazána');
-    return { error: null };
-
-  } catch (err) {
-    console.error('❌ [ChatHistory] Neočekávaná chyba při mazání:', err);
-    return { error: err instanceof Error ? err.message : 'Neznámá chyba' };
-  }
-}

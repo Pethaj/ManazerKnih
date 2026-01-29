@@ -237,18 +237,12 @@ const EmbedVanyChat = () => {
         Ale místo fixed inset-0 používáme celou obrazovku (w-full h-screen)
       */}
       <div className="w-full h-full">
+        {/* 🔒 External users: currentUser=undefined aby se user_id neuložil do Supabase (UUID error) */}
         <FilteredSanaChat 
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
           onClose={undefined}
-          currentUser={userContext.id ? {
-            id: userContext.id,
-            email: userContext.email || '',
-            firstName: userContext.firstName || '',
-            lastName: userContext.lastName || '',
-            role: 'spravce' as any,
-            createdAt: new Date().toISOString()
-          } : undefined}
+          currentUser={undefined}
           externalUserInfo={
             userContext.id || userContext.email ? {
               external_user_id: userContext.id,
