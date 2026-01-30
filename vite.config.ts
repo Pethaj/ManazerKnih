@@ -12,7 +12,8 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html'),
         widget: path.resolve(__dirname, 'public/widgets/widget-chat.html'),
-        embed: path.resolve(__dirname, 'embed.html')
+        embed: path.resolve(__dirname, 'embed.html'),
+        embedEOSmesi: path.resolve(__dirname, 'embed-eo-smesi.html')
       },
       output: {
         assetFileNames: (assetInfo) => {

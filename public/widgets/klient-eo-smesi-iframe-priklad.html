@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EO Směsi Chat - Příklad pro Bewit</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .info-box h3 {
+            margin-top: 0;
+            color: #1e40af;
+        }
+        
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .code-comment {
+            color: #94a3b8;
+        }
+        
+        .feature {
+            margin: 15px 0;
+            padding-left: 20px;
+        }
+        
+        .feature::before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+            margin-left: -20px;
+        }
+        
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .warning-box h3 {
+            margin-top: 0;
+            color: #92400e;
+        }
+        
+        .success-box {
+            background: #dcfce7;
+            border-left: 4px solid #10b981;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .success-box h3 {
+            margin-top: 0;
+            color: #065f46;
+        }
+
+        .purple-box {
+            background: #ede9fe;
+            border-left: 4px solid #8b5cf6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .purple-box h3 {
+            margin-top: 0;
+            color: #5b21b6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌿 EO Směsi Chat - Embedding na Bewit.cz</h1>
+        <p class="subtitle">Kompletní průvodce implementací chatu o esenciálních olejích na vašem webu</p>
+        
+        <div class="success-box">
+            <h3>🎯 Co tento chat dělá</h3>
+            <div class="feature">Odpovídá na dotazy o esenciálních olejích a směsích BEWIT</div>
+            <div class="feature">Automaticky sleduje uživatelská data (ID, email, jméno, e-shop token)</div>
+            <div class="feature">Ukládá historii konverzací do databáze</div>
+            <div class="feature">Plně responzivní - funguje na mobilu i desktopu</div>
+            <div class="feature">Žádná údržba - aktualizace automaticky z MedBase</div>
+        </div>
+        
+        <div class="info-box">
+            <h3>📋 Implementace - Krok za krokem</h3>
+            <p><strong>1. Otevřete šablonu vašeho webu</strong> (např. <code>footer.php</code>, <code>template.php</code>)</p>
+            <p><strong>2. Vložte tento kód před uzavírací tag <code>&lt;/body&gt;</code></strong></p>
+        </div>
+        
+        <div class="code-block">
+<span class="code-comment">&lt;!-- ============================================= --&gt;</span>
+<span class="code-comment">&lt;!-- EO SMĚSI CHAT WIDGET - START                --&gt;</span>
+<span class="code-comment">&lt;!-- ============================================= --&gt;</span>
+
+<span class="code-comment">&lt;!-- Iframe s chatem --&gt;</span>
+&lt;iframe
+  id="eo-smesi-chat-iframe"
+  src="https://gr8learn.eu/embed-eo-smesi.html"
+  
+  <span class="code-comment">&lt;!-- 👤 User data (automaticky se sbírají) --&gt;</span>
+  data-user-id="&lt;?php echo $user-&gt;id; ?&gt;"
+  data-firstname="&lt;?php echo $user-&gt;firstName; ?&gt;"
+  data-lastname="&lt;?php echo $user-&gt;lastName; ?&gt;"
+  data-email="&lt;?php echo $user-&gt;email; ?&gt;"
+  data-position="&lt;?php echo $user-&gt;position; ?&gt;"
+  data-token-eshop="&lt;?php echo $user-&gt;bewitToken; ?&gt;"
+  
+  <span class="code-comment">&lt;!-- 🎨 Styling --&gt;</span>
+  style="position:fixed; right:24px; bottom:24px; width:1200px; height:700px; 
+         max-width:calc(100vw - 48px); max-height:calc(100vh - 48px); 
+         border:0; border-radius:16px; 
+         box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); 
+         z-index:999999;"
+  
+  <span class="code-comment">&lt;!-- ⚙️ Permissions --&gt;</span>
+  allow="clipboard-write"
+  title="EO Směsi Chat"
+&gt;&lt;/iframe&gt;
+
+<span class="code-comment">&lt;!-- 📤 JavaScript pro odesílání user dat (volitelné) --&gt;</span>
+&lt;script&gt;
+(function() {
+  const iframe = document.getElementById('eo-smesi-chat-iframe');
+  if (!iframe) return;
+  
+  <span class="code-comment">// Počkej na načtení iframe</span>
+  iframe.addEventListener('load', function() {
+    <span class="code-comment">// Pošli user data do chatu</span>
+    iframe.contentWindow.postMessage({
+      type: 'USER_DATA',
+      user: {
+        id: iframe.getAttribute('data-user-id'),
+        firstName: iframe.getAttribute('data-firstname'),
+        lastName: iframe.getAttribute('data-lastname'),
+        email: iframe.getAttribute('data-email'),
+        position: iframe.getAttribute('data-position'),
+        tokenEshop: iframe.getAttribute('data-token-eshop')
+      }
+    }, 'https://gr8learn.eu');
+  });
+})();
+&lt;/script&gt;
+
+<span class="code-comment">&lt;!-- ============================================= --&gt;</span>
+<span class="code-comment">&lt;!-- EO SMĚSI CHAT WIDGET - END                  --&gt;</span>
+<span class="code-comment">&lt;!-- ============================================= --&gt;</span>
+        </div>
+        
+        <div class="purple-box">
+            <h3>👤 Mapování User Data Fieldu</h3>
+            <p>Ujistěte se, že mapujete správné PHP proměnné z vašeho systému:</p>
+            <table style="width:100%; margin-top:10px; border-collapse: collapse;">
+                <tr style="background:#f3f4f6;">
+                    <th style="padding:10px; text-align:left; border:1px solid #d1d5db;">Data atribut</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #d1d5db;">PHP proměnná (příklad)</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #d1d5db;">Popis</th>
+                </tr>
+                <tr>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>data-user-id</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>$user-&gt;id</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;">ID uživatele v Bewit DB</td>
+                </tr>
+                <tr style="background:#f9fafb;">
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>data-firstname</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>$user-&gt;firstName</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;">Křestní jméno</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>data-lastname</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>$user-&gt;lastName</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;">Příjmení</td>
+                </tr>
+                <tr style="background:#f9fafb;">
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>data-email</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>$user-&gt;email</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;">Email</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>data-position</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>$user-&gt;position</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;">Pozice/role</td>
+                </tr>
+                <tr style="background:#f9fafb;">
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>data-token-eshop</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;"><code>$user-&gt;bewitToken</code></td>
+                    <td style="padding:10px; border:1px solid #d1d5db;">⚠️ DŮLEŽITÉ - E-shop token</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="warning-box">
+            <h3>⚠️ DŮLEŽITÉ - E-shop Token</h3>
+            <p>Pole <code>data-token-eshop</code> je <strong>kritické</strong> pro integraci s Bewit e-shopem!</p>
+            <ul style="margin-left:20px; margin-top:10px;">
+                <li>Tento token propojuje uživatele v chatu s jeho účtem v e-shopu</li>
+                <li>Bez tokenu nebude fungovat doporučení produktů a nákupní funkce</li>
+                <li>Ověřte že máte správné jméno PHP proměnné v Bewit systému</li>
+                <li>Token se ukládá do databáze spolu s chat historií</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h3>🎨 Varianty zobrazení</h3>
+            <p><strong>Současný kód:</strong> Chat je vždy viditelný v pravém dolním rohu</p>
+            <p><strong>Pokud chcete toggle tlačítko:</strong> Viz dokumentace <code>EMBED_EO_SMESI_DEPLOYMENT_GUIDE.md</code> → Varianta B</p>
+        </div>
+        
+        <div class="success-box">
+            <h3>✅ Po nasazení ověřte</h3>
+            <div class="feature">Chat se zobrazuje v pravém dolním rohu</div>
+            <div class="feature">Můžete poslat zprávu a dostanete odpověď</div>
+            <div class="feature">V Developer Console (F12) vidíte logy: "📋 User data načtena..."</div>
+            <div class="feature">V MedBase admin panelu vidíte nové zprávy v historii</div>
+            <div class="feature">User data obsahují e-shop token</div>
+        </div>
+
+        <div class="warning-box">
+            <h3>🔍 Debugging</h3>
+            <p><strong>Pokud chat nefunguje:</strong></p>
+            <ol style="margin-left:20px; margin-top:10px;">
+                <li>Otevřete Developer Console (F12)</li>
+                <li>Hledejte logy začínající "🔥 EMBED EO SMESI CHAT"</li>
+                <li>Zkontrolujte že vidíte: "📋 User data načtena z data-* atributů iframe"</li>
+                <li>Ověřte že všechny PHP proměnné existují (žádné PHP errors)</li>
+                <li>Zkontrolujte že URL <code>https://gr8learn.eu/embed-eo-smesi.html</code> je dostupná</li>
+            </ol>
+        </div>
+
+        <div class="purple-box">
+            <h3>📊 Co se děje s daty</h3>
+            <p>Všechna user data se automaticky:</p>
+            <ul style="margin-left:20px; margin-top:10px;">
+                <li>✅ Ukládají do Supabase databáze v tabulce <code>chat_messages</code></li>
+                <li>✅ Posílají do N8N webhooku pro zpracování AI</li>
+                <li>✅ Jsou dostupné v admin panelu MedBase</li>
+                <li>✅ Lze filtrovat podle emailu, ID, nebo tokenu</li>
+                <li>⚠️ Nejsou šifrovaná - nepoužívat pro hesla nebo platební údaje</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h3>📞 Podpora</h3>
+            <p>Pro technickou podporu kontaktujte:</p>
+            <ul style="margin-left:20px; margin-top:10px;">
+                <li><strong>Email:</strong> podpora@bewit.love</li>
+                <li><strong>Dokumentace:</strong> <code>EMBED_EO_SMESI_DEPLOYMENT_GUIDE.md</code></li>
+                <li><strong>Quick Start:</strong> <code>EMBED_EO_SMESI_QUICK_START.md</code></li>
+            </ul>
+        </div>
+
+        <div class="success-box">
+            <h3>🎉 To je vše!</h3>
+            <p>Po vložení kódu na váš web bude chat automaticky fungovat. Žádná další konfigurace není potřeba.</p>
+            <p style="margin-top:10px;"><strong>Změny v nastavení chatu</strong> (kategorie, štítky, AI model) se dělají v MedBase admin panelu a projeví se okamžitě bez nutnosti měnit kód na webu.</p>
+        </div>
+    </div>
+</body>
+</html>

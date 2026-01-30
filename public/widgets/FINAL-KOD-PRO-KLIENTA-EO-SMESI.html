@@ -1,0 +1,155 @@
+<!-- ========================================
+     EO SMĚSI CHAT WIDGET - IMPLEMENTACE
+     Pro vložení na Bewit.cz
+     ======================================== -->
+
+<!-- 1️⃣ Simulace user dat z backendu (PHP/Laravel) -->
+<script>
+// Na produkci by user data šla z backendu
+const CURRENT_USER = {
+    id: '<?php echo $user->id; ?>',         // Z backendu
+    email: '<?php echo $user->email; ?>',   // Z backendu
+    firstName: '<?php echo $user->firstName; ?>',  // Z backendu
+    lastName: '<?php echo $user->lastName; ?>',    // Z backendu
+    tokenEshop: '<?php echo $user->bewitToken; ?>'  // ⚠️ DŮLEŽITÉ - E-shop token
+};
+console.log('👤 Current user:', CURRENT_USER);
+</script>
+
+<!-- 2️⃣ Dlaždice s tlačítkem -->
+<div id="eo-smesi-chat-tile" style="position:relative;background-image:url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/ChatGPT%20Image%20Jan%2029,%202026,%2012_00_25%20PM.png');background-size:cover;background-position:center;border-radius:24px;padding:40px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1);max-width:420px;margin:0 auto;text-align:center;overflow:hidden;">
+  
+  <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:1;"></div>
+  
+  <h2 style="position:relative;z-index:2;font-size:28px;color:#ffffff;margin:0 0 16px 0;text-shadow:0 2px 4px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    Poradce na směsi esenciálních olejů
+  </h2>
+  
+  <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:24px;">
+    <p style="color:#e2e8f0;line-height:1.6;font-size:16px;margin:0;text-shadow:0 1px 3px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      Náš asistent na esenciální oleje dodá informace a poradí s výběrem produktu
+    </p>
+    
+    <button
+      id="eo-smesi-chat-open-btn"
+      onclick="openEOSmesiChat()"
+      style="width:180px;height:51px;border-radius:15px;cursor:pointer;transition:0.3s ease;background:linear-gradient(to bottom right,#2e8eff 0%,rgba(46,142,255,0) 30%);background-color:rgba(46,142,255,0.2);border:none;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"
+      onmouseover="this.style.backgroundColor='rgba(46,142,255,0.7)';this.style.boxShadow='0 0 10px rgba(46,142,255,0.5)'"
+      onmouseout="this.style.backgroundColor='rgba(46,142,255,0.2)';this.style.boxShadow='none'"
+    >
+      <div style="width:176px;height:47px;border-radius:13px;background-color:#079854;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        Spustit Chat
+      </div>
+    </button>
+  </div>
+</div>
+
+<!-- 3️⃣ Overlay pozadí (tmavé pozadí za modálem) -->
+<div
+  id="eo-smesi-chat-overlay"
+  onclick="closeEOSmesiChat()"
+  style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"
+></div>
+
+<!-- 4️⃣ Chat Modal Wrapper (pro správné umístění křížku) -->
+<div
+  id="eo-smesi-chat-wrapper"
+  style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;"
+>
+  <!-- Nenápadný zavírací křížek (mimo modal, těsně u rohu) -->
+  <button
+    id="eo-smesi-close-btn"
+    onclick="closeEOSmesiChat()"
+    style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;font-family:sans-serif;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;"
+    onmouseover="this.style.opacity='1';this.style.background='rgba(0,0,0,0.9)'"
+    onmouseout="this.style.opacity='0.8';this.style.background='rgba(0,0,0,0.6)'"
+  >✕</button>
+
+  <div
+    id="eo-smesi-chat-modal"
+    style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;"
+  >
+    <iframe
+      id="eo-smesi-chat-iframe"
+      src="https://gr8learn.eu/embed-eo-smesi.html"
+      style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;"
+      allow="clipboard-write"
+      title="EO Směsi Chat"
+    ></iframe>
+  </div>
+</div>
+
+<!-- 5️⃣ JavaScript funkce -->
+<script>
+// Otevřít chat
+function openEOSmesiChat() {
+  const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+  const overlay = document.getElementById('eo-smesi-chat-overlay');
+  
+  // Zobraz overlay
+  overlay.style.visibility = 'visible';
+  overlay.style.opacity = '1';
+  
+  // Zobraz wrapper s animací
+  wrapper.style.visibility = 'visible';
+  setTimeout(() => {
+    wrapper.style.opacity = '1';
+    wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+  }, 10);
+  
+  console.log('✅ EO Směsi Chat otevřen');
+}
+
+// Zavřít chat
+function closeEOSmesiChat() {
+  const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+  const overlay = document.getElementById('eo-smesi-chat-overlay');
+  
+  // Skryj s animací
+  wrapper.style.opacity = '0';
+  wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+  overlay.style.opacity = '0';
+  
+  setTimeout(() => {
+    wrapper.style.visibility = 'hidden';
+    overlay.style.visibility = 'hidden';
+  }, 300);
+  
+  console.log('❌ EO Směsi Chat zavřen');
+}
+
+// Klávesová zkratka ESC pro zavření
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+    if (wrapper && wrapper.style.visibility === 'visible') {
+      closeEOSmesiChat();
+    }
+  }
+});
+</script>
+
+<!-- 6️⃣ Automatické odeslání user dat do iframe -->
+<script>
+(function() {
+  const iframe = document.getElementById('eo-smesi-chat-iframe');
+  if (!iframe) return;
+  iframe.addEventListener('load', function() {
+    iframe.contentWindow.postMessage({
+      type: 'USER_DATA',
+      user: {
+        id: '<?php echo $user->id; ?>',
+        firstName: '<?php echo htmlspecialchars($user->firstName); ?>',
+        lastName: '<?php echo htmlspecialchars($user->lastName); ?>',
+        email: '<?php echo htmlspecialchars($user->email); ?>',
+        position: '<?php echo htmlspecialchars($user->position); ?>',
+        tokenEshop: '<?php echo htmlspecialchars($user->bewitToken); ?>'
+      }
+    }, 'https://gr8learn.eu');
+  });
+})();
+</script>
+
+<!-- ========================================
+     EO SMĚSI CHAT WIDGET - KONEC
+     ======================================== -->
