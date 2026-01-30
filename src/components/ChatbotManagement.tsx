@@ -3,6 +3,7 @@ import { ProductEmbeddingManager } from './ProductEmbeddingManager';
 import { ProductEmbeddingManagerFeed2 } from './ProductEmbeddingManagerFeed2';
 import ProductSyncAdmin from './SanaChat/ProductSync';
 import ProductChat from './ProductChat';
+import { MessageLimitsDashboard } from './MessageLimits';
 import { 
   ChatbotSettingsService, 
   ChatbotSettings, 
@@ -70,6 +71,15 @@ const IconSave = () => (
     </svg>
 );
 
+const IconDashboard = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7"></rect>
+        <rect x="14" y="3" width="7" height="7"></rect>
+        <rect x="14" y="14" width="7" height="7"></rect>
+        <rect x="3" y="14" width="7" height="7"></rect>
+    </svg>
+);
+
 interface Chatbot {
     id: string;
     name: string;
@@ -94,7 +104,7 @@ interface ChatbotManagementProps {
 }
 
 export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, onOpenChat }) => {
-    const [selectedTab, setSelectedTab] = useState<'chatbots' | 'product_feed' | 'settings'>('chatbots');
+    const [selectedTab, setSelectedTab] = useState<'chatbots' | 'product_feed' | 'settings' | 'dashboard'>('chatbots');
     
     // Nové state pro správu chatbotů z databáze
     const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings[]>([]);
@@ -397,6 +407,13 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                     >
                         <IconChatbot />
                         Chatboty
+                    </button>
+                    <button
+                        style={{ ...styles.tabButton, ...(selectedTab === 'dashboard' && styles.tabButtonActive) }}
+                        onClick={() => setSelectedTab('dashboard')}
+                    >
+                        <IconDashboard />
+                        Dashboard
                     </button>
                     <button
                         style={{ ...styles.tabButton, ...(selectedTab === 'product_feed' && styles.tabButtonActive) }}
@@ -852,6 +869,12 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {selectedTab === 'dashboard' && (
+                        <div style={styles.tabContent}>
+                            <MessageLimitsDashboard />
                         </div>
                     )}
 

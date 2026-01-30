@@ -1640,7 +1640,64 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     }, [chatbotSettings.product_recommendations]);
 
     const handleSendMessage = useCallback(async (text: string) => {
+        console.log('🚀 [PRVNÍ handleSendMessage] ZAVOLÁNA, text:', text.substring(0, 50));
+        
         if (!text.trim() || !sessionId) return;
+
+        // 🚫 KONTROLA DENNÍHO LIMITU ZPRÁV
+        console.log('🔍 Kontroluji limity pro chatbot:', chatbotId);
+        try {
+            const { supabase } = await import('../../lib/supabase');
+            const { data: limits, error } = await supabase
+                .from('message_limits')
+                .select('chatbot_id, daily_limit, current_count')
+                .or(`chatbot_id.eq.${chatbotId},chatbot_id.is.null`);
+
+            if (!error && limits && limits.length > 0) {
+                // 1️⃣ Kontrola GLOBÁLNÍHO limitu (má přednost!)
+                const globalLimit = limits.find(l => l.chatbot_id === null || !l.chatbot_id);
+                if (globalLimit && globalLimit.daily_limit !== null && globalLimit.current_count >= globalLimit.daily_limit) {
+                    console.log('🚫 Globální limit překročen:', { 
+                        current: globalLimit.current_count, 
+                        limit: globalLimit.daily_limit 
+                    });
+                    const errorMessage: ChatMessage = {
+                        id: Date.now().toString(),
+                        role: 'bot',
+                        text: 'Omlouváme se, ale denní počet zpráv je již vyčerpán. Nový limit bude dnes od 0:00.'
+                    };
+                    setMessages(prev => [...prev, errorMessage]);
+                    setIsLoading(false);
+                    return;
+                }
+
+                // 2️⃣ Kontrola INDIVIDUÁLNÍHO limitu chatbota
+                const chatbotLimit = limits.find(l => l.chatbot_id === chatbotId);
+                if (chatbotLimit && chatbotLimit.daily_limit !== null && chatbotLimit.current_count >= chatbotLimit.daily_limit) {
+                    console.log('🚫 Individuální limit překročen:', { 
+                        chatbot: chatbotId,
+                        current: chatbotLimit.current_count, 
+                        limit: chatbotLimit.daily_limit 
+                    });
+                    const errorMessage: ChatMessage = {
+                        id: Date.now().toString(),
+                        role: 'bot',
+                        text: 'Omlouváme se, ale denní počet zpráv je již vyčerpán. Nový limit bude dnes od 0:00.'
+                    };
+                    setMessages(prev => [...prev, errorMessage]);
+                    setIsLoading(false);
+                    return;
+                }
+                
+                console.log('✅ Limity OK, zpráva může projít:', {
+                    global: globalLimit ? `${globalLimit.current_count}/${globalLimit.daily_limit ?? '∞'}` : 'neexistuje',
+                    chatbot: chatbotLimit ? `${chatbotLimit.current_count}/${chatbotLimit.daily_limit ?? '∞'}` : 'neexistuje'
+                });
+            }
+        } catch (limitError) {
+            console.error('⚠️ Chyba při kontrole limitu zpráv:', limitError);
+            // Pokračuj i při chybě (fail-open) - lepší je poslat zprávu než blokovat kvůli chybě
+        }
 
         const userMessage: ChatMessage = { id: Date.now().toString(), role: 'user', text: text };
         const newMessages: ChatMessage[] = [...messages, userMessage];
@@ -2407,7 +2464,62 @@ const SanaChat: React.FC<SanaChatProps> = ({
     }, []);
 
     const handleSendMessage = useCallback(async (text: string) => {
+        console.log('🚀 handleSendMessage ZAVOLÁNA, text:', text.substring(0, 50));
+        
         if (!text.trim() || !sessionId) return;
+
+        // 🚫 KONTROLA DENNÍHO LIMITU ZPRÁV
+        console.log('🔍 Kontroluji limity pro chatbot:', chatbotId);
+        try {
+            const { supabase } = await import('../../lib/supabase');
+            const { data: limits, error } = await supabase
+                .from('message_limits')
+                .select('chatbot_id, daily_limit, current_count')
+                .or(`chatbot_id.eq.${chatbotId},chatbot_id.is.null`);
+
+            if (!error && limits && limits.length > 0) {
+                // 1️⃣ Kontrola GLOBÁLNÍHO limitu (má přednost!)
+                const globalLimit = limits.find(l => l.chatbot_id === null || !l.chatbot_id);
+                if (globalLimit && globalLimit.daily_limit !== null && globalLimit.current_count >= globalLimit.daily_limit) {
+                    console.log('🚫 Globální limit překročen:', { 
+                        current: globalLimit.current_count, 
+                        limit: globalLimit.daily_limit 
+                    });
+                    const errorMessage: ChatMessage = {
+                        id: Date.now().toString(),
+                        role: 'bot',
+                        text: 'Omlouváme se, ale denní počet zpráv je již vyčerpán. Nový limit bude dnes od 0:00.'
+                    };
+                    setMessages(prev => [...prev, errorMessage]);
+                    return;
+                }
+
+                // 2️⃣ Kontrola INDIVIDUÁLNÍHO limitu chatbota
+                const chatbotLimit = limits.find(l => l.chatbot_id === chatbotId);
+                if (chatbotLimit && chatbotLimit.daily_limit !== null && chatbotLimit.current_count >= chatbotLimit.daily_limit) {
+                    console.log('🚫 Individuální limit překročen:', { 
+                        chatbot: chatbotId,
+                        current: chatbotLimit.current_count, 
+                        limit: chatbotLimit.daily_limit 
+                    });
+                    const errorMessage: ChatMessage = {
+                        id: Date.now().toString(),
+                        role: 'bot',
+                        text: 'Omlouváme se, ale denní počet zpráv je již vyčerpán. Nový limit bude dnes od 0:00.'
+                    };
+                    setMessages(prev => [...prev, errorMessage]);
+                    return;
+                }
+                
+                console.log('✅ Limity OK, zpráva může projít:', {
+                    global: globalLimit ? `${globalLimit.current_count}/${globalLimit.daily_limit ?? '∞'}` : 'neexistuje',
+                    chatbot: chatbotLimit ? `${chatbotLimit.current_count}/${chatbotLimit.daily_limit ?? '∞'}` : 'neexistuje'
+                });
+            }
+        } catch (limitError) {
+            console.error('⚠️ Chyba při kontrole limitu zpráv:', limitError);
+            // Pokračuj i při chybě (fail-open) - lepší je poslat zprávu než blokovat kvůli chybě
+        }
 
         const userMessage: ChatMessage = { id: Date.now().toString(), role: 'user', text: text };
         const newMessages: ChatMessage[] = [...messages, userMessage];

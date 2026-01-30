@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase, supabaseUrl, supabaseKey } from '../../lib/supabase';
 import { 
   ChatbotSettingsService, 
   ChatbotSettings, 
@@ -46,6 +47,110 @@ const CancelIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+// 🆕 Komponenta pro zobrazení denního limitu v přehledu
+interface MessageLimitInfoProps {
+  chatbotId: string;
+}
+
+const MessageLimitInfo: React.FC<MessageLimitInfoProps> = ({ chatbotId }) => {
+  const [limitInfo, setLimitInfo] = useState<{
+    limit: number | null;
+    current: number;
+    loading: boolean;
+  }>({ limit: null, current: 0, loading: true });
+
+  useEffect(() => {
+    const loadLimit = async () => {
+      try {
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/check-message-limit`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({
+              chatbot_id: chatbotId,
+              action: 'check'
+            })
+          }
+        );
+        
+        const data = await response.json();
+        
+        if (data.chatbot) {
+          setLimitInfo({
+            limit: data.chatbot.limit,
+            current: data.chatbot.current,
+            loading: false
+          });
+        }
+      } catch (err) {
+        console.error('Chyba při načítání limitu:', err);
+        setLimitInfo(prev => ({ ...prev, loading: false }));
+      }
+    };
+
+    loadLimit();
+  }, [chatbotId]);
+
+  if (limitInfo.loading) {
+    return (
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <span className="text-xs text-gray-500">Načítám limit...</span>
+      </div>
+    );
+  }
+
+  if (limitInfo.limit === null) {
+    return (
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className="flex items-center text-sm">
+          <span className="font-medium text-gray-700">Denní limit:</span>
+          <span className="ml-2 px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
+            Bez limitu ∞
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const percentage = Math.round((limitInfo.current / limitInfo.limit) * 100);
+  const statusColor = 
+    percentage >= 95 ? 'bg-red-100 text-red-800' :
+    percentage >= 80 ? 'bg-orange-100 text-orange-800' :
+    percentage >= 60 ? 'bg-yellow-100 text-yellow-800' :
+    'bg-green-100 text-green-800';
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      <div className="flex items-center justify-between text-sm mb-2">
+        <span className="font-medium text-gray-700">Denní limit zpráv:</span>
+        <span className="text-gray-900 font-semibold">
+          {limitInfo.current} / {limitInfo.limit}
+        </span>
+      </div>
+      <div className="flex items-center space-x-2">
+        <div className="flex-1 bg-gray-200 rounded-full h-2">
+          <div
+            className={`h-2 rounded-full transition-all ${
+              percentage >= 95 ? 'bg-red-500' :
+              percentage >= 80 ? 'bg-orange-500' :
+              percentage >= 60 ? 'bg-yellow-500' :
+              'bg-green-500'
+            }`}
+            style={{ width: `${Math.min(percentage, 100)}%` }}
+          />
+        </div>
+        <span className={`px-2 py-1 rounded-full text-xs ${statusColor}`}>
+          {percentage}%
+        </span>
+      </div>
+    </div>
+  );
+};
+
 // Komponenta pro editaci/vytvoření nastavení chatbota
 interface ChatbotSettingsFormProps {
   chatbotSettings?: ChatbotSettings;
@@ -77,6 +182,15 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     summarize_history: chatbotSettings?.summarize_history ?? false,
   });
 
+  // 🆕 State pro denní limit zpráv
+  const [messageLimitState, setMessageLimitState] = useState({
+    daily_limit: null as number | null,
+    current_count: 0,
+    reset_at: null as string | null,
+    loading: false,
+    saving: false,
+  });
+
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [availablePublicationTypes, setAvailablePublicationTypes] = useState<PublicationType[]>([]);
   const [availableLabels, setAvailableLabels] = useState<Label[]>([]);
@@ -106,6 +220,49 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     loadData();
   }, []);
 
+  // 🆕 Načtení aktuálního limitu pro chatbot
+  useEffect(() => {
+    const loadMessageLimit = async () => {
+      if (!chatbotSettings?.chatbot_id) return;
+      
+      setMessageLimitState(prev => ({ ...prev, loading: true }));
+      
+      try {
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/check-message-limit`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({
+              chatbot_id: chatbotSettings.chatbot_id,
+              action: 'check'
+            })
+          }
+        );
+        
+        const data = await response.json();
+        
+        if (data.chatbot) {
+          setMessageLimitState(prev => ({
+            ...prev,
+            daily_limit: data.chatbot.limit,
+            current_count: data.chatbot.current,
+            reset_at: data.chatbot.reset_at,
+            loading: false
+          }));
+        }
+      } catch (err) {
+        console.error('Chyba při načítání limitu:', err);
+        setMessageLimitState(prev => ({ ...prev, loading: false }));
+      }
+    };
+
+    loadMessageLimit();
+  }, [chatbotSettings?.chatbot_id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -120,6 +277,37 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     } catch (err) {
       setError('Nepodařilo se uložit nastavení');
       console.error('Chyba při ukládání:', err);
+    }
+  };
+
+  // 🆕 Uložení denního limitu zpráv
+  const handleSaveMessageLimit = async () => {
+    if (!chatbotSettings?.chatbot_id) return;
+    
+    setMessageLimitState(prev => ({ ...prev, saving: true }));
+    
+    try {
+      // Použij upsert pro vytvoření nebo aktualizaci
+      const { error } = await supabase
+        .from('message_limits')
+        .upsert({
+          chatbot_id: chatbotSettings.chatbot_id,
+          daily_limit: messageLimitState.daily_limit,
+          current_count: messageLimitState.current_count,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'chatbot_id'
+        });
+      
+      if (error) throw error;
+      
+      alert('✅ Denní limit byl úspěšně uložen');
+      
+    } catch (err) {
+      console.error('Chyba při ukládání limitu:', err);
+      alert('❌ Nepodařilo se uložit denní limit');
+    } finally {
+      setMessageLimitState(prev => ({ ...prev, saving: false }));
     }
   };
 
@@ -360,6 +548,102 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
           </div>
         )}
 
+        {/* 🆕 Denní limit zpráv */}
+        {chatbotSettings && (
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">⏰ Denní limit zpráv</h3>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-gray-700 mb-4">
+                Nastavte maximální počet zpráv, které může tento chatbot zpracovat za jeden den. 
+                Limit se automaticky resetuje každý den o půlnoci (CET).
+              </p>
+              
+              {messageLimitState.loading ? (
+                <div className="text-sm text-gray-600">Načítám aktuální limit...</div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Input pro nastavení limitu */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Maximální počet zpráv za den
+                    </label>
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Např. 5000 (prázdné = bez limitu)"
+                        value={messageLimitState.daily_limit || ''}
+                        onChange={(e) => setMessageLimitState(prev => ({
+                          ...prev,
+                          daily_limit: e.target.value ? parseInt(e.target.value) : null
+                        }))}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveMessageLimit}
+                        disabled={messageLimitState.saving}
+                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                      >
+                        {messageLimitState.saving ? 'Ukládám...' : 'Uložit limit'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ponechte prázdné pro neomezený počet zpráv
+                    </p>
+                  </div>
+
+                  {/* Aktuální stav */}
+                  {messageLimitState.daily_limit !== null && (
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-700">Aktuální využití:</span>
+                        <span className="text-lg font-bold text-gray-900">
+                          {messageLimitState.current_count} / {messageLimitState.daily_limit || '∞'}
+                        </span>
+                      </div>
+                      
+                      {/* Progress bar */}
+                      {messageLimitState.daily_limit && (
+                        <>
+                          <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div
+                              className={`h-2 rounded-full transition-all ${
+                                (messageLimitState.current_count / messageLimitState.daily_limit) >= 0.95 ? 'bg-red-500' :
+                                (messageLimitState.current_count / messageLimitState.daily_limit) >= 0.80 ? 'bg-orange-500' :
+                                (messageLimitState.current_count / messageLimitState.daily_limit) >= 0.60 ? 'bg-yellow-500' :
+                                'bg-green-500'
+                              }`}
+                              style={{ 
+                                width: `${Math.min((messageLimitState.current_count / messageLimitState.daily_limit) * 100, 100)}%` 
+                              }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>{Math.round((messageLimitState.current_count / messageLimitState.daily_limit) * 100)}% využito</span>
+                            {messageLimitState.reset_at && (
+                              <span>Reset: {new Date(messageLimitState.reset_at).toLocaleString('cs-CZ')}</span>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Info pokud není limit */}
+                  {messageLimitState.daily_limit === null && (
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-sm text-gray-600">
+                        ℹ️ Tento chatbot nemá nastaven žádný denní limit zpráv.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Tlačítka */}
         <div className="flex justify-end space-x-3 pt-6 border-t">
           <button
@@ -591,6 +875,9 @@ const ChatbotSettingsManager: React.FC = () => {
                 </span>
               </div>
             </div>
+
+            {/* 🆕 Denní limit zpráv - info v přehledu */}
+            <MessageLimitInfo chatbotId={chatbot.chatbot_id} />
           </div>
         ))}
 
