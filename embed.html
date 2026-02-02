@@ -5,16 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wany Chat</title>
     
-    <!-- 🔥 PRVNÍ VĚC - LISTENER PŘED VŠÍM OSTATNÍM -->
+    <!-- 🔥 POSTMESSAGE LISTENER + IFRAME_READY SIGNÁL -->
     <script>
       window.__PENDING_USER_DATA__ = null;
+      
+      // Listener pro USER_DATA od klienta
       window.addEventListener('message', function(e) {
         console.log('🔥 ZPRÁVA:', e.data);
         if (e.data && e.data.type === 'USER_DATA' && e.data.user) {
           console.log('✅ DATA ZACHYCENA:', e.data.user);
           window.__PENDING_USER_DATA__ = e.data.user;
         }
-      }, true);
+      });
+      
+      // 🚀 Pošli IFRAME_READY signál rodičovskému oknu
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+        console.log('✅ IFRAME_READY signál odeslán');
+      }
+      
       console.log('✅ Listener aktivní');
     </script>
     
