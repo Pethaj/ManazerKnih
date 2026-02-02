@@ -15,6 +15,14 @@
         if (e.data && e.data.type === 'USER_DATA' && e.data.user) {
           console.log('✅ DATA ZACHYCENA:', e.data.user);
           window.__PENDING_USER_DATA__ = e.data.user;
+          
+          // 💾 OKAMŽITĚ uložit do localStorage
+          try {
+            localStorage.setItem('BEWIT_USER_DATA', JSON.stringify(e.data.user));
+            console.log('💾 [EARLY] User data uložena do localStorage');
+          } catch (err) {
+            console.error('❌ [EARLY] Chyba při ukládání do localStorage:', err);
+          }
         }
       });
       
