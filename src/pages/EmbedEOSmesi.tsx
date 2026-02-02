@@ -91,6 +91,64 @@ const EmbedEOSmesi = () => {
   useEffect(() => {
     console.log('🔥 EMBED EO SMESI CHAT - Loading settings...');
     
+    // 🆕 NEJDŘÍVE naslouchej postMessage - PŘED jakoukoliv jinou logikou!
+    const handleMessage = (event: MessageEvent) => {
+      // 🔍 DEBUG: Loguj VŠECHNY příchozí postMessage
+      console.log('📨 PostMessage přijata:', {
+        origin: event.origin,
+        type: event.data?.type,
+        hasUser: !!event.data?.user
+      });
+      
+      // 🔒 Bezpečnostní kontrola originu - přijímej jen z důvěryhodných domén
+      const allowedOrigins = [
+        'https://www.bewit.cz',
+        'https://bewit.cz',
+        'https://mybewit.com',  // Bewit intelligence
+        'https://www.mybewit.com',
+        'https://www.mybewit.cz',  // 🆕 Bewit CZ
+        'https://mybewit.cz',
+        // Pro testování (odstraň v produkci):
+        'http://localhost:3000',
+        'http://localhost:5173',  // Vite default
+        'http://localhost:5174',  // Tvůj custom
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:5174',
+      ];
+      
+      // Pokud origin není v allowlistu, loguj varování ale AKCEPTUJ zprávu (pro debugging)
+      if (!allowedOrigins.includes(event.origin)) {
+        console.warn('⚠️ PostMessage z neznámého originu (AKCEPTUJI PRO DEBUG):', event.origin);
+        console.warn('   Data zprávy:', event.data);
+        console.warn('   Povolené originy:', allowedOrigins);
+        // DOČASNĚ: Neblokuj zprávu - pro debugging
+        // return;
+      }
+      
+      // Validace struktury dat
+      if (event.data.type === 'USER_DATA' && event.data.user) {
+        console.log('✅ PostMessage PŘIJATA z důvěryhodného originu:', event.origin);
+        console.log('👤 User data:', event.data.user);
+        setUserContext(event.data.user);
+      }
+    };
+    
+    // 🔥 Zaregistruj listener IHNED jako první věc
+    window.addEventListener('message', handleMessage);
+    console.log('✅ PostMessage listener zaregistrován');
+    
+    // 🚀 READY SIGNÁL: Pošli rodičovskému oknu ihned, že iframe se načítá
+    const sendReadySignal = () => {
+      if (window.parent !== window) {
+        console.log('📤 Odesílám IFRAME_READY signál rodičovskému oknu...');
+        window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+        console.log('✅ IFRAME_READY signál odeslán');
+      }
+    };
+    
+    // 🔥 Pošli READY signál OKAMŽITĚ po mount
+    sendReadySignal();
+    
     // 🆕 Načti data přímo z data-* atributů iframe (pokud existují)
     const iframe = window.frameElement as HTMLIFrameElement | null;
     if (iframe) {
@@ -113,56 +171,6 @@ const EmbedEOSmesi = () => {
     } else {
       console.log('⚠️ window.frameElement není dostupný (možná není v iframe)');
     }
-    
-    // 🚀 READY SIGNÁL: Pošli rodičovskému oknu, že iframe je připraven
-    const sendReadySignal = () => {
-      if (window.parent !== window) {
-        console.log('📤 Odesílám IFRAME_READY signál rodičovskému oknu...');
-        window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
-        console.log('✅ IFRAME_READY signál odeslán');
-      }
-    };
-    
-    // 🆕 Naslouchej postMessage od rodiče (fallback nebo override pro data-* atributy)
-    const handleMessage = (event: MessageEvent) => {
-      // 🔍 DEBUG: Loguj VŠECHNY příchozí postMessage
-      console.log('📨 PostMessage přijata:', {
-        origin: event.origin,
-        type: event.data?.type,
-        hasUser: !!event.data?.user
-      });
-      
-      // 🔒 Bezpečnostní kontrola originu - přijímej jen z důvěryhodných domén
-      const allowedOrigins = [
-        'https://www.bewit.cz',
-        'https://bewit.cz',
-        'https://mybewit.com',  // Bewit intelligence
-        'https://www.mybewit.com',
-        // Pro testování (odstraň v produkci):
-        'http://localhost:3000',
-        'http://localhost:5173',  // Vite default
-        'http://localhost:5174',  // Tvůj custom
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:5174',
-      ];
-      
-      // Pokud origin není v allowlistu, ignoruj zprávu
-      if (!allowedOrigins.includes(event.origin)) {
-        console.warn('⚠️ PostMessage ODMÍTNUTA - nepovolený origin:', event.origin);
-        console.warn('   Data zprávy:', event.data);
-        console.warn('   Povolené originy:', allowedOrigins);
-        return;
-      }
-      
-      // Validace struktury dat
-      if (event.data.type === 'USER_DATA' && event.data.user) {
-        console.log('✅ PostMessage PŘIJATA z důvěryhodného originu:', event.origin);
-        console.log('👤 User data:', event.data.user);
-        setUserContext(event.data.user);
-      }
-    };
-    
-    window.addEventListener('message', handleMessage);
     
     const loadChatbotSettings = async () => {
       try {
@@ -206,10 +214,6 @@ const EmbedEOSmesi = () => {
         });
       } finally {
         setIsLoading(false);
-        // 🚀 Pošli READY signál AŽ PO dokončení načítání
-        setTimeout(() => {
-          sendReadySignal();
-        }, 500); // Malý delay pro jistotu, že React dokončil render
       }
     };
 
