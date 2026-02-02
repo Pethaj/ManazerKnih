@@ -20,8 +20,8 @@
       
       // 🚀 Pošli IFRAME_READY signál rodičovskému oknu
       if (window.parent !== window) {
-        window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
-        console.log('✅ IFRAME_READY signál odeslán');
+        window.parent.postMessage({ type: 'IFRAME_READY', chatId: 'eo_smesi' }, '*');
+        console.log('✅ IFRAME_READY signál odeslán (eo_smesi)');
       }
       
       console.log('✅ Listener aktivní');

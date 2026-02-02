@@ -1,0 +1,302 @@
+<!-- ========================================
+     BEWIT INTELLIGENCE - OBA CHATBOTY
+     Kompletní integrace pro Bewit web
+     ======================================== -->
+
+<!-- 1️⃣ Simulace user dat z backendu (PHP/Laravel) -->
+<script>
+// Na produkci by user data šla z backendu
+const CURRENT_USER = {
+    id: '<?php echo $user->id; ?>',
+    email: '<?php echo $user->email; ?>',
+    firstName: '<?php echo $user->firstName; ?>',
+    lastName: '<?php echo $user->lastName; ?>',
+    position: '<?php echo $user->bbo?.bbo_position_id ? BBO_POSITIONS[$user->bbo->bbo_position_id] : ""; ?>',
+    tokenEshop: '<?php echo $user->bewitToken; ?>'
+};
+console.log('👤 Current user:', CURRENT_USER);
+</script>
+
+<!-- ========================================
+     GLOBÁLNÍ IFRAME_READY LISTENER
+     ⚠️ DŮLEŽITÉ: Tento kód se vloží JEN JEDNOU na stránku
+     ======================================== -->
+<script>
+(function() {
+  const GR8_ORIGIN = 'https://gr8learn.eu';
+  const sentTo = new WeakSet(); // Deduplikace - poslat jen 1× do každého iframe
+
+  // Listener pro IFRAME_READY signál z obou chatů
+  window.addEventListener('message', function(event) {
+    // Kontrola originu - přijímej jen z gr8learn.eu
+    if (event.origin !== GR8_ORIGIN) return;
+    
+    // Kontrola že je to IFRAME_READY zpráva
+    if (!event.data || event.data.type !== 'IFRAME_READY') return;
+    
+    // Kontrola že máme event.source (okno iframe)
+    if (!event.source) return;
+    
+    // Deduplikace - pokud už jsme do tohoto iframe posílali, ignoruj
+    if (sentTo.has(event.source)) {
+      console.log('⚠️ IFRAME_READY duplicitní, ignoruji (chatId:', event.data.chatId, ')');
+      return;
+    }
+    
+    console.log('✅ IFRAME_READY přijato z chatu:', event.data.chatId);
+    
+    // Připrav user data payload
+    const userData = {
+      type: 'USER_DATA',
+      user: {
+        id: CURRENT_USER.id || '',
+        firstName: CURRENT_USER.firstName || '',
+        lastName: CURRENT_USER.lastName || '',
+        email: CURRENT_USER.email || '',
+        position: CURRENT_USER.position || '',
+        tokenEshop: CURRENT_USER.tokenEshop || ''
+      }
+    };
+    
+    // Pošli user data PŘESNĚ do toho iframe, které READY poslalo
+    event.source.postMessage(userData, event.origin);
+    
+    // Zaznamenej, že jsme do tohoto iframe už posílali
+    sentTo.add(event.source);
+    
+    console.log('📤 User data poslána do', event.data.chatId, ':', userData.user);
+  });
+  
+  console.log('✅ Globální IFRAME_READY listener zaregistrován');
+})();
+</script>
+
+<!-- ========================================
+     WANY CHAT (Poradce na čínské wany)
+     ======================================== -->
+
+<!-- Dlaždice Wany Chat -->
+<div id="wany-chat-tile" style="position:relative;background-image:url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/ChatGPT%20Image%20Jan%2029,%202026,%2011_59_38%20AM.png');background-size:cover;background-position:center;border-radius:24px;padding:40px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1);max-width:420px;min-height:280px;margin:0 auto;text-align:center;overflow:hidden;">
+  
+  <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:1;"></div>
+  
+  <h2 style="position:relative;z-index:2;font-size:28px;color:#ffffff;margin:0 0 16px 0;text-shadow:0 2px 4px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    Poradce na čínské wany
+  </h2>
+  
+  <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:24px;">
+    <p style="color:#e2e8f0;line-height:1.6;font-size:16px;margin:0;text-shadow:0 1px 3px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      Náš asistent na wany dodá informace a poradí s výběrem produktu
+    </p>
+    
+    <button
+      id="wany-chat-open-btn"
+      onclick="openWanyChat()"
+      style="width:180px;height:51px;border-radius:15px;cursor:pointer;transition:0.3s ease;background:linear-gradient(to bottom right,#2e8eff 0%,rgba(46,142,255,0) 30%);background-color:rgba(46,142,255,0.2);border:none;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"
+      onmouseover="this.style.backgroundColor='rgba(46,142,255,0.7)';this.style.boxShadow='0 0 10px rgba(46,142,255,0.5)'"
+      onmouseout="this.style.backgroundColor='rgba(46,142,255,0.2)';this.style.boxShadow='none'"
+    >
+      <div style="width:176px;height:47px;border-radius:13px;background-color:#079854;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        Spustit Chat
+      </div>
+    </button>
+  </div>
+</div>
+
+<!-- Overlay pozadí Wany Chat -->
+<div
+  id="wany-chat-overlay"
+  onclick="closeWanyChat()"
+  style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"
+></div>
+
+<!-- Chat Modal Wrapper Wany Chat -->
+<div
+  id="wany-chat-wrapper"
+  style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;"
+>
+  <button
+    id="wany-close-btn"
+    onclick="closeWanyChat()"
+    style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;font-family:sans-serif;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;"
+    onmouseover="this.style.opacity='1';this.style.background='rgba(0,0,0,0.9)'"
+    onmouseout="this.style.opacity='0.8';this.style.background='rgba(0,0,0,0.6)'"
+  >✕</button>
+
+  <div
+    id="wany-chat-modal"
+    style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;"
+  >
+    <iframe
+      id="wany-chat-iframe"
+      src="https://gr8learn.eu/embed.html"
+      style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;"
+      allow="clipboard-write"
+      title="Wany Chat"
+    ></iframe>
+  </div>
+</div>
+
+<!-- Wany Chat JavaScript funkce -->
+<script>
+function openWanyChat() {
+  const wrapper = document.getElementById('wany-chat-wrapper');
+  const overlay = document.getElementById('wany-chat-overlay');
+  
+  overlay.style.visibility = 'visible';
+  overlay.style.opacity = '1';
+  
+  wrapper.style.visibility = 'visible';
+  setTimeout(() => {
+    wrapper.style.opacity = '1';
+    wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+  }, 10);
+  
+  document.body.style.overflow = 'hidden';
+  console.log('✅ Wany Chat otevřen');
+}
+
+function closeWanyChat() {
+  const wrapper = document.getElementById('wany-chat-wrapper');
+  const overlay = document.getElementById('wany-chat-overlay');
+  
+  wrapper.style.opacity = '0';
+  wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+  overlay.style.opacity = '0';
+  
+  setTimeout(() => {
+    wrapper.style.visibility = 'hidden';
+    overlay.style.visibility = 'hidden';
+  }, 300);
+  
+  document.body.style.overflow = '';
+  console.log('❌ Wany Chat zavřen');
+}
+
+// ESC klávesa pro Wany Chat
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const wrapper = document.getElementById('wany-chat-wrapper');
+    if (wrapper && wrapper.style.visibility === 'visible') {
+      closeWanyChat();
+    }
+  }
+});
+</script>
+
+<!-- ========================================
+     EO SMĚSI CHAT (Poradce na směsi esenciálních olejů)
+     ======================================== -->
+
+<!-- Dlaždice EO Směsi Chat -->
+<div id="eo-smesi-chat-tile" style="position:relative;background-image:url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/ChatGPT%20Image%20Jan%2029,%202026,%2012_00_25%20PM.png');background-size:cover;background-position:center;border-radius:24px;padding:40px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1);max-width:420px;min-height:280px;margin:0 auto;text-align:center;overflow:hidden;">
+  
+  <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:1;"></div>
+  
+  <h2 style="position:relative;z-index:2;font-size:28px;color:#ffffff;margin:0 0 16px 0;text-shadow:0 2px 4px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    Poradce na směsi esenciálních olejů
+  </h2>
+  
+  <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:24px;">
+    <p style="color:#e2e8f0;line-height:1.6;font-size:16px;margin:0;text-shadow:0 1px 3px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      Náš asistent na esenciální oleje dodá informace a poradí s výběrem produktu
+    </p>
+    
+    <button
+      id="eo-smesi-chat-open-btn"
+      onclick="openEOSmesiChat()"
+      style="width:180px;height:51px;border-radius:15px;cursor:pointer;transition:0.3s ease;background:linear-gradient(to bottom right,#2e8eff 0%,rgba(46,142,255,0) 30%);background-color:rgba(46,142,255,0.2);border:none;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"
+      onmouseover="this.style.backgroundColor='rgba(46,142,255,0.7)';this.style.boxShadow='0 0 10px rgba(46,142,255,0.5)'"
+      onmouseout="this.style.backgroundColor='rgba(46,142,255,0.2)';this.style.boxShadow='none'"
+    >
+      <div style="width:176px;height:47px;border-radius:13px;background-color:#079854;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        Spustit Chat
+      </div>
+    </button>
+  </div>
+</div>
+
+<!-- Overlay pozadí EO Směsi Chat -->
+<div
+  id="eo-smesi-chat-overlay"
+  onclick="closeEOSmesiChat()"
+  style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"
+></div>
+
+<!-- Chat Modal Wrapper EO Směsi Chat -->
+<div
+  id="eo-smesi-chat-wrapper"
+  style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;"
+>
+  <button
+    id="eo-smesi-close-btn"
+    onclick="closeEOSmesiChat()"
+    style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;font-family:sans-serif;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;"
+    onmouseover="this.style.opacity='1';this.style.background='rgba(0,0,0,0.9)'"
+    onmouseout="this.style.opacity='0.8';this.style.background='rgba(0,0,0,0.6)'"
+  >✕</button>
+
+  <div
+    id="eo-smesi-chat-modal"
+    style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;"
+  >
+    <iframe
+      id="eo-smesi-chat-iframe"
+      src="https://gr8learn.eu/embed-eo-smesi.html"
+      style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;"
+      allow="clipboard-write"
+      title="EO Směsi Chat"
+    ></iframe>
+  </div>
+</div>
+
+<!-- EO Směsi Chat JavaScript funkce -->
+<script>
+function openEOSmesiChat() {
+  const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+  const overlay = document.getElementById('eo-smesi-chat-overlay');
+  
+  overlay.style.visibility = 'visible';
+  overlay.style.opacity = '1';
+  
+  wrapper.style.visibility = 'visible';
+  setTimeout(() => {
+    wrapper.style.opacity = '1';
+    wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+  }, 10);
+  
+  document.body.style.overflow = 'hidden';
+  console.log('✅ EO Směsi Chat otevřen');
+}
+
+function closeEOSmesiChat() {
+  const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+  const overlay = document.getElementById('eo-smesi-chat-overlay');
+  
+  wrapper.style.opacity = '0';
+  wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+  overlay.style.opacity = '0';
+  
+  setTimeout(() => {
+    wrapper.style.visibility = 'hidden';
+    overlay.style.visibility = 'hidden';
+  }, 300);
+  
+  document.body.style.overflow = '';
+  console.log('❌ EO Směsi Chat zavřen');
+}
+
+// ESC klávesa pro EO Směsi Chat
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+    if (wrapper && wrapper.style.visibility === 'visible') {
+      closeEOSmesiChat();
+    }
+  }
+});
+</script>
+
+<!-- ========================================
+     KONEC INTEGRACE
+     ======================================== -->

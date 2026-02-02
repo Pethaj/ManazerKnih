@@ -178,12 +178,8 @@ const EmbedEOSmesi = () => {
     window.addEventListener('message', handleMessage);
     console.log('✅ PostMessage listener zaregistrován');
     
-    // 🚀 READY SIGNÁL: Pošli rodičovskému oknu ihned, že iframe je ready
-    if (window.parent !== window) {
-      console.log('📤 Odesílám IFRAME_READY signál rodičovskému oknu...');
-      window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
-      console.log('✅ IFRAME_READY signál odeslán');
-    }
+    // ℹ️ IFRAME_READY se posílá pouze z early scriptu v embed-eo-smesi.html (ne zde z Reactu)
+    // Tím se zabrání duplicitnímu posílání READY signálu
     
     // 🆕 Načti data přímo z data-* atributů iframe (pokud existují)
     const iframe = window.frameElement as HTMLIFrameElement | null;

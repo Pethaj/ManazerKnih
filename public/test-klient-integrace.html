@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bewit Intelligence - Test Integrace</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 60px;
+        }
+        
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 16px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        
+        .chats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .console-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        }
+        
+        .console-output h3 {
+            color: #4ec9b0;
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+        
+        .console-line {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+        
+        .console-line.success { color: #4ec9b0; }
+        .console-line.info { color: #9cdcfe; }
+        .console-line.warning { color: #dcdcaa; }
+        .console-line.error { color: #f48771; }
+        
+        @media (max-width: 768px) {
+            .chats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Bewit Intelligence</h1>
+            <p>Test integrace obou chatbotů s IFRAME_READY listenrem</p>
+        </div>
+        
+        <div class="chats-grid">
+            <!-- Wany Chat Tile -->
+            <div id="wany-chat-tile" style="position:relative;background-image:url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/ChatGPT%20Image%20Jan%2029,%202026,%2011_59_38%20AM.png');background-size:cover;background-position:center;border-radius:24px;padding:40px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1);text-align:center;overflow:hidden;">
+                <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:1;"></div>
+                
+                <h2 style="position:relative;z-index:2;font-size:28px;color:#ffffff;margin:0 0 16px 0;text-shadow:0 2px 4px rgba(0,0,0,0.3);">
+                    Poradce na čínské wany
+                </h2>
+                
+                <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:24px;">
+                    <p style="color:#e2e8f0;line-height:1.6;font-size:16px;margin:0;text-shadow:0 1px 3px rgba(0,0,0,0.3);">
+                        Náš asistent na wany dodá informace a poradí s výběrem produktu
+                    </p>
+                    
+                    <button
+                        onclick="openWanyChat()"
+                        style="width:180px;height:51px;border-radius:15px;cursor:pointer;transition:0.3s ease;background:linear-gradient(to bottom right,#2e8eff 0%,rgba(46,142,255,0) 30%);background-color:rgba(46,142,255,0.2);border:none;display:inline-flex;align-items:center;justify-content:center;"
+                        onmouseover="this.style.backgroundColor='rgba(46,142,255,0.7)'"
+                        onmouseout="this.style.backgroundColor='rgba(46,142,255,0.2)'"
+                    >
+                        <div style="width:176px;height:47px;border-radius:13px;background-color:#079854;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;">
+                            Spustit Chat
+                        </div>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- EO Směsi Chat Tile -->
+            <div id="eo-smesi-chat-tile" style="position:relative;background-image:url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/ChatGPT%20Image%20Jan%2029,%202026,%2012_00_25%20PM.png');background-size:cover;background-position:center;border-radius:24px;padding:40px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1);text-align:center;overflow:hidden;">
+                <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:1;"></div>
+                
+                <h2 style="position:relative;z-index:2;font-size:28px;color:#ffffff;margin:0 0 16px 0;text-shadow:0 2px 4px rgba(0,0,0,0.3);">
+                    Poradce na směsi esenciálních olejů
+                </h2>
+                
+                <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:24px;">
+                    <p style="color:#e2e8f0;line-height:1.6;font-size:16px;margin:0;text-shadow:0 1px 3px rgba(0,0,0,0.3);">
+                        Náš asistent na esenciální oleje dodá informace a poradí s výběrem produktu
+                    </p>
+                    
+                    <button
+                        onclick="openEOSmesiChat()"
+                        style="width:180px;height:51px;border-radius:15px;cursor:pointer;transition:0.3s ease;background:linear-gradient(to bottom right,#2e8eff 0%,rgba(46,142,255,0) 30%);background-color:rgba(46,142,255,0.2);border:none;display:inline-flex;align-items:center;justify-content:center;"
+                        onmouseover="this.style.backgroundColor='rgba(46,142,255,0.7)'"
+                        onmouseout="this.style.backgroundColor='rgba(46,142,255,0.2)'"
+                    >
+                        <div style="width:176px;height:47px;border-radius:13px;background-color:#079854;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;">
+                            Spustit Chat
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Console Output -->
+        <div class="console-output">
+            <h3>📊 Console Output (otevři DevTools F12 pro detaily)</h3>
+            <div id="console-log"></div>
+        </div>
+    </div>
+    
+    <!-- User Data -->
+    <script>
+        const CURRENT_USER = {
+            id: '170107',
+            email: 'test@bewit.cz',
+            firstName: 'Jan',
+            lastName: 'Testovací',
+            position: 'Supervisor',
+            tokenEshop: 'test-token-123'
+        };
+        console.log('👤 Current user:', CURRENT_USER);
+        logToConsole('👤 Current user: ' + JSON.stringify(CURRENT_USER), 'info');
+    </script>
+    
+    <!-- Globální IFRAME_READY Listener -->
+    <script>
+        (function() {
+            const GR8_ORIGIN = 'https://gr8learn.eu';
+            const sentTo = new WeakSet();
+            
+            window.addEventListener('message', function(event) {
+                if (event.origin !== GR8_ORIGIN) return;
+                if (!event.data || event.data.type !== 'IFRAME_READY') return;
+                if (!event.source) return;
+                
+                if (sentTo.has(event.source)) {
+                    console.log('⚠️ IFRAME_READY duplicitní, ignoruji (chatId:', event.data.chatId, ')');
+                    logToConsole('⚠️ IFRAME_READY duplicitní, ignoruji (chatId: ' + event.data.chatId + ')', 'warning');
+                    return;
+                }
+                
+                console.log('✅ IFRAME_READY přijato z chatu:', event.data.chatId);
+                logToConsole('✅ IFRAME_READY přijato z chatu: ' + event.data.chatId, 'success');
+                
+                const userData = {
+                    type: 'USER_DATA',
+                    user: {
+                        id: CURRENT_USER.id || '',
+                        firstName: CURRENT_USER.firstName || '',
+                        lastName: CURRENT_USER.lastName || '',
+                        email: CURRENT_USER.email || '',
+                        position: CURRENT_USER.position || '',
+                        tokenEshop: CURRENT_USER.tokenEshop || ''
+                    }
+                };
+                
+                event.source.postMessage(userData, event.origin);
+                sentTo.add(event.source);
+                
+                console.log('📤 User data poslána do', event.data.chatId, ':', userData.user);
+                logToConsole('📤 User data poslána do ' + event.data.chatId, 'success');
+            });
+            
+            console.log('✅ Globální IFRAME_READY listener zaregistrován');
+            logToConsole('✅ Globální IFRAME_READY listener zaregistrován', 'success');
+        })();
+        
+        function logToConsole(message, type = 'info') {
+            const consoleLog = document.getElementById('console-log');
+            const line = document.createElement('div');
+            line.className = 'console-line ' + type;
+            line.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            consoleLog.appendChild(line);
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
+    </script>
+    
+    <!-- Wany Chat Modal -->
+    <div id="wany-chat-overlay" onclick="closeWanyChat()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"></div>
+    
+    <div id="wany-chat-wrapper" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;">
+        <button onclick="closeWanyChat()" style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.background='rgba(0,0,0,0.9)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'">✕</button>
+        
+        <div style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;">
+            <iframe id="wany-chat-iframe" src="https://gr8learn.eu/embed.html" style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;" allow="clipboard-write" title="Wany Chat"></iframe>
+        </div>
+    </div>
+    
+    <!-- EO Směsi Chat Modal -->
+    <div id="eo-smesi-chat-overlay" onclick="closeEOSmesiChat()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"></div>
+    
+    <div id="eo-smesi-chat-wrapper" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;">
+        <button onclick="closeEOSmesiChat()" style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.background='rgba(0,0,0,0.9)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'">✕</button>
+        
+        <div style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;">
+            <iframe id="eo-smesi-chat-iframe" src="https://gr8learn.eu/embed-eo-smesi.html" style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;" allow="clipboard-write" title="EO Směsi Chat"></iframe>
+        </div>
+    </div>
+    
+    <!-- JavaScript Functions -->
+    <script>
+        function openWanyChat() {
+            const wrapper = document.getElementById('wany-chat-wrapper');
+            const overlay = document.getElementById('wany-chat-overlay');
+            
+            overlay.style.visibility = 'visible';
+            overlay.style.opacity = '1';
+            wrapper.style.visibility = 'visible';
+            
+            setTimeout(() => {
+                wrapper.style.opacity = '1';
+                wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+            }, 10);
+            
+            document.body.style.overflow = 'hidden';
+            console.log('✅ Wany Chat otevřen');
+            logToConsole('✅ Wany Chat otevřen', 'success');
+        }
+        
+        function closeWanyChat() {
+            const wrapper = document.getElementById('wany-chat-wrapper');
+            const overlay = document.getElementById('wany-chat-overlay');
+            
+            wrapper.style.opacity = '0';
+            wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+            overlay.style.opacity = '0';
+            
+            setTimeout(() => {
+                wrapper.style.visibility = 'hidden';
+                overlay.style.visibility = 'hidden';
+            }, 300);
+            
+            document.body.style.overflow = '';
+            console.log('❌ Wany Chat zavřen');
+            logToConsole('❌ Wany Chat zavřen', 'info');
+        }
+        
+        function openEOSmesiChat() {
+            const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+            const overlay = document.getElementById('eo-smesi-chat-overlay');
+            
+            overlay.style.visibility = 'visible';
+            overlay.style.opacity = '1';
+            wrapper.style.visibility = 'visible';
+            
+            setTimeout(() => {
+                wrapper.style.opacity = '1';
+                wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+            }, 10);
+            
+            document.body.style.overflow = 'hidden';
+            console.log('✅ EO Směsi Chat otevřen');
+            logToConsole('✅ EO Směsi Chat otevřen', 'success');
+        }
+        
+        function closeEOSmesiChat() {
+            const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+            const overlay = document.getElementById('eo-smesi-chat-overlay');
+            
+            wrapper.style.opacity = '0';
+            wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+            overlay.style.opacity = '0';
+            
+            setTimeout(() => {
+                wrapper.style.visibility = 'hidden';
+                overlay.style.visibility = 'hidden';
+            }, 300);
+            
+            document.body.style.overflow = '';
+            console.log('❌ EO Směsi Chat zavřen');
+            logToConsole('❌ EO Směsi Chat zavřen', 'info');
+        }
+        
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const wanyWrapper = document.getElementById('wany-chat-wrapper');
+                const eoWrapper = document.getElementById('eo-smesi-chat-wrapper');
+                
+                if (wanyWrapper && wanyWrapper.style.visibility === 'visible') {
+                    closeWanyChat();
+                } else if (eoWrapper && eoWrapper.style.visibility === 'visible') {
+                    closeEOSmesiChat();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
