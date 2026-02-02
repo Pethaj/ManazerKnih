@@ -89,10 +89,20 @@ const EmbedVanyChat = () => {
   useEffect(() => {
     console.log('🔥 EMBED VANY CHAT - Loading settings...');
     
+    // 🔥 DEBUG: Global listener pro VŠECHNY postMessage
+    const globalDebugListener = (event: MessageEvent) => {
+      console.log('🌍 [GLOBAL DEBUG] Jakákoliv postMessage zachycena:', {
+        origin: event.origin,
+        data: event.data,
+        source: event.source === window.parent ? 'parent' : 'other'
+      });
+    };
+    window.addEventListener('message', globalDebugListener);
+    
     // 🆕 NEJDŘÍVE naslouchej postMessage - PŘED jakoukoliv jinou logikou!
     const handleMessage = (event: MessageEvent) => {
       // 🔍 DEBUG: Loguj VŠECHNY příchozí postMessage
-      console.log('📨 PostMessage přijata:', {
+      console.log('📨 PostMessage přijata v handleru:', {
         origin: event.origin,
         type: event.data?.type,
         hasUser: !!event.data?.user
@@ -219,6 +229,7 @@ const EmbedVanyChat = () => {
     
     // Cleanup
     return () => {
+      window.removeEventListener('message', globalDebugListener);
       window.removeEventListener('message', handleMessage);
     };
   }, []);
