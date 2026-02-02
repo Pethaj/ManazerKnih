@@ -91,7 +91,7 @@ const EmbedEOSmesi = () => {
   useEffect(() => {
     console.log('🔥 EMBED EO SMESI CHAT - Loading settings...');
     
-    // ✅ PRVNÍ: Zkontroluj jestli už data čekají v globální cache (z early listeneru)
+    // ✅ PRVNÍ: Zkontroluj jestli už data čekají v globální cache (z early listeneru v HTML)
     if (window.__PENDING_USER_DATA__) {
       console.log('🎉 [EO SMESI] Nalezena CACHED user data z early listeneru:', window.__PENDING_USER_DATA__);
       setUserContext({
@@ -105,97 +105,6 @@ const EmbedEOSmesi = () => {
       window.__PENDING_USER_DATA__ = null; // Vyčisti cache
     } else {
       console.log('ℹ️ [EO SMESI] Žádná cached data nenalezena, čekám na postMessage...');
-    }
-    
-    // 🔥 DEBUG: Global listener pro VŠECHNY postMessage
-    const globalDebugListener = (event: MessageEvent) => {
-      console.log('🌍 [GLOBAL DEBUG] Jakákoliv postMessage zachycena:', {
-        origin: event.origin,
-        data: event.data,
-        source: event.source === window.parent ? 'parent' : 'other'
-      });
-    };
-    window.addEventListener('message', globalDebugListener);
-    
-    // 🆕 NEJDŘÍVE naslouchej postMessage - PŘED jakoukoliv jinou logikou!
-    const handleMessage = (event: MessageEvent) => {
-      // 🔍 DEBUG: Loguj VŠECHNY příchozí postMessage
-      console.log('📨 PostMessage přijata v handleru:', {
-        origin: event.origin,
-        type: event.data?.type,
-        hasUser: !!event.data?.user
-      });
-      
-      // 🔒 Bezpečnostní kontrola originu - přijímej jen z důvěryhodných domén
-      const allowedOrigins = [
-        'https://www.bewit.cz',
-        'https://bewit.cz',
-        'https://mybewit.com',  // Bewit intelligence
-        'https://www.mybewit.com',
-        'https://www.mybewit.cz',  // 🆕 Bewit CZ
-        'https://mybewit.cz',
-        // Pro testování (odstraň v produkci):
-        'http://localhost:3000',
-        'http://localhost:5173',  // Vite default
-        'http://localhost:5174',  // Tvůj custom
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:5174',
-      ];
-      
-      // Pokud origin není v allowlistu, loguj varování ale AKCEPTUJ zprávu (pro debugging)
-      if (!allowedOrigins.includes(event.origin)) {
-        console.warn('⚠️ PostMessage z neznámého originu (AKCEPTUJI PRO DEBUG):', event.origin);
-        console.warn('   Data zprávy:', event.data);
-        console.warn('   Povolené originy:', allowedOrigins);
-        // DOČASNĚ: Neblokuj zprávu - pro debugging
-        // return;
-      }
-      
-      // Validace struktury dat
-      if (event.data.type === 'USER_DATA' && event.data.user) {
-        console.log('✅ PostMessage PŘIJATA z důvěryhodného originu:', event.origin);
-        console.log('👤 User data:', event.data.user);
-        setUserContext(event.data.user);
-      }
-    };
-    
-    // 🔥 Zaregistruj listener IHNED jako první věc
-    window.addEventListener('message', handleMessage);
-    console.log('✅ PostMessage listener zaregistrován');
-    
-    // 🚀 READY SIGNÁL: Pošli rodičovskému oknu ihned, že iframe se načítá
-    const sendReadySignal = () => {
-      if (window.parent !== window) {
-        console.log('📤 Odesílám IFRAME_READY signál rodičovskému oknu...');
-        window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
-        console.log('✅ IFRAME_READY signál odeslán');
-      }
-    };
-    
-    // 🔥 Pošli READY signál OKAMŽITĚ po mount
-    sendReadySignal();
-    
-    // 🆕 Načti data přímo z data-* atributů iframe (pokud existují)
-    const iframe = window.frameElement as HTMLIFrameElement | null;
-    if (iframe) {
-      const userData = {
-        id: iframe.dataset.userId || '',
-        email: iframe.dataset.email || '',
-        firstName: iframe.dataset.firstname || '',
-        lastName: iframe.dataset.lastname || '',
-        position: iframe.dataset.position || '',
-        tokenEshop: iframe.dataset.tokenEshop || ''  // 🆕 E-shop token
-      };
-      
-      // Pokud nějaké data existují, nastav je okamžitě
-      if (userData.id || userData.email) {
-        console.log('📋 User data načtena z data-* atributů iframe:', userData);
-        setUserContext(userData);
-      } else {
-        console.log('⚠️ Žádná user data v data-* atributech nenalezena');
-      }
-    } else {
-      console.log('⚠️ window.frameElement není dostupný (možná není v iframe)');
     }
     
     const loadChatbotSettings = async () => {
@@ -244,10 +153,63 @@ const EmbedEOSmesi = () => {
     };
 
     loadChatbotSettings();
+  }, []);
+
+  // 🔥 SAMOSTATNÝ useEffect PRO LISTENER - běží pořád, ne jen při mount
+  useEffect(() => {
+    // 🆕 Listener pro postMessage - přijímá USER_DATA kdykoliv
+    const handleMessage = (event: MessageEvent) => {
+      // Validace struktury dat
+      if (event.data.type === 'USER_DATA' && event.data.user) {
+        console.log('✅ [EO SMESI LISTENER] PostMessage PŘIJATA:', event.origin);
+        console.log('👤 [EO SMESI LISTENER] User data:', event.data.user);
+        setUserContext({
+          id: String(event.data.user.id || ''),
+          email: event.data.user.email || '',
+          firstName: event.data.user.firstName || '',
+          lastName: event.data.user.lastName || '',
+          position: event.data.user.position || '',
+          tokenEshop: event.data.user.tokenEshop || ''
+        });
+      }
+    };
     
-    // Cleanup
+    // 🔥 Zaregistruj listener
+    window.addEventListener('message', handleMessage);
+    console.log('✅ PostMessage listener zaregistrován');
+    
+    // 🚀 READY SIGNÁL: Pošli rodičovskému oknu ihned, že iframe je ready
+    if (window.parent !== window) {
+      console.log('📤 Odesílám IFRAME_READY signál rodičovskému oknu...');
+      window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+      console.log('✅ IFRAME_READY signál odeslán');
+    }
+    
+    // 🆕 Načti data přímo z data-* atributů iframe (pokud existují)
+    const iframe = window.frameElement as HTMLIFrameElement | null;
+    if (iframe) {
+      const userData = {
+        id: iframe.dataset.userId || '',
+        email: iframe.dataset.email || '',
+        firstName: iframe.dataset.firstname || '',
+        lastName: iframe.dataset.lastname || '',
+        position: iframe.dataset.position || '',
+        tokenEshop: iframe.dataset.tokenEshop || ''  // 🆕 E-shop token
+      };
+      
+      // Pokud nějaké data existují, nastav je okamžitě
+      if (userData.id || userData.email) {
+        console.log('📋 User data načtena z data-* atributů iframe:', userData);
+        setUserContext(userData);
+      } else {
+        console.log('⚠️ Žádná user data v data-* atributech nenalezena');
+      }
+    } else {
+      console.log('⚠️ window.frameElement není dostupný (možná není v iframe)');
+    }
+    
+    // Cleanup - odregistruj listener při unmount
     return () => {
-      window.removeEventListener('message', globalDebugListener);
       window.removeEventListener('message', handleMessage);
     };
   }, []);
