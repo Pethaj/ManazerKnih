@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import GlobalLimitSettings from './GlobalLimitSettings';
+import ChatMessagesDashboard from './ChatMessagesDashboard';
 
 interface ChatbotLimitInfo {
   chatbot_id: string;
@@ -89,10 +90,10 @@ const MessageLimitsDashboard: React.FC = () => {
 
   const getStatusIcon = (status: ChatbotLimitInfo['status']) => {
     switch (status) {
-      case 'exceeded': return '🔴';
-      case 'warning': return '⚠️';
-      case 'moderate': return '🟡';
-      case 'ok': return '✅';
+      case 'exceeded': return '!';
+      case 'warning': return '!';
+      case 'moderate': return '·';
+      case 'ok': return '✓';
       case 'unlimited': return '∞';
     }
   };
@@ -115,158 +116,136 @@ const MessageLimitsDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">📊 Denní limity zpráv</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
         <button
           onClick={loadAllLimits}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          🔄 Obnovit
+          Obnovit
         </button>
       </div>
 
-      {/* Globální limit */}
-      <GlobalLimitSettings />
+      {/* Sekce: Denní limity zpráv - kompaktní grid */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Denní limity zpráv</h2>
 
-      {/* Filtry */}
-      <div className="bg-white rounded-lg shadow-lg p-4">
-        <div className="flex items-center space-x-4">
-          <span className="text-sm font-medium text-gray-700">Filtr:</span>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filter === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Všechny ({chatbotLimits.length})
-            </button>
-            <button
-              onClick={() => setFilter('warning')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filter === 'warning'
-                  ? 'bg-orange-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Varování ({chatbotLimits.filter(c => c.status === 'warning' || c.status === 'moderate').length})
-            </button>
-            <button
-              onClick={() => setFilter('exceeded')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filter === 'exceeded'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Překročeno ({chatbotLimits.filter(c => c.status === 'exceeded').length})
-            </button>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {/* Globální limit - 1/3 šířky */}
+          <div>
+            <GlobalLimitSettings />
+          </div>
+
+          {/* Filtry - 2/3 šířky */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="mb-3">
+                <span className="text-sm font-semibold text-gray-700">Limity jednotlivých chatbotů</span>
+              </div>
+              <div className="flex items-center space-x-2 mb-4">
+                <span className="text-xs text-gray-600">Filtr:</span>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setFilter('all')}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      filter === 'all'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Všechny ({chatbotLimits.length})
+                  </button>
+                  <button
+                    onClick={() => setFilter('warning')}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      filter === 'warning'
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Varování ({chatbotLimits.filter(c => c.status === 'warning' || c.status === 'moderate').length})
+                  </button>
+                  <button
+                    onClick={() => setFilter('exceeded')}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      filter === 'exceeded'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Překročeno ({chatbotLimits.filter(c => c.status === 'exceeded').length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Seznam chatbotů - kompaktní */}
+              <div className="space-y-2">
+                {filteredChatbots.length === 0 ? (
+                  <div className="text-center py-4 text-xs text-gray-500">
+                    {filter === 'all' 
+                      ? 'Žádné chatboty s nastaveným limitem'
+                      : `Žádné chatboty v kategorii "${filter}"`
+                    }
+                  </div>
+                ) : (
+                  filteredChatbots.map(chatbot => (
+                    <div
+                      key={chatbot.chatbot_id}
+                      className={`bg-gray-50 rounded p-3 border transition-all ${
+                        chatbot.status === 'exceeded' ? 'border-red-300' :
+                        chatbot.status === 'warning' ? 'border-orange-300' :
+                        'border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {chatbot.chatbot_name}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-xs ${
+                            chatbot.status === 'exceeded' ? 'bg-red-100 text-red-700' :
+                            chatbot.status === 'warning' ? 'bg-orange-100 text-orange-700' :
+                            chatbot.status === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
+                            chatbot.status === 'ok' ? 'bg-green-100 text-green-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {getStatusIcon(chatbot.status)}
+                          </span>
+                        </div>
+                        
+                        <span className="text-sm font-semibold text-gray-900">
+                          {chatbot.current_count.toLocaleString('cs-CZ')}
+                          <span className="text-xs text-gray-500"> / </span>
+                          {chatbot.daily_limit !== null 
+                            ? chatbot.daily_limit.toLocaleString('cs-CZ')
+                            : '∞'}
+                        </span>
+                      </div>
+
+                      {chatbot.daily_limit !== null && (
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${
+                              chatbot.percentage >= 100 ? 'bg-red-500' :
+                              chatbot.percentage >= 80 ? 'bg-orange-500' :
+                              chatbot.percentage >= 50 ? 'bg-yellow-500' :
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(chatbot.percentage, 100)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Seznam chatbotů */}
-      <div className="grid gap-4">
-        {filteredChatbots.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center text-gray-500">
-            {filter === 'all' 
-              ? 'Žádné chatboty s nastaveným limitem'
-              : `Žádné chatboty v kategorii "${filter}"`
-            }
-          </div>
-        ) : (
-          filteredChatbots.map(chatbot => (
-            <div
-              key={chatbot.chatbot_id}
-              className={`bg-white rounded-lg shadow-lg p-6 border-2 transition-all hover:shadow-xl ${
-                chatbot.status === 'exceeded' ? 'border-red-300' :
-                chatbot.status === 'warning' ? 'border-orange-300' :
-                'border-gray-200'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {chatbot.chatbot_name}
-                    </h3>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(chatbot.status)}`}>
-                      {getStatusIcon(chatbot.status)} {
-                        chatbot.status === 'exceeded' ? 'Překročeno' :
-                        chatbot.status === 'warning' ? 'Varování' :
-                        chatbot.status === 'moderate' ? 'Střední' :
-                        chatbot.status === 'ok' ? 'OK' :
-                        'Bez limitu'
-                      }
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">ID: {chatbot.chatbot_id}</p>
-                </div>
-                
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-gray-900">
-                    {chatbot.current_count.toLocaleString('cs-CZ')}
-                    <span className="text-sm text-gray-600 font-normal"> / </span>
-                    {chatbot.daily_limit !== null 
-                      ? chatbot.daily_limit.toLocaleString('cs-CZ')
-                      : '∞'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    zpráv dnes
-                  </p>
-                </div>
-              </div>
-
-              {chatbot.daily_limit !== null && (
-                <>
-                  <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                    <div
-                      className={`h-3 rounded-full transition-all ${
-                        chatbot.percentage >= 100 ? 'bg-red-500' :
-                        chatbot.percentage >= 80 ? 'bg-orange-500' :
-                        chatbot.percentage >= 50 ? 'bg-yellow-500' :
-                        'bg-green-500'
-                      }`}
-                      style={{ width: `${Math.min(chatbot.percentage, 100)}%` }}
-                    />
-                  </div>
-                  
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">
-                      {chatbot.percentage}% využito
-                    </span>
-                    <span className="text-gray-500">
-                      Zbývá: {(chatbot.daily_limit - chatbot.current_count).toLocaleString('cs-CZ')}
-                    </span>
-                    <span className="text-gray-500 text-xs">
-                      Reset: {new Date(chatbot.reset_at).toLocaleString('cs-CZ', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
-                  </div>
-                </>
-              )}
-
-              {chatbot.status === 'exceeded' && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-800 font-medium">
-                    🔴 Tento chatbot dosáhl denního limitu a nepřijímá nové zprávy.
-                  </p>
-                </div>
-              )}
-
-              {chatbot.status === 'warning' && (
-                <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <p className="text-sm text-orange-800 font-medium">
-                    ⚠️ Limit je téměř vyčerpán. Zvažte zvýšení limitu.
-                  </p>
-                </div>
-              )}
-            </div>
-          ))
-        )}
+      {/* Sekce: Historie chat zpráv */}
+      <div className="mt-6">
+        <ChatMessagesDashboard />
       </div>
     </div>
   );

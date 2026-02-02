@@ -92,9 +92,9 @@ const GlobalLimitSettings: React.FC = () => {
 
   if (globalLimit.loading) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">🌍 Globální denní limit zpráv</h2>
-        <div className="text-gray-600">Načítám...</div>
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-2">Globální denní limit</h3>
+        <div className="text-sm text-gray-600">Načítám...</div>
       </div>
     );
   }
@@ -104,54 +104,51 @@ const GlobalLimitSettings: React.FC = () => {
     : 0;
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <h2 className="text-xl font-bold text-gray-800 mb-2">🌍 Globální denní limit zpráv</h2>
-      <p className="text-sm text-gray-600 mb-6">
-        Limit platí napříč všemi chatboty. Pokud je dosažen, žádný chatbot nemůže přijímat zprávy.
-      </p>
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-700">Globální denní limit</h3>
+        <span className="text-xs text-gray-500">
+          Platí pro všechny chatboty
+        </span>
+      </div>
 
-      <div className="space-y-6">
-        {/* Nastavení limitu */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Maximální počet zpráv za den (globálně)
-          </label>
-          <div className="flex items-center space-x-3">
-            <input
-              type="number"
-              min="0"
-              placeholder="Např. 100000 (prázdné = bez limitu)"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              onClick={handleSaveGlobalLimit}
-              disabled={globalLimit.saving}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {globalLimit.saving ? 'Ukládám...' : 'Uložit'}
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Ponechte prázdné pro neomezený počet zpráv
-          </p>
+      {/* Nastavení limitu - kompaktní */}
+      <div className="mb-4">
+        <div className="flex items-center space-x-2">
+          <input
+            type="number"
+            min="0"
+            placeholder="Např. 5000"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            onClick={handleSaveGlobalLimit}
+            disabled={globalLimit.saving}
+            className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {globalLimit.saving ? 'Ukládám...' : 'Uložit'}
+          </button>
         </div>
+      </div>
 
-        {/* Aktuální stav */}
-        {globalLimit.limit !== null ? (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-sm font-medium text-gray-700">Aktuální globální využití:</span>
-              <span className="text-2xl font-bold text-gray-900">
+      {/* Aktuální stav - minimalistický */}
+      {globalLimit.limit !== null ? (
+        <div className="space-y-3">
+          {/* Progress bar - užší */}
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-xs text-gray-600">
                 {globalLimit.current.toLocaleString('cs-CZ')} / {globalLimit.limit.toLocaleString('cs-CZ')}
               </span>
+              <span className="text-xs text-gray-500">
+                {percentage}%
+              </span>
             </div>
-            
-            {/* Progress bar */}
-            <div className="w-full bg-gray-200 rounded-full h-4 mb-3">
+            <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className={`h-4 rounded-full transition-all ${
+                className={`h-2 rounded-full transition-all ${
                   percentage >= 95 ? 'bg-red-500' :
                   percentage >= 80 ? 'bg-orange-500' :
                   percentage >= 60 ? 'bg-yellow-500' :
@@ -160,89 +157,23 @@ const GlobalLimitSettings: React.FC = () => {
                 style={{ width: `${Math.min(percentage, 100)}%` }}
               />
             </div>
-            
-            <div className="flex justify-between items-center">
-              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                percentage >= 95 ? 'bg-red-100 text-red-800' :
-                percentage >= 80 ? 'bg-orange-100 text-orange-800' :
-                percentage >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                'bg-green-100 text-green-800'
-              }`}>
-                {percentage}% využito
-              </span>
-              {globalLimit.reset_at && (
-                <span className="text-xs text-gray-600">
-                  Reset: {new Date(globalLimit.reset_at).toLocaleString('cs-CZ', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
-              )}
+          </div>
+
+          {/* Varování - kompaktní */}
+          {percentage >= 80 && (
+            <div className={`px-3 py-2 rounded text-xs ${
+              percentage >= 95 ? 'bg-red-50 text-red-700 border border-red-200' :
+              'bg-orange-50 text-orange-700 border border-orange-200'
+            }`}>
+              {percentage >= 95 ? 'Limit téměř vyčerpán' : 'Vysoké využití'}
             </div>
-
-            {/* Varování */}
-            {percentage >= 80 && (
-              <div className={`mt-4 p-3 rounded-lg ${
-                percentage >= 95 ? 'bg-red-100 border border-red-300' :
-                'bg-orange-100 border border-orange-300'
-              }`}>
-                <p className={`text-sm font-medium ${
-                  percentage >= 95 ? 'text-red-800' : 'text-orange-800'
-                }`}>
-                  {percentage >= 95 ? '🔴 Kritické! ' : '⚠️ Varování! '}
-                  Globální limit je téměř vyčerpán. Zvažte zvýšení limitu nebo kontaktujte správce.
-                </p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-            <p className="text-sm text-gray-600 text-center">
-              ℹ️ Není nastaven žádný globální limit. Všechny chatboty mohou přijímat neomezené množství zpráv.
-            </p>
-          </div>
-        )}
-
-        {/* Statistiky */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <p className="text-xs text-gray-600 mb-1">Zbývá dnes</p>
-            <p className="text-lg font-bold text-gray-900">
-              {globalLimit.limit !== null 
-                ? (globalLimit.limit - globalLimit.current).toLocaleString('cs-CZ')
-                : '∞'}
-            </p>
-          </div>
-          <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <p className="text-xs text-gray-600 mb-1">Využito dnes</p>
-            <p className="text-lg font-bold text-gray-900">
-              {globalLimit.current.toLocaleString('cs-CZ')}
-            </p>
-          </div>
-          <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <p className="text-xs text-gray-600 mb-1">Celkový limit</p>
-            <p className="text-lg font-bold text-gray-900">
-              {globalLimit.limit !== null 
-                ? globalLimit.limit.toLocaleString('cs-CZ')
-                : '∞'}
-            </p>
-          </div>
+          )}
         </div>
-
-        {/* Info box */}
-        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-          <h3 className="text-sm font-semibold text-blue-900 mb-2">ℹ️ Jak to funguje?</h3>
-          <ul className="text-xs text-blue-800 space-y-1">
-            <li>• Globální limit má přednost před individuálními limity chatbotů</li>
-            <li>• Pokud je globální limit dosažen, všechny chatboty přestanou přijímat zprávy</li>
-            <li>• Limit se automaticky resetuje každý den o půlnoci (CET)</li>
-            <li>• 1 konverzační dvojice (user + AI) = 1 započtená zpráva</li>
-          </ul>
+      ) : (
+        <div className="text-xs text-gray-500 italic">
+          Žádný limit není nastaven
         </div>
-      </div>
+      )}
     </div>
   );
 };

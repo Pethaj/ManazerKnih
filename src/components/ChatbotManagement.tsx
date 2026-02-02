@@ -104,7 +104,7 @@ interface ChatbotManagementProps {
 }
 
 export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, onOpenChat }) => {
-    const [selectedTab, setSelectedTab] = useState<'chatbots' | 'product_feed' | 'settings' | 'dashboard'>('chatbots');
+    const [selectedTab, setSelectedTab] = useState<'chatbots' | 'product_feed' | 'settings' | 'dashboard'>('dashboard');
     
     // Nové state pro správu chatbotů z databáze
     const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings[]>([]);
