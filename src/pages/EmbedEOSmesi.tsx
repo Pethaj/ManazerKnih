@@ -242,6 +242,21 @@ const EmbedEOSmesi = () => {
   console.log('  - userContext.email:', userContext.email);
   console.log('  - Podmínka (userContext.id || userContext.email):', !!(userContext.id || userContext.email));
 
+  // 🎯 DEBUG: Vypiš user data jako čitelný JSON pro klienta
+  if (externalUserInfo) {
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #8b5cf6; font-weight: bold;');
+    console.log('%c🟣 EO SMĚSI CHAT - USER DATA LOADED', 'color: #8b5cf6; font-size: 16px; font-weight: bold;');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #8b5cf6; font-weight: bold;');
+    console.log(JSON.stringify(externalUserInfo, null, 2));
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #8b5cf6; font-weight: bold;');
+  } else {
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #f59e0b; font-weight: bold;');
+    console.log('%c⚠️  EO SMĚSI CHAT - NO USER DATA', 'color: #f59e0b; font-size: 16px; font-weight: bold;');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #f59e0b; font-weight: bold;');
+    console.log('User data not provided. Chat will work in anonymous mode.');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #f59e0b; font-weight: bold;');
+  }
+
   return (
     <div className="w-full h-screen overflow-hidden">
       {/* 
