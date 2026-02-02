@@ -212,6 +212,28 @@ const EmbedVanyChat = () => {
     };
   }, []);
 
+  // 🎯 DEBUG: Zobraz user data vždy když se změní userContext
+  useEffect(() => {
+    // Vytvoř externalUserInfo objekt
+    const externalUserInfo = userContext.id || userContext.email ? {
+      external_user_id: userContext.id,
+      first_name: userContext.firstName,
+      last_name: userContext.lastName,
+      email: userContext.email,
+      position: userContext.position,
+      token_eshop: userContext.tokenEshop
+    } : undefined;
+
+    // Zobraz POUZE pokud jsou nějaká data
+    if (externalUserInfo) {
+      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
+      console.log('%c🟢 WANY CHAT - USER DATA LOADED', 'color: #22c55e; font-size: 16px; font-weight: bold;');
+      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
+      console.log(JSON.stringify(externalUserInfo, null, 2));
+      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
+    }
+  }, [userContext]); // Spustí se POUZE když se userContext změní
+
   if (isLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-bewit-gray">
@@ -239,21 +261,6 @@ const EmbedVanyChat = () => {
   console.log('  - userContext.id:', userContext.id);
   console.log('  - userContext.email:', userContext.email);
   console.log('  - Podmínka (userContext.id || userContext.email):', !!(userContext.id || userContext.email));
-
-  // 🎯 DEBUG: Vypiš user data jako čitelný JSON pro klienta
-  if (externalUserInfo) {
-    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
-    console.log('%c🟢 WANY CHAT - USER DATA LOADED', 'color: #22c55e; font-size: 16px; font-weight: bold;');
-    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
-    console.log(JSON.stringify(externalUserInfo, null, 2));
-    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
-  } else {
-    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #f59e0b; font-weight: bold;');
-    console.log('%c⚠️  WANY CHAT - NO USER DATA', 'color: #f59e0b; font-size: 16px; font-weight: bold;');
-    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #f59e0b; font-weight: bold;');
-    console.log('User data not provided. Chat will work in anonymous mode.');
-    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #f59e0b; font-weight: bold;');
-  }
 
   return (
     <div className="w-full h-screen overflow-hidden">
