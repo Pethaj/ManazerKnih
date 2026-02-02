@@ -328,10 +328,38 @@ export async function saveChatPair(
 
     dataToSave.message_data = messageDataToSave;
     
-    // 🆕 User info z iframe embedu - uložíme do SAMOSTATNÉHO sloupce user_data
-    if (answerData?.user_info && Object.keys(answerData.user_info).length > 0) {
-      console.log('🔍 [ChatHistory] Ukládám user_info do user_data sloupce:', answerData.user_info);
-      dataToSave.user_data = answerData.user_info;
+    // 🆕 User info - PRIORITA: localStorage > answerData.user_info
+    let finalUserInfo = null;
+    
+    // 💾 NOVÉ: Zkus načíst z localStorage
+    try {
+      const stored = localStorage.getItem('BEWIT_USER_DATA');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        finalUserInfo = {
+          external_user_id: String(parsed.id || ''),
+          first_name: parsed.firstName || '',
+          last_name: parsed.lastName || '',
+          email: parsed.email || '',
+          position: parsed.position || '',
+          token_eshop: parsed.tokenEshop || ''
+        };
+        console.log('💾 [ChatHistory] User info načtena z localStorage:', finalUserInfo);
+      }
+    } catch (e) {
+      console.warn('⚠️ [ChatHistory] Nepodařilo se načíst z localStorage:', e);
+    }
+    
+    // Fallback na answerData.user_info
+    if (!finalUserInfo && answerData?.user_info && Object.keys(answerData.user_info).length > 0) {
+      finalUserInfo = answerData.user_info;
+      console.log('🔄 [ChatHistory] Použity user_info z answerData:', finalUserInfo);
+    }
+    
+    // Uložíme do SAMOSTATNÉHO sloupce user_data
+    if (finalUserInfo && Object.keys(finalUserInfo).length > 0) {
+      console.log('🔍 [ChatHistory] Ukládám user_info do user_data sloupce:', finalUserInfo);
+      dataToSave.user_data = finalUserInfo;
     } else {
       console.log('⚠️ [ChatHistory] user_info NEEXISTUJE nebo je prázdné');
     }

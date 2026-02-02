@@ -163,6 +163,15 @@ const EmbedEOSmesi = () => {
       if (event.data.type === 'USER_DATA' && event.data.user) {
         console.log('✅ [EO SMESI LISTENER] PostMessage PŘIJATA:', event.origin);
         console.log('👤 [EO SMESI LISTENER] User data:', event.data.user);
+        
+        // 💾 NOVÉ: Uložit do localStorage pro pozdější použití
+        try {
+          localStorage.setItem('BEWIT_USER_DATA', JSON.stringify(event.data.user));
+          console.log('💾 User data uložena do localStorage');
+        } catch (e) {
+          console.error('❌ Chyba při ukládání do localStorage:', e);
+        }
+        
         setUserContext({
           id: String(event.data.user.id || ''),
           email: event.data.user.email || '',

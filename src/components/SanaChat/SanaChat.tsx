@@ -290,16 +290,38 @@ const sendMessageToAPI = async (
         }
 
         // 🆕 VŽDY přidej pole user (prázdné nebo plné) - stejná struktura jako Wany.chat
-        // Priorita: externalUserInfo (z iframe embedu) > currentUser (přihlášený) > prázdné
+        // Priorita: localStorage (BEWIT_USER_DATA) > externalUserInfo (z iframe embedu) > currentUser (přihlášený) > prázdné
+        
+        // 💾 NOVÉ: Načti data z localStorage (fallback pro situace, kdy postMessage nefungoval)
+        let localStorageUser = null;
+        try {
+            const stored = localStorage.getItem('BEWIT_USER_DATA');
+            if (stored) {
+                localStorageUser = JSON.parse(stored);
+                console.log('💾 User data načtena z localStorage:', localStorageUser);
+            }
+        } catch (e) {
+            console.warn('⚠️ Nepodařilo se načíst user data z localStorage:', e);
+        }
         
         // 🔍 DIAGNOSTIKA USER DATA
         console.log('🔍 USER DATA DIAGNOSTIKA:');
+        console.log('  - localStorageUser:', localStorageUser);
         console.log('  - externalUserInfo:', externalUserInfo);
         console.log('  - currentUser:', currentUser);
+        console.log('  - localStorageUser existuje?', !!localStorageUser);
         console.log('  - externalUserInfo existuje?', !!externalUserInfo);
         console.log('  - currentUser existuje?', !!currentUser);
         
-        payload.user = externalUserInfo ? {
+        // ✅ PRIORITA: localStorage > externalUserInfo > currentUser > prázdné
+        payload.user = localStorageUser ? {
+            id: String(localStorageUser.id || ""),
+            email: localStorageUser.email || "",
+            firstName: localStorageUser.firstName || "",
+            lastName: localStorageUser.lastName || "",
+            role: localStorageUser.position || "",  // position se mapuje na role
+            tokenEshop: localStorageUser.tokenEshop || ""  // 🆕 E-shop token
+        } : externalUserInfo ? {
             id: externalUserInfo.external_user_id || "",
             email: externalUserInfo.email || "",
             firstName: externalUserInfo.first_name || "",
