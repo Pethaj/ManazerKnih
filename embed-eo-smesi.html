@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EO Směsi Chat</title>
+    
+    <!-- 🔥 PRVNÍ VĚC - LISTENER PŘED VŠÍM OSTATNÍM -->
+    <script>
+      window.__PENDING_USER_DATA__ = null;
+      window.addEventListener('message', function(e) {
+        console.log('🔥 ZPRÁVA:', e.data);
+        if (e.data && e.data.type === 'USER_DATA' && e.data.user) {
+          console.log('✅ DATA ZACHYCENA:', e.data.user);
+          window.__PENDING_USER_DATA__ = e.data.user;
+        }
+      }, true);
+      console.log('✅ Listener aktivní');
+    </script>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -107,64 +121,6 @@
             }
         }
     </style>
-    
-    <!-- 🔥 EARLY POSTMESSAGE LISTENER - Běží PŘED Reactem -->
-    <script>
-      (function() {
-        console.log('🚀 [EO SMESI - EARLY INIT] Globální postMessage listener aktivován');
-        console.log('🔍 [EO SMESI - DEBUG] window.location.href:', window.location.href);
-        console.log('🔍 [EO SMESI - DEBUG] window.parent:', window.parent);
-        console.log('🔍 [EO SMESI - DEBUG] Je v iframe?', window !== window.parent);
-        
-        // Dočasné úložiště pro user data
-        window.__PENDING_USER_DATA__ = null;
-        
-        // Listener co běží PŘED Reactem
-        window.addEventListener('message', function(event) {
-          // 🔥 AGRESIVNÍ LOGGING - loguj VŠECHNY zprávy bez výjimky
-          console.log('🌍 [EO SMESI - EARLY LISTENER] JAKÁKOLIV zpráva zachycena:', {
-            origin: event.origin,
-            type: event.data?.type,
-            hasUser: !!event.data?.user,
-            fullData: event.data,
-            source: event.source,
-            sourceIsParent: event.source === window.parent
-          });
-          
-          if (event.data && event.data.type === 'USER_DATA' && event.data.user) {
-            console.log('✅ [EO SMESI - EARLY LISTENER] USER_DATA uložena do cache:', event.data.user);
-            window.__PENDING_USER_DATA__ = event.data.user;
-            
-            // Pošli potvrzení rodičovskému oknu
-            if (window.parent !== window) {
-              window.parent.postMessage({ type: 'USER_DATA_RECEIVED' }, '*');
-              console.log('📤 [EO SMESI - EARLY LISTENER] Potvrzení odesláno rodičovskému oknu');
-            }
-          }
-        }, true); // true = capture phase
-        
-        console.log('✅ [EO SMESI - EARLY INIT] Listener připraven přijímat data (včetně capture phase)');
-        
-        // 🔥 Periodický check zda data dorazila
-        let checkCount = 0;
-        const checkInterval = setInterval(function() {
-          checkCount++;
-          if (window.__PENDING_USER_DATA__) {
-            console.log('✅ [EO SMESI - CHECK] Data byla načtena!', window.__PENDING_USER_DATA__);
-            clearInterval(checkInterval);
-          } else if (checkCount < 20) { // Check 20x (10 sekund)
-            console.log('⏳ [EO SMESI - CHECK] Čekám na user data... (' + checkCount + '/20)');
-          } else {
-            console.warn('⚠️ [EO SMESI - CHECK] User data NEDORAZILA po 10 sekundách!');
-            console.warn('   Možné příčiny:');
-            console.warn('   1. Klient neposílá postMessage');
-            console.warn('   2. Klient posílá do jiného iframe');
-            console.warn('   3. CORS blokuje zprávu');
-            clearInterval(checkInterval);
-          }
-        }, 500);
-      })();
-    </script>
 </head>
 <body>
     <div id="embed-root"></div>
