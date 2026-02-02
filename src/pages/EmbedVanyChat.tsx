@@ -89,6 +89,22 @@ const EmbedVanyChat = () => {
   useEffect(() => {
     console.log('🔥 EMBED VANY CHAT - Loading settings...');
     
+    // ✅ PRVNÍ: Zkontroluj jestli už data čekají v globální cache (z early listeneru)
+    if (window.__PENDING_USER_DATA__) {
+      console.log('🎉 [WANY] Nalezena CACHED user data z early listeneru:', window.__PENDING_USER_DATA__);
+      setUserContext({
+        id: String(window.__PENDING_USER_DATA__.id || ''),
+        email: window.__PENDING_USER_DATA__.email || '',
+        firstName: window.__PENDING_USER_DATA__.firstName || '',
+        lastName: window.__PENDING_USER_DATA__.lastName || '',
+        position: window.__PENDING_USER_DATA__.position || '',
+        tokenEshop: window.__PENDING_USER_DATA__.tokenEshop || ''
+      });
+      window.__PENDING_USER_DATA__ = null; // Vyčisti cache
+    } else {
+      console.log('ℹ️ [WANY] Žádná cached data nenalezena, čekám na postMessage...');
+    }
+    
     // 🔥 DEBUG: Global listener pro VŠECHNY postMessage
     const globalDebugListener = (event: MessageEvent) => {
       console.log('🌍 [GLOBAL DEBUG] Jakákoliv postMessage zachycena:', {

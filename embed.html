@@ -107,6 +107,39 @@
             }
         }
     </style>
+    
+    <!-- 🔥 EARLY POSTMESSAGE LISTENER - Běží PŘED Reactem -->
+    <script>
+      (function() {
+        console.log('🚀 [WANY CHAT - EARLY INIT] Globální postMessage listener aktivován');
+        
+        // Dočasné úložiště pro user data
+        window.__PENDING_USER_DATA__ = null;
+        
+        // Listener co běží PŘED Reactem
+        window.addEventListener('message', function(event) {
+          console.log('🌍 [WANY - EARLY LISTENER] Zachycena zpráva:', {
+            origin: event.origin,
+            type: event.data?.type,
+            hasUser: !!event.data?.user,
+            data: event.data
+          });
+          
+          if (event.data && event.data.type === 'USER_DATA' && event.data.user) {
+            console.log('✅ [WANY - EARLY LISTENER] USER_DATA uložena do cache:', event.data.user);
+            window.__PENDING_USER_DATA__ = event.data.user;
+            
+            // Pošli potvrzení rodičovskému oknu
+            if (window.parent !== window) {
+              window.parent.postMessage({ type: 'USER_DATA_RECEIVED' }, '*');
+              console.log('📤 [WANY - EARLY LISTENER] Potvrzení odesláno rodičovskému oknu');
+            }
+          }
+        });
+        
+        console.log('✅ [WANY - EARLY INIT] Listener připraven přijímat data');
+      })();
+    </script>
 </head>
 <body>
     <div id="embed-root"></div>
