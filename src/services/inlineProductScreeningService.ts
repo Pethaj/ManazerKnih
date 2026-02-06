@@ -48,7 +48,7 @@ Tvým úkolem je identifikovat v textu POUZE **KONKRÉTNÍ NÁZVY PRODUKTŮ**.
 ❌ Tělesné části: "ústní dutina", "dásně", "zuby", "pokožka"
 ❌ Symptomy: "záněty", "citlivost", "paradontóza", "stres", "úzkost"
 ❌ Popisné fráze v kontextu "něco PRO X": "výplach PRO svěží dech", "pasta NA zuby", "olej PRO uklidnění"
-❌ Obecná slova: "olej", "směs", "nosný olej", "kokosový olej" (pokud nejsou součástí názvu produktu)
+❌ Obecná slova: "olej", "směs", "nosný olej", "kokosový olej" (pokud nejsou součástí názvu produktu).
 
 **KLÍČOVÁ PRAVIDLA:**
 - Identifikuj POUZE pokud je text **přímo název produktu/rostliny**, ne jeho účinek nebo použití
@@ -89,8 +89,11 @@ Output: []
 Input: "Pomáhá při zánětech dásní a posiluje obranyschopnost."
 Output: []`;
 
+Input: " SLožení: Huang Qi, Gui PI"
+Output: [];
+
 // ============================================================================
-// HLAVNÍ FUNKCE
+// HLAVNÍ FUNKCE dulezita
 // ============================================================================
 
 /**
