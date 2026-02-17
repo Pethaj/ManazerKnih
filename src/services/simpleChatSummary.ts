@@ -18,12 +18,6 @@ export async function createSimpleSummary(
   botAnswer: string
 ): Promise<string | null> {
   try {
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('📝 SUMARIZACE - START');
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('❓ Otázka:', userQuestion.substring(0, 150));
-    console.log('💬 Odpověď:', botAnswer.substring(0, 150) + '...');
-    console.log('═══════════════════════════════════════════════════════════');
 
     // Vyčistíme HTML tagy z odpovědi
     const cleanAnswer = botAnswer
@@ -47,7 +41,6 @@ ${shortAnswer}
 
 SUMARIZACE (max 150 slov):`;
 
-    console.log('🚀 Volám Supabase Edge Function...');
 
     // Volání přes Supabase Edge Function
     const response = await fetch(EDGE_FUNCTION_URL, {
@@ -66,32 +59,22 @@ SUMARIZACE (max 150 slov):`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Edge Function chyba:', response.status, errorText);
       return null;
     }
 
     const data = await response.json();
     
     if (!data.success || !data.response) {
-      console.error('❌ Edge Function nevrátila sumarizaci:', data.error);
       return null;
     }
 
     const summary = data.response.trim();
 
     // VÝPIS DO CONSOLE
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('✅ SUMARIZACE HOTOVA:');
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log(summary);
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('📊 Tokeny:', data.usage?.total_tokens || 'N/A');
-    console.log('═══════════════════════════════════════════════════════════');
 
     return summary;
 
   } catch (error) {
-    console.error('❌ CHYBA při sumarizaci:', error);
     return null;
   }
 }

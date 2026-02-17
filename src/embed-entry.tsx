@@ -24,5 +24,4 @@ root.render(
   </StrictMode>
 );
 
-console.log('🚀 EMBED ENTRY POINT - Wany Chat initialized');
 

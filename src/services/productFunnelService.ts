@@ -106,21 +106,11 @@ export async function runProductFunnel(
 ): Promise<FunnelResponse> {
   const startTime = performance.now();
   
-  console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #F59E0B; font-weight: bold;');
-  console.log('%c🎯 PRODUCT FUNNEL - START', 'color: #F59E0B; font-weight: bold; font-size: 14px;');
-  console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #F59E0B; font-weight: bold;');
   
-  console.log('%c───────────────────────────────────────────────────────────────────', 'color: #F59E0B;');
-  console.log('%c📥 VSTUPNÍ DATA:', 'color: #F59E0B; font-weight: bold;');
-  console.log('%c───────────────────────────────────────────────────────────────────', 'color: #F59E0B;');
-  console.log(`🩺 Symptomy (${symptomList.length}):`, symptomList);
-  console.log(`📦 Produkty k výběru (${recommendedProducts.length}):`, recommendedProducts.map(p => p.product_name));
-  console.log(`📝 User message: "${userMessage}"`);
 
   try {
     // Pokud nemáme žádné produkty, nelze spustit funnel
     if (!recommendedProducts || recommendedProducts.length === 0) {
-      console.log('%c⚠️ Žádné produkty pro funnel!', 'color: orange;');
       return {
         success: false,
         selectedProducts: [],
@@ -148,11 +138,6 @@ export async function runProductFunnel(
 
     userPrompt += `\n\nVyber 2 nejlepší produkty a vytvoř doporučení. Vrať JSON.`;
 
-    console.log('%c───────────────────────────────────────────────────────────────────', 'color: #F59E0B;');
-    console.log('%c📡 VOLÁM OPENROUTER API (přes Edge Function)...', 'color: #F59E0B; font-weight: bold;');
-    console.log('%c───────────────────────────────────────────────────────────────────', 'color: #F59E0B;');
-    console.log(`🤖 Model: ${MODEL}`);
-    console.log(`🌡️ Temperature: ${TEMPERATURE}`);
 
     const apiStartTime = performance.now();
 
@@ -168,11 +153,8 @@ export async function runProductFunnel(
     });
 
     const apiDuration = performance.now() - apiStartTime;
-    console.log(`⏱️ API response time: ${apiDuration.toFixed(0)}ms`);
 
     if (error) {
-      console.log('%c❌ EDGE FUNCTION CHYBA:', 'color: #EF4444; font-weight: bold;');
-      console.log(`   Error: ${error.message}`);
       throw new Error(`Edge Function chyba: ${error.message}`);
     }
 
@@ -181,7 +163,6 @@ export async function runProductFunnel(
     }
 
     const responseText = data.response;
-    console.log('📄 AI Response (preview):', responseText.substring(0, 300));
 
     // PARSOVÁNÍ ODPOVĚDI (naše logika)
     let result: { selectedProductCodes: string[]; recommendation: string };
@@ -203,7 +184,6 @@ export async function runProductFunnel(
       }
 
     } catch (parseError) {
-      console.error('%c❌ Chyba při parsování, použijeme celý text jako doporučení', 'color: #EF4444;', parseError);
       // Fallback: použijeme prvních 2 produkty a celý text
       result = {
         selectedProductCodes: recommendedProducts.slice(0, 2).map(p => p.product_code),
@@ -218,19 +198,11 @@ export async function runProductFunnel(
 
     // Pokud nenašlo žádné, vezmeme první 2
     if (selectedProducts.length === 0) {
-      console.log('%c⚠️ Žádné produkty nenalezeny podle kódů, používám první 2', 'color: orange;');
       selectedProducts = recommendedProducts.slice(0, 2);
     }
 
     const totalDuration = performance.now() - startTime;
 
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #10B981; font-weight: bold;');
-    console.log('%c✅ PRODUCT FUNNEL - VÝSLEDEK', 'color: #10B981; font-weight: bold; font-size: 14px;');
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #10B981; font-weight: bold;');
-    console.log(`📦 Vybrané produkty (${selectedProducts.length}):`, selectedProducts.map(p => p.product_name));
-    console.log(`📝 Délka textu: ${result.recommendation.length} znaků`);
-    console.log(`⏱️ Celkový čas: ${totalDuration.toFixed(0)}ms`);
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #10B981; font-weight: bold;');
 
     return {
       success: true,
@@ -241,12 +213,6 @@ export async function runProductFunnel(
   } catch (error) {
     const totalDuration = performance.now() - startTime;
     
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #EF4444; font-weight: bold;');
-    console.log('%c❌ PRODUCT FUNNEL - CHYBA', 'color: #EF4444; font-weight: bold; font-size: 14px;');
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #EF4444; font-weight: bold;');
-    console.log(`🚫 Error: ${error instanceof Error ? error.message : String(error)}`);
-    console.log(`⏱️ Čas do chyby: ${totalDuration.toFixed(0)}ms`);
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #EF4444; font-weight: bold;');
 
     return {
       success: false,
@@ -267,8 +233,6 @@ export async function runProductFunnel(
 export async function enrichProductsFromDatabase(
   productNames: string[]
 ): Promise<FunnelProduct[]> {
-  console.log('%c🔍 Obohacuji produkty z databáze...', 'color: #8B5CF6;');
-  console.log(`   Hledám: ${productNames.join(', ')}`);
 
   const enrichedProducts: FunnelProduct[] = [];
 
@@ -283,12 +247,10 @@ export async function enrichProductsFromDatabase(
         .single();
 
       if (error) {
-        console.log(`   ⚠️ Produkt "${name}" nenalezen`);
         continue;
       }
 
       if (data) {
-        console.log(`   ✅ Nalezen: ${data.product_name}`);
         enrichedProducts.push({
           product_code: data.product_code,
           product_name: data.product_name,
@@ -303,11 +265,9 @@ export async function enrichProductsFromDatabase(
         });
       }
     } catch (err) {
-      console.log(`   ❌ Chyba při hledání "${name}":`, err);
     }
   }
 
-  console.log(`%c📦 Obohaceno ${enrichedProducts.length} produktů`, 'color: #8B5CF6;');
   return enrichedProducts;
 }
 
@@ -345,6 +305,5 @@ export function extractProductsFromText(text: string): string[] {
     }
   }
 
-  console.log(`📦 Extrahováno ${products.length} produktů z textu:`, products);
   return products;
 }

@@ -6,6 +6,7 @@ import {
   Category, 
   PublicationType, 
   Label,
+  ProductCategory,
   CreateChatbotSettingsData,
   UpdateChatbotSettingsData
 } from '../../services/chatbotSettingsService';
@@ -180,6 +181,10 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     enable_manual_funnel: chatbotSettings?.enable_manual_funnel ?? false,
     // 🆕 Nastavení sumarizace historie
     summarize_history: chatbotSettings?.summarize_history ?? false,
+    // 🆕 Filtrování produktových kategorií
+    allowed_product_categories: chatbotSettings?.allowed_product_categories || [],
+    // 🆕 Grupování produktů podle kategorií
+    group_products_by_category: chatbotSettings?.group_products_by_category ?? false,
   });
 
   // 🆕 State pro denní limit zpráv
@@ -194,6 +199,7 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [availablePublicationTypes, setAvailablePublicationTypes] = useState<PublicationType[]>([]);
   const [availableLabels, setAvailableLabels] = useState<Label[]>([]);
+  const [availableProductCategories, setAvailableProductCategories] = useState<ProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -201,14 +207,16 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     const loadData = async () => {
       try {
         setLoading(true);
-        const [categories, publicationTypes, labels] = await Promise.all([
+        const [categories, publicationTypes, labels, productCategories] = await Promise.all([
           ChatbotSettingsService.getCategories(),
           ChatbotSettingsService.getPublicationTypes(),
           ChatbotSettingsService.getLabels(),
+          ChatbotSettingsService.getProductCategories(),
         ]);
         setAvailableCategories(categories);
         setAvailablePublicationTypes(publicationTypes);
         setAvailableLabels(labels);
+        setAvailableProductCategories(productCategories);
       } catch (err) {
         setError('Nepodařilo se načíst dostupné možnosti');
         console.error('Chyba při načítání dat:', err);
@@ -335,6 +343,15 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
       allowed_labels: prev.allowed_labels.includes(labelId)
         ? prev.allowed_labels.filter(id => id !== labelId)
         : [...prev.allowed_labels, labelId]
+    }));
+  };
+
+  const toggleProductCategory = (categoryName: string) => {
+    setFormData(prev => ({
+      ...prev,
+      allowed_product_categories: prev.allowed_product_categories.includes(categoryName)
+        ? prev.allowed_product_categories.filter(name => name !== categoryName)
+        : [...prev.allowed_product_categories, categoryName]
     }));
   };
 
@@ -484,6 +501,21 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
                 </span>
               </div>
             </label>
+            <label className="flex items-start">
+              <input
+                type="checkbox"
+                checked={formData.group_products_by_category}
+                onChange={(e) => setFormData(prev => ({ ...prev, group_products_by_category: e.target.checked }))}
+                className="mr-2 mt-1"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700 font-medium">Rozdělit produkty podle kategorií</span>
+                <span className="text-xs text-gray-500">
+                  Tabulka "Súvisející produkty BEWIT" se zobrazí rozdělená na sekce podle kategorií. 
+                  Produkty zůstanou v jednom bloku, ale budou vizuálně seskupené.
+                </span>
+              </div>
+            </label>
           </div>
         </div>
 
@@ -542,6 +574,78 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
                     className="mr-2"
                   />
                   <span className="text-sm text-gray-700">{label.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 🆕 Produktové kategorie (Product Pills) */}
+        {availableProductCategories.length > 0 && (
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              🛍️ Produktové kategorie (Product Pills)
+            </h3>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-gray-700">
+                Vyberte kategorie z <strong>product_feed_2</strong>, ze kterých mohou pocházet Product Pills. 
+                Pokud není vybrána žádná kategorie, produkty z této kategorie se <strong>nebudou zobrazovat</strong> v doporučeních.
+                {formData.allowed_product_categories.length === 0 && (
+                  <span className="block mt-2 text-amber-700 font-medium">
+                    ⚠️ Není vybrána žádná kategorie - všechny kategorie jsou povoleny
+                  </span>
+                )}
+                {formData.allowed_product_categories.length > 0 && (
+                  <span className="block mt-2 text-green-700 font-medium">
+                    ✅ Vybráno {formData.allowed_product_categories.length} z {availableProductCategories.length} kategorií
+                  </span>
+                )}
+              </p>
+            </div>
+            
+            {/* Tlačítka pro rychlý výběr */}
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({
+                  ...prev,
+                  allowed_product_categories: availableProductCategories.map(c => c.category)
+                }))}
+                className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
+              >
+                ✓ Vybrat vše
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({
+                  ...prev,
+                  allowed_product_categories: []
+                }))}
+                className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+              >
+                ✗ Zrušit výběr
+              </button>
+            </div>
+
+            {/* Multi-select seznam kategorií */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-4 bg-white">
+              {availableProductCategories.map((productCategory) => (
+                <label 
+                  key={productCategory.category} 
+                  className="flex items-start hover:bg-gray-50 p-2 rounded cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.allowed_product_categories.includes(productCategory.category)}
+                    onChange={() => toggleProductCategory(productCategory.category)}
+                    className="mr-2 mt-1"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm text-gray-700 font-medium">{productCategory.category}</span>
+                    <span className="text-xs text-gray-500">
+                      {productCategory.product_count} {productCategory.product_count === 1 ? 'produkt' : 'produktů'}
+                    </span>
+                  </div>
                 </label>
               ))}
             </div>
@@ -840,6 +944,18 @@ const ChatbotSettingsManager: React.FC = () => {
               <div>Kategorie: {chatbot.allowed_categories.length} povolených</div>
               <div>Typy publikací: {chatbot.allowed_publication_types.length} povolených</div>
               <div>Štítky: {chatbot.allowed_labels.length} povolených</div>
+              <div className="flex items-center">
+                <span>Produktové kategorie:</span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                  (chatbot.allowed_product_categories?.length || 0) === 0
+                    ? 'bg-amber-100 text-amber-800' 
+                    : 'bg-green-100 text-green-800'
+                }`}>
+                  {(chatbot.allowed_product_categories?.length || 0) === 0 
+                    ? 'Všechny povoleny' 
+                    : `${chatbot.allowed_product_categories?.length} vybraných`}
+                </span>
+              </div>
             </div>
 
             {/* 🆕 Nastavení produktového routeru, funnelu a sumarizace */}
@@ -872,6 +988,16 @@ const ChatbotSettingsManager: React.FC = () => {
                     : 'bg-gray-100 text-gray-600'
                 }`}>
                   {chatbot.summarize_history === true ? 'Aktivní' : 'Vypnuto'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-gray-700">Grupování produktů:</span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                  chatbot.group_products_by_category === true
+                    ? 'bg-purple-100 text-purple-800' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {chatbot.group_products_by_category === true ? 'Podle kategorií' : 'Standardní'}
                 </span>
               </div>
             </div>

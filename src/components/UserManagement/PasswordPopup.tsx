@@ -22,7 +22,6 @@ export const PasswordPopup: React.FC<PasswordPopupProps> = ({ email, password, o
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
-            console.error('Chyba při kopírování:', err);
         }
     };
 

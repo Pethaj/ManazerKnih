@@ -11,7 +11,6 @@ import { WidgetChatContainer } from './components/WidgetChat/WidgetChatContainer
 import './widget.css'; // Import widget styles
 
 // Widget initialization
-console.log('🚀 Widget Entry Point inicializován');
 
 // Render widget
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
@@ -23,5 +22,4 @@ root.render(
 );
 
 // Log widget loaded
-console.log('✅ Widget React aplikace renderována');
 

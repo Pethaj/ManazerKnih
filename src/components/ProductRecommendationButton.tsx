@@ -7,7 +7,6 @@
  *   userQuery="poslední dotaz uživatele"
  *   botResponse="aktuální odpověď chatbota"
  *   sessionId="session-id"
- *   onProductsLoaded={(products) => console.log(products)}
  * />
  */
 
@@ -70,7 +69,6 @@ export const ProductRecommendationButton: React.FC<ProductRecommendationButtonPr
       }
 
     } catch (err) {
-      console.error('❌ Chyba při načítání produktů:', err);
       setError('Nepodařilo se načíst produktová doporučení. Zkuste to prosím znovu.');
     } finally {
       setIsLoading(false);

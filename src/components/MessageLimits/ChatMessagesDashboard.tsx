@@ -55,7 +55,6 @@ const ChatMessagesDashboard: React.FC = () => {
         if (error) throw error;
         setChatbots(data || []);
       } catch (err) {
-        console.error('Chyba při načítání chatbotů:', err);
       }
     };
 
@@ -130,7 +129,6 @@ const ChatMessagesDashboard: React.FC = () => {
       setHasMore((data || []).length === MESSAGES_PER_PAGE);
       
     } catch (err) {
-      console.error('Chyba při načítání zpráv:', err);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -166,7 +164,6 @@ const ChatMessagesDashboard: React.FC = () => {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000); // Zmizí po 2 sekundách
     } catch (err) {
-      console.error('Chyba při kopírování:', err);
     }
   };
 

@@ -23,7 +23,6 @@ export default function ResetPasswordPage() {
                 const { data: { session }, error } = await supabase.auth.getSession();
                 
                 if (error) {
-                    console.error('Chyba při získávání session:', error);
                     setError('Odkaz pro reset hesla je neplatný nebo vypršel. Požádejte o nový odkaz.');
                     setValidatingToken(false);
                     return;
@@ -37,7 +36,6 @@ export default function ResetPasswordPage() {
 
                 setValidatingToken(false);
             } catch (err) {
-                console.error('Neočekávaná chyba při validaci tokenu:', err);
                 setError('Došlo k neočekávané chybě. Zkuste to prosím znovu.');
                 setValidatingToken(false);
             }
@@ -71,7 +69,6 @@ export default function ResetPasswordPage() {
             });
 
             if (updateError) {
-                console.error('Chyba při změně hesla:', updateError);
                 setError(updateError.message);
                 setLoading(false);
                 return;
@@ -85,7 +82,6 @@ export default function ResetPasswordPage() {
                 navigate('/');
             }, 2000);
         } catch (err) {
-            console.error('Neočekávaná chyba při změně hesla:', err);
             setError('Došlo k neočekávané chybě. Zkuste to prosím znovu.');
             setLoading(false);
         }

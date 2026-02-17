@@ -8,7 +8,6 @@ export async function convertPdfPagesToImages(
   maxPages: number = 10,
   scale: number = 2.0
 ): Promise<string[]> {
-  console.warn('⚠️ PDF to Image konverze není implementována, vrací se prázdné pole');
   return [];
 }
 
@@ -17,6 +16,5 @@ export async function convertPdfPageToImage(
   pageNumber: number,
   scale: number = 2.0
 ): Promise<string | null> {
-  console.warn('⚠️ PDF to Image konverze není implementována, vrací se null');
   return null;
 }

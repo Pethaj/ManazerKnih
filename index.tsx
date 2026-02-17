@@ -439,24 +439,6 @@ export interface Database {
 // --- Supabase Client Setup ---
 // POUŽÍVÁME CENTRÁLNÍ INSTANCI ze /src/lib/supabase.ts
 // supabaseClient je importován jako alias "supabase as supabaseClient"
-console.log('✅ Používám centrální Supabase klient z /src/lib/supabase.ts');
-
-console.log('✅ Supabase client inicializován');
-
-// Test připojení při startu
-(async () => {
-    try {
-        console.log('🧪 Testování připojení k Supabase...');
-        const { data, error } = await supabaseClient.from('books').select('count').limit(1);
-        if (error) {
-            console.error('❌ Supabase připojení selhalo:', error);
-        } else {
-            console.log('✅ Supabase připojení úspěšné!');
-        }
-    } catch (err) {
-        console.error('❌ Supabase test exception:', err);
-    }
-})();
 
 const parseSupabaseArray = (value: string[] | string | null): string[] => {
     if (!value) return [];
@@ -487,7 +469,6 @@ const parseSupabaseArray = (value: string[] | string | null): string[] => {
 };
 
 const mapSupabaseToBook = (data: Database['public']['Tables']['books']['Row']): Book => {
-    console.log('🔄 mapSupabaseToBook - OCR z DB:', data.OCR, 'pro knihu:', data.title);
     return {
         id: data.id,
         title: data.title,
@@ -523,10 +504,8 @@ const mapSupabaseToBook = (data: Database['public']['Tables']['books']['Row']): 
 const api = {
     async getBooks(): Promise<Book[]> {
         const callId = Math.random().toString(36).substring(7);
-        console.log(`📚 [${callId}] Načítám knihy z databáze...`);
         
         try {
-            console.log(`[${callId}] 🔍 Metoda 1: Zkouším Supabase client...`);
             const startTime = Date.now();
             
             // Zkusíme nejdřív přímý REST API call
@@ -553,8 +532,6 @@ const api = {
             }
             
             const mappedBooks = data.map(mapSupabaseToBook);
-            console.log(`[${callId}] 📋 Mapováno ${mappedBooks.length} knih`);
-            console.log(`[${callId}] 🎉 getBooks úspěšně dokončen`);
             
             return mappedBooks;
         } catch (err: any) {
@@ -3749,7 +3726,6 @@ const App = ({ currentUser }: { currentUser: User }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        console.log('🚀 useEffect - Začínám načítání dat...');
         let isMounted = true;
         setIsLoading(true);
         
@@ -3761,18 +3737,9 @@ const App = ({ currentUser }: { currentUser: User }) => {
             api.getLanguages(),
             api.getPublicationTypes()
         ]).then(([books, labels, categories, allLanguagesFromDB, publicationTypes]) => {
-            console.log('✅ Promise.all dokončen!');
             if (!isMounted) {
-                console.log('⚠️ Komponenta již není namountovaná, přeskakuji aktualizaci stavu');
                 return;
             }
-            
-            console.log('📊 Načtená metadata z databáze:');
-            console.log('- Knihy:', books.length);
-            console.log('- Štítky:', labels.length);
-            console.log('- Kategorie:', categories.length);
-            console.log('- Všechny jazyky z DB:', allLanguagesFromDB.length);
-            console.log('- Typy publikací:', publicationTypes.length);
             
             setBooks(books);
             setAllLabels(labels);
@@ -3795,8 +3762,6 @@ const App = ({ currentUser }: { currentUser: User }) => {
             // Odfiltrujeme duplicity a seřadíme
             const uniqueUsedLanguages = Array.from(usedLanguages).sort();
             const uniqueUsedVersions = Array.from(usedVersions).sort();
-            console.log('📝 Jazyky používané v knihách pro filtraci:', uniqueUsedLanguages);
-            console.log('📝 Verze vydání používané v knihách pro filtraci:', uniqueUsedVersions);
             setAllLanguages(uniqueUsedLanguages);
             setAllVersions(uniqueUsedVersions);
             
@@ -3835,7 +3800,6 @@ const App = ({ currentUser }: { currentUser: User }) => {
         });
         
         return () => {
-            console.log('🧹 useEffect cleanup - komponenta se odpojuje');
             isMounted = false;
         };
     }, []);

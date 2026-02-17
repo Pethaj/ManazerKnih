@@ -32,6 +32,10 @@ export interface ChatbotSettings {
   enable_manual_funnel?: boolean;   // Zapnutí manuálního funnel spouštěče (tlačítko místo calloutu)
   // 🆕 Nastavení sumarizace historie
   summarize_history?: boolean;      // Zapnutí automatické sumarizace historie pro N8N webhook
+  // 🆕 Filtrování produktových kategorií
+  allowed_product_categories?: string[];  // Povolené kategorie z product_feed_2 pro Product Pills
+  // 🆕 Grupování produktů podle kategorií v tabulce
+  group_products_by_category?: boolean;  // Zobrazit produkty rozdělené podle kategorií
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -57,6 +61,12 @@ export interface Label {
   name: string;
 }
 
+// Interface pro produktové kategorie z product_feed_2
+export interface ProductCategory {
+  category: string;
+  product_count: number;
+}
+
 // Interface pro vytvoření nového chatbota
 export interface CreateChatbotSettingsData {
   chatbot_id: string;
@@ -79,6 +89,10 @@ export interface CreateChatbotSettingsData {
   enable_manual_funnel?: boolean;
   // 🆕 Nastavení sumarizace historie
   summarize_history?: boolean;
+  // 🆕 Filtrování produktových kategorií
+  allowed_product_categories?: string[];
+  // 🆕 Grupování produktů podle kategorií
+  group_products_by_category?: boolean;
 }
 
 // Interface pro aktualizaci chatbota
@@ -103,6 +117,10 @@ export interface UpdateChatbotSettingsData {
   enable_manual_funnel?: boolean;
   // 🆕 Nastavení sumarizace historie
   summarize_history?: boolean;
+  // 🆕 Filtrování produktových kategorií
+  allowed_product_categories?: string[];
+  // 🆕 Grupování produktů podle kategorií
+  group_products_by_category?: boolean;
 }
 
 // Interface pro filtry chatbota
@@ -122,6 +140,10 @@ export interface ChatbotFilters {
   enableManualFunnel: boolean;   // Zapnutí manuálního funnel spouštěče
   // 🆕 Nastavení sumarizace historie
   summarizeHistory: boolean;     // Automatická sumarizace historie pro N8N webhook
+  // 🆕 Filtrování produktových kategorií
+  allowedProductCategories: string[];  // Povolené kategorie z product_feed_2
+  // 🆕 Grupování produktů podle kategorií
+  groupProductsByCategory: boolean;  // Zobrazit produkty rozdělené podle kategorií
 }
 
 export class ChatbotSettingsService {
@@ -370,6 +392,24 @@ export class ChatbotSettingsService {
     }
   }
 
+  // 🆕 Načtení všech produktových kategorií z product_feed_2
+  static async getProductCategories(): Promise<ProductCategory[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_product_feed_2_categories');
+
+      if (error) {
+        console.error('Chyba při načítání produktových kategorií:', error);
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Chyba při načítání produktových kategorií:', error);
+      throw error;
+    }
+  }
+
   // Načtení filtrů pro konkrétního chatbota (s rozšířenými informacemi)
   static async getChatbotFilters(chatbotId: string): Promise<ChatbotFilters> {
     try {
@@ -440,6 +480,10 @@ export class ChatbotSettingsService {
         enableManualFunnel: settings.enable_manual_funnel === true,    // default false
         // 🆕 Nastavení sumarizace historie
         summarizeHistory: settings.summarize_history === true,         // default false
+        // 🆕 Filtrování produktových kategorií
+        allowedProductCategories: settings.allowed_product_categories || [], // default všechny
+        // 🆕 Grupování produktů podle kategorií
+        groupProductsByCategory: settings.group_products_by_category === true, // default false
       };
     } catch (error) {
       console.error('Chyba při načítání filtrů chatbota:', error);

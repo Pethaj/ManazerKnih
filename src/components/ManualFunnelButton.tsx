@@ -93,15 +93,8 @@ export const ManualFunnelButton: React.FC<ManualFunnelButtonProps> = ({
     setError(null);
 
     try {
-      console.log('%c╔═══════════════════════════════════════════════════════════════════╗', 'background: #3B82F6; color: white; font-weight: bold;');
-      console.log('%c║         🎯 MANUÁLNÍ FUNNEL SPOUŠTĚČ - START                       ║', 'background: #3B82F6; color: white; font-weight: bold;');
-      console.log('%c╚═══════════════════════════════════════════════════════════════════╝', 'background: #3B82F6; color: white; font-weight: bold;');
 
-      console.log('%c📋 Symptomy zadané uživatelem:', 'color: #3B82F6; font-weight: bold;');
-      symptomsArray.forEach((s, i) => console.log(`   ${i + 1}. ${s}`));
 
-      console.log('%c📦 Dostupné produkty:', 'color: #8B5CF6; font-weight: bold;');
-      recommendedProducts.forEach((p, i) => console.log(`   ${i + 1}. ${p.product_name}`));
 
       // Sestavení seznamu produktů pro chatInput
       const productList = recommendedProducts.map(p => {
@@ -139,10 +132,6 @@ Symptomy zákazníka: ${symptomsList}
         metadata: metadata
       };
 
-      console.log('%c📡 Odesílám do N8N webhook:', 'color: #EF4444; font-weight: bold;');
-      console.log('   URL:', MANUAL_FUNNEL_WEBHOOK_URL);
-      console.log('%c📝 chatInput:', 'color: #EF4444;');
-      console.log(chatInput);
 
       // Volání webhooku
       const response = await fetch(MANUAL_FUNNEL_WEBHOOK_URL, {
@@ -156,7 +145,6 @@ Symptomy zákazníka: ${symptomsList}
       }
 
       const data = await response.json();
-      console.log('%c📥 N8N response:', 'color: #10B981; font-weight: bold;', data);
 
       // Zpracování odpovědi
       let responsePayload = Array.isArray(data) ? data[0] : data;
@@ -175,11 +163,7 @@ Symptomy zákazníka: ${symptomsList}
           const jsonData = JSON.parse(botText);
           selectedProductCodes = jsonData.selectedProductCodes || [];
           actualRecommendationText = jsonData.recommendation || botText;
-          console.log('%c✅ Parsován JSON z N8N:', 'color: #10B981;');
-          console.log('   selectedProductCodes:', selectedProductCodes);
-          console.log('   recommendation text length:', actualRecommendationText.length);
         } catch (e) {
-          console.warn('%c⚠️ Nepodařilo se parsovat JSON z botText:', 'color: orange;', e);
         }
       }
       
@@ -192,17 +176,14 @@ Symptomy zákazníka: ${symptomsList}
         actualRecommendationText = extractedText;
       }
       
-      console.log('%c📝 Extrahovaný text (preview):', 'color: #8B5CF6;', actualRecommendationText.substring(0, 200));
 
       // Obohacení produktů z databáze
-      console.log('%c🔄 Obohacuji produkty z databáze...', 'color: #8B5CF6;');
       
       // 🔧 OPRAVA: Použijeme selectedProductCodes z N8N odpovědi místo prvních 2 z recommendedProducts
       let productsToEnrich: RecommendedProduct[] = [];
       
       if (selectedProductCodes.length > 0) {
         // N8N vrátil konkrétní product codes - najdeme je v recommendedProducts
-        console.log('   🎯 Filtrujeme produkty podle selectedProductCodes:', selectedProductCodes);
         productsToEnrich = recommendedProducts.filter(p => {
           // Matchujeme podle substring v product_name nebo přesný product_code
           // Např: "Nobapa" matchne "Nobapa esenciální olej"
@@ -212,24 +193,17 @@ Symptomy zákazníka: ${symptomsList}
           const codeMatch = selectedProductCodes.includes(p.product_code);
           
           if (nameMatch || codeMatch) {
-            console.log(`   ✅ Match: ${p.product_name} (code: ${p.product_code})`);
             return true;
           }
           return false;
         });
         
         if (productsToEnrich.length === 0) {
-          console.warn('   ⚠️ Žádné produkty neodpovídají selectedProductCodes:', selectedProductCodes);
-          console.warn('   📦 Dostupné produkty:', recommendedProducts.map(p => p.product_name));
-          console.warn('   🔄 Fallback: použiji první 2 produkty');
           productsToEnrich = recommendedProducts.slice(0, 2);
         } else {
-          console.log('   ✅ Nalezeno produktů:', productsToEnrich.length);
-          productsToEnrich.forEach(p => console.log(`      - ${p.product_name}`));
         }
       } else {
         // Fallback: použijeme první 2 produkty
-        console.log('   ⚠️ Žádné selectedProductCodes, použiji první 2 produkty');
         productsToEnrich = recommendedProducts.slice(0, 2);
       }
       
@@ -246,8 +220,6 @@ Symptomy zákazníka: ${symptomsList}
         thumbnail: p.thumbnail
       }));
 
-      console.log('%c✅ Funnel dokončen!', 'color: #10B981; font-weight: bold;');
-      console.log('   Produkty:', funnelProducts.map(p => p.product_name));
 
       setFunnelResult({
         text: actualRecommendationText,  // Používáme zpracovaný text místo původního botText
@@ -264,7 +236,6 @@ Symptomy zákazníka: ${symptomsList}
       setSymptomsText('');
 
     } catch (err) {
-      console.error('%c❌ Chyba manuálního funnelu:', 'color: #EF4444;', err);
       setError(err instanceof Error ? err.message : 'Nepodařilo se zpracovat požadavek.');
     } finally {
       setIsLoading(false);

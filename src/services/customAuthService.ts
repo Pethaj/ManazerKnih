@@ -56,7 +56,6 @@ export function getCurrentSession(): UserSession | null {
 
         return session;
     } catch (err) {
-        console.error('Chyba při načítání session:', err);
         return null;
     }
 }
@@ -92,7 +91,6 @@ export async function login(
             .single();
 
         if (fetchError || !userData) {
-            console.error('❌ Uživatel nenalezen:', fetchError);
             return { user: null, error: 'Nesprávný email nebo heslo' };
         }
 
@@ -100,7 +98,6 @@ export async function login(
         const isPasswordValid = await bcrypt.compare(password, userData.password_hash);
         
         if (!isPasswordValid) {
-            console.error('❌ Nesprávné heslo');
             return { user: null, error: 'Nesprávný email nebo heslo' };
         }
 
@@ -119,7 +116,6 @@ export async function login(
             });
 
         if (sessionError) {
-            console.error('⚠️ Nepodařilo se uložit session do DB:', sessionError);
             // Pokračujeme i bez DB session (fallback na localStorage)
         }
 
@@ -146,7 +142,6 @@ export async function login(
         return { user, error: null };
 
     } catch (err) {
-        console.error('❌ Chyba při přihlášení:', err);
         return { user: null, error: 'Neočekávaná chyba při přihlášení' };
     }
 }
@@ -171,7 +166,6 @@ export async function logout(): Promise<{ error: string | null }> {
 
         return { error: null };
     } catch (err) {
-        console.error('❌ Chyba při odhlášení:', err);
         clearSession(); // I při chybě smažeme lokální session
         return { error: null }; // Nehlásíme chybu uživateli
     }
@@ -196,7 +190,6 @@ export async function getCurrentUser(): Promise<{ user: User | null; error: stri
             .single();
 
         if (fetchError || !userData) {
-            console.error('❌ Nepodařilo se načíst uživatele:', fetchError);
             clearSession(); // Session je neplatná
             return { user: null, error: 'Uživatel nenalezen' };
         }
@@ -212,7 +205,6 @@ export async function getCurrentUser(): Promise<{ user: User | null; error: stri
 
         return { user, error: null };
     } catch (err) {
-        console.error('❌ Chyba při získávání uživatele:', err);
         return { user: null, error: 'Chyba při načítání uživatele' };
     }
 }
@@ -250,14 +242,12 @@ export async function changePassword(
             .eq('id', user.id);
 
         if (updateError) {
-            console.error('❌ Chyba při změně hesla:', updateError);
             return { success: false, error: 'Nepodařilo se změnit heslo' };
         }
 
         return { success: true, error: null };
 
     } catch (err) {
-        console.error('❌ Chyba při změně hesla:', err);
         return { success: false, error: 'Neočekávaná chyba při změně hesla' };
     }
 }
@@ -279,7 +269,6 @@ export async function cleanupExpiredSessions(): Promise<void> {
     try {
         await supabase.rpc('cleanup_expired_sessions');
     } catch (err) {
-        console.error('Chyba při čištění sessions:', err);
     }
 }
 

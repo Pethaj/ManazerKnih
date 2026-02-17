@@ -4,7 +4,6 @@
  */
 
 export async function runCompleteVectorTest(query: string): Promise<any> {
-  console.warn('⚠️ Complete vector test není implementován');
   return {
     success: false,
     message: 'Služba není k dispozici',
@@ -13,7 +12,6 @@ export async function runCompleteVectorTest(query: string): Promise<any> {
 }
 
 export async function testVectorSearch(query: string, limit: number = 10): Promise<any[]> {
-  console.warn('⚠️ Test vector search není implementován');
   return [];
 }
 

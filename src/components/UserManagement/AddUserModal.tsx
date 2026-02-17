@@ -59,7 +59,6 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onUserAdded
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
-            console.error('Chyba při kopírování:', err);
         }
     };
 

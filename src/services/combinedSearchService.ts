@@ -11,7 +11,6 @@ export interface SearchResult {
 }
 
 export async function performCombinedSearch(query: string, limit: number = 10): Promise<SearchResult[]> {
-  console.warn('⚠️ Combined search není implementován');
   return [];
 }
 
@@ -20,7 +19,6 @@ export async function searchWithFilters(
   filters: Record<string, any>,
   limit: number = 10
 ): Promise<SearchResult[]> {
-  console.warn('⚠️ Combined search with filters není implementován');
   return [];
 }
 

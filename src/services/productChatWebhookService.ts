@@ -61,7 +61,6 @@ async function callProductChatWebhook(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ N8N webhook error:', response.status, errorText);
       throw new Error(`N8N webhook failed: ${response.status} ${response.statusText}`);
     }
 
@@ -104,14 +103,12 @@ async function callProductChatWebhook(
 
     // Validace finálního formátu
     if (!data.text || !Array.isArray(data.products)) {
-      console.error('❌ Invalid N8N response format po konverzi:', JSON.stringify(data, null, 2));
       throw new Error('Invalid response format from N8N webhook - nelze konvertovat na standardní formát');
     }
 
 
     return data;
   } catch (error) {
-    console.error('❌ Chyba při volání N8N webhooku:', error);
     throw error;
   }
 }
@@ -138,12 +135,10 @@ async function enrichProductsWithMetadata(
       .in('product_code', codes);
 
     if (error) {
-      console.error('❌ Chyba při načítání metadat z product_feed_2:', error);
       throw error;
     }
 
     if (!data || data.length === 0) {
-      console.warn('⚠️ Žádná metadata nenalezena pro produkty:', codes);
       // Vrátíme produkty alespoň s doporučeními, i když chybí metadata
       return recommendations.map(rec => ({
         product_code: rec.product_code,
@@ -181,7 +176,6 @@ async function enrichProductsWithMetadata(
 
     return enrichedProducts;
   } catch (error) {
-    console.error('❌ Chyba při obohacování produktů:', error);
     throw error;
   }
 }
@@ -213,7 +207,6 @@ export async function getProductRecommendations(
       products: enrichedProducts
     };
   } catch (error) {
-    console.error('❌ Kritická chyba při získávání produktových doporučení:', error);
     
     // Vrátíme error response místo thrownutí chyby
     return {
@@ -228,21 +221,19 @@ export async function getProductRecommendations(
  */
 export async function testProductChatWebhook(): Promise<boolean> {
   try {
-    console.log('🧪 Testuji Product Chat webhook...');
     
     const result = await getProductRecommendations(
       'test dotaz',
       'test-session-' + Date.now()
     );
     
-    console.log('✅ Test webhook úspěšný:', {
+    console.log({
       hasText: !!result.text,
       productCount: result.products.length
     });
     
     return true;
   } catch (error) {
-    console.error('❌ Test webhook selhal:', error);
     return false;
   }
 }

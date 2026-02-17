@@ -45,7 +45,6 @@ const GlobalLimitSettings: React.FC = () => {
         setInputValue(data.daily_limit?.toString() || '');
       }
     } catch (err) {
-      console.error('Chyba při načítání globálního limitu:', err);
       setGlobalLimit(prev => ({ ...prev, loading: false }));
     }
   };
@@ -63,7 +62,6 @@ const GlobalLimitSettings: React.FC = () => {
         .is('chatbot_id', null);
 
       if (deleteError) {
-        console.error('⚠️ Chyba při mazání starých globálních limitů:', deleteError);
         // Pokračujeme dál - možná žádný limit neexistoval
       }
 
@@ -83,7 +81,6 @@ const GlobalLimitSettings: React.FC = () => {
       await loadGlobalLimit();
       
     } catch (err) {
-      console.error('Chyba při ukládání globálního limitu:', err);
       alert('❌ Nepodařilo se uložit globální limit');
     } finally {
       setGlobalLimit(prev => ({ ...prev, saving: false }));

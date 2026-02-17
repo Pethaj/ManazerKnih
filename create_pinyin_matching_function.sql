@@ -3,6 +3,8 @@
 -- ================================================================
 
 -- Funkce vrací všechny produkty z product_feed_2 s dynamicky generovaným pinyin_name
+-- 🆕 V3.0 (2026-02-17): Vrací VŠECHNY produkty, ne jen ty s **pinyin** formátem
+--                       Pro produkty bez pinyin formátu se použije product_name
 CREATE OR REPLACE FUNCTION public.get_products_with_pinyin_names()
 RETURNS TABLE (
   id BIGINT,
@@ -10,7 +12,8 @@ RETURNS TABLE (
   product_name VARCHAR,
   description_short TEXT,
   pinyin_name TEXT,
-  url TEXT
+  url TEXT,
+  category TEXT
 ) AS $$
 BEGIN
   RETURN QUERY
@@ -19,15 +22,19 @@ BEGIN
     pf2.product_code,
     pf2.product_name,
     pf2.description_short,
-    trim(regexp_replace(
-      (regexp_match(pf2.description_short, '^\*\*([^*]+)\*\*'))[1],
-      '^[0-9]+\s*[–-]?\s*',
-      ''
-    )) as pinyin_name,
-    pf2.url
+    -- Pokud má **pinyin** formát, extrahuj ho, jinak použij product_name
+    COALESCE(
+      trim(regexp_replace(
+        (regexp_match(pf2.description_short, '^\*\*([^*]+)\*\*'))[1],
+        '^[0-9]+\s*[–-]?\s*',
+        ''
+      )),
+      pf2.product_name
+    ) as pinyin_name,
+    pf2.url,
+    pf2.category
   FROM public.product_feed_2 pf2
-  WHERE pf2.description_short ~ '^\*\*[^*]+\*\*'
-    AND pf2.url IS NOT NULL
+  WHERE pf2.url IS NOT NULL  -- Pouze produkty s URL (odstraněn WHERE s pinyin formátem)
   ORDER BY pf2.id;
 END;
 $$ LANGUAGE plpgsql;

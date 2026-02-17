@@ -72,13 +72,11 @@ async function extractTextFromPDF(
         
         fullText += pageText + '\n';
       } catch (pageError) {
-        console.warn(`Chyba při zpracování PDF stránky ${pageNum}:`, pageError);
       }
     }
     
     return fullText.trim();
   } catch (error) {
-    console.error('❌ Chyba při extrakci textu z PDF:', error);
     return '';
   }
 }
@@ -114,7 +112,6 @@ async function convertPdfToImages(
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         if (!context) {
-          console.error('❌ Nepodařilo se získat 2D kontext canvasu');
           continue;
         }
         
@@ -134,13 +131,11 @@ async function convertPdfToImages(
         images.push(base64Image);
         
       } catch (pageError) {
-        console.error(`❌ Chyba při konverzi stránky ${pageNum}:`, pageError);
       }
     }
     
     return images;
   } catch (error) {
-    console.error('❌ Chyba při konverzi PDF na obrázky:', error);
     return [];
   }
 }
@@ -232,7 +227,6 @@ export async function extractMetadataIntelligent(
     };
     
   } catch (error) {
-    console.error('❌ Chyba při inteligentní extrakci metadat:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -267,12 +261,6 @@ export async function extractMetadataFromText(
       fileName: filename,
     };
     
-    console.log('📤 Odesílám text na Edge Function:', {
-      url: edgeFunctionUrl,
-      contentLength: textContent.length,
-      fileName: filename
-    });
-    
     const response = await fetch(edgeFunctionUrl, {
       method: 'POST',
       headers: {
@@ -304,7 +292,6 @@ export async function extractMetadataFromText(
     };
     
   } catch (error) {
-    console.error('❌ Chyba při extrakci metadat z textu:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -318,7 +305,6 @@ export async function extractMetadataFromText(
 export async function analyzeDocument(
   content: string
 ): Promise<ExtractedMetadata> {
-  console.warn('⚠️ analyzeDocument je deprecated, použijte extractMetadataIntelligent');
   return {
     summary: '',
     keywords: [],

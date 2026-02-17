@@ -87,7 +87,6 @@ export async function adminCreateUser(
             .single();
 
         if (insertError || !newUser) {
-            console.error('❌ Chyba při vytváření uživatele:', insertError);
             return { success: false, error: 'Nepodařilo se vytvořit uživatele' };
         }
 
@@ -109,7 +108,6 @@ export async function adminCreateUser(
         };
 
     } catch (err) {
-        console.error('❌ Chyba při vytváření uživatele:', err);
         return { success: false, error: 'Neočekávaná chyba při vytváření uživatele' };
     }
 }
@@ -131,7 +129,6 @@ export async function adminListUsers(): Promise<{ users: UserProfile[] | null; e
             .order('created_at', { ascending: false });
 
         if (fetchError) {
-            console.error('❌ Chyba při načítání uživatelů:', fetchError);
             return { users: null, error: 'Nepodařilo se načíst seznam uživatelů' };
         }
 
@@ -147,7 +144,6 @@ export async function adminListUsers(): Promise<{ users: UserProfile[] | null; e
 
         return { users, error: null };
     } catch (err) {
-        console.error('❌ Chyba při načítání uživatelů:', err);
         return { users: null, error: 'Neočekávaná chyba při načítání uživatelů' };
     }
 }
@@ -176,13 +172,11 @@ export async function adminDeleteUser(userId: string): Promise<{ success: boolea
             .eq('id', userId);
 
         if (deleteError) {
-            console.error('❌ Chyba při mazání uživatele:', deleteError);
             return { success: false, error: 'Nepodařilo se smazat uživatele' };
         }
 
         return { success: true, error: null };
     } catch (err) {
-        console.error('❌ Chyba při mazání uživatele:', err);
         return { success: false, error: 'Neočekávaná chyba při mazání uživatele' };
     }
 }
@@ -207,13 +201,11 @@ export async function adminUpdateUserRole(
             .eq('id', userId);
 
         if (updateError) {
-            console.error('❌ Chyba při změně role:', updateError);
             return { success: false, error: 'Nepodařilo se změnit roli' };
         }
 
         return { success: true, error: null };
     } catch (err) {
-        console.error('❌ Chyba při změně role:', err);
         return { success: false, error: 'Neočekávaná chyba při změně role' };
     }
 }
@@ -243,7 +235,6 @@ export async function adminResetUserPassword(
             .eq('id', userId);
 
         if (updateError) {
-            console.error('❌ Chyba při resetu hesla:', updateError);
             return { success: false, error: 'Nepodařilo se resetovat heslo' };
         }
 
@@ -255,7 +246,6 @@ export async function adminResetUserPassword(
 
         return { success: true, error: null, newPassword };
     } catch (err) {
-        console.error('❌ Chyba při resetu hesla:', err);
         return { success: false, error: 'Neočekávaná chyba při resetu hesla' };
     }
 }
@@ -292,13 +282,11 @@ export async function adminUpdateUser(
             .eq('id', userId);
 
         if (updateError) {
-            console.error('❌ Chyba při aktualizaci uživatele:', updateError);
             return { success: false, error: 'Nepodařilo se aktualizovat uživatele' };
         }
 
         return { success: true, error: null };
     } catch (err) {
-        console.error('❌ Chyba při aktualizaci uživatele:', err);
         return { success: false, error: 'Neočekávaná chyba při aktualizaci uživatele' };
     }
 }

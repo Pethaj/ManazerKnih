@@ -61,7 +61,6 @@ export async function saveChatPairToHistory(
       answerData
     );
   } catch (err) {
-    console.error('⚠️ Nepodařilo se uložit pár otázka-odpověď do historie:', err);
     // Pokračujeme dál - nechceme přerušit konverzaci kvůli problému s ukládáním
   }
 }

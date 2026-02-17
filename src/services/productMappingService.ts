@@ -46,14 +46,11 @@ export interface MappingResult {
  */
 async function generateEmbedding(text: string): Promise<number[] | null> {
   try {
-    console.log(`🔢 Generuji embedding pro: "${text.substring(0, 50)}..."`);
-    console.log(`   🔧 Edge Function: ${EDGE_FUNCTION_URL}`);
     
     const { data, error } = await supabase.functions.invoke(EDGE_FUNCTION_URL, {
       body: { text }
     });
     
-    console.log(`   📥 Edge Function response:`, {
       hasData: !!data,
       hasEmbedding: !!(data?.embedding),
       embeddingLength: data?.embedding?.length,
@@ -61,22 +58,16 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
     });
     
     if (error) {
-      console.error('❌ Edge Function error:', error);
       return null;
     }
     
     if (!data || !data.embedding) {
-      console.error('❌ Edge Function nevrátila embedding');
-      console.error('   Data:', data);
       return null;
     }
     
-    console.log(`✅ Embedding vygenerován (${data.embedding.length} rozměrů)`);
-    console.log(`   📊 První 3 hodnoty: [${data.embedding.slice(0, 3).map((v: number) => v.toFixed(6)).join(', ')}]`);
     return data.embedding;
     
   } catch (error) {
-    console.error('❌ Chyba při generování embeddingu:', error);
     return null;
   }
 }
@@ -117,20 +108,15 @@ async function findMatchingProduct(
   embedding: number[]
 ): Promise<ProductMatch['matchedProduct']> {
   try {
-    console.log(`🔎 Hledám v databázi: "${productName}"`);
-    console.log(`   📊 Embedding dimenze: ${embedding.length}`);
-    console.log(`   📊 První 5 hodnot: [${embedding.slice(0, 5).map(v => v.toFixed(4)).join(', ')}]`);
     
     // Voláme match_product_documents pro hledání v product_documents
     // Bereme TOP 3 chunky, protože produkt může mít více chunků a potřebujeme najít ten správný
-    console.log(`   🔧 Volám RPC: match_product_documents (top 3)`);
     const { data, error } = await supabase.rpc('match_product_documents', {
       query_embedding: embedding,
       match_count: 3,  // Bereme TOP 3 chunky
       filter: {}  // Žádné filtry pro metadata
     });
     
-    console.log(`   📥 RPC response:`, { 
       hasData: !!data, 
       dataLength: data?.length, 
       hasError: !!error,
@@ -138,24 +124,16 @@ async function findMatchingProduct(
     });
     
     if (error) {
-      console.error('❌ RPC error details:', error);
-      console.error('   Error message:', error.message);
-      console.error('   Error details:', error.details);
-      console.error('   Error hint:', error.hint);
       return null;
     }
     
     if (!data || data.length === 0) {
-      console.log(`⚠️ Žádná shoda nenalezena pro: ${productName}`);
       return null;
     }
     
     // 🆕 PROCHÁZÍME TOP 3 CHUNKY a hledáme první, který obsahuje hledaný text
-    console.log(`   🔍 Validace "contains" napříč ${data.length} chunky...`);
-    console.log(`   📝 Hledaný text: "${productName}"`);
     
     const searchTextNormalized = normalizeText(productName);
-    console.log(`   📝 Normalizovaný: "${searchTextNormalized}"`);
     
     let matchedChunk = null;
     
@@ -163,34 +141,26 @@ async function findMatchingProduct(
       const chunk = data[i];
       const contentNormalized = normalizeText(chunk.content);
       
-      console.log(`   \n   📄 Chunk ${i + 1}/${data.length} (similarity: ${chunk.similarity.toFixed(3)}):`);
-      console.log(`      Content preview: "${chunk.content.substring(0, 100)}..."`);
       
       if (contentNormalized.includes(searchTextNormalized)) {
-        console.log(`      ✅ MATCH! Text "${productName}" JE obsažen v tomto chunku!`);
         matchedChunk = chunk;
         break;
       } else {
-        console.log(`      ❌ Text není v tomto chunku, zkouším další...`);
       }
     }
     
     if (!matchedChunk) {
-      console.log(`\n   ❌ Text "${productName}" nebyl nalezen v žádném z ${data.length} chunků`);
       return null;
     }
     
-    console.log(`   \n   🎯 Použiji chunk se similarity: ${matchedChunk.similarity.toFixed(3)}`);
     
     // Získáme product_code z metadata (pole "Produkt ID")
     const productId = matchedChunk.metadata?.['Produkt ID'];
     
     if (!productId) {
-      console.log(`⚠️ Match nalezen, ale chybí "Produkt ID" v metadatech`);
       return null;
     }
     
-    console.log(`   🆔 Produkt ID: ${productId}`);
     
     // Načteme produkt z product_feed_2
     const { data: feed2Data, error: feed2Error } = await supabase
@@ -200,11 +170,9 @@ async function findMatchingProduct(
       .single();
     
     if (feed2Error || !feed2Data) {
-      console.warn(`⚠️ Produkt ID ${productId} nenalezen v product_feed_2:`, feed2Error);
       return null;
     }
     
-    console.log(`✅ Nalezen produkt: ${feed2Data.product_name} (kód: ${feed2Data.product_code})`);
     
     return {
       product_code: feed2Data.product_code,
@@ -215,7 +183,6 @@ async function findMatchingProduct(
     };
     
   } catch (error) {
-    console.error('❌ Chyba při hledání produktu:', error);
     return null;
   }
 }
@@ -233,21 +200,16 @@ async function findMatchingProduct(
 export async function mapProductsToDatabase(
   screenedProducts: string[]
 ): Promise<MappingResult> {
-  console.log('🗺️ Zahajuji mapování produktů na databázi...');
-  console.log(`📦 Počet produktů k zmapování: ${screenedProducts.length}`);
   
   const matches: ProductMatch[] = [];
   
   try {
     for (const productName of screenedProducts) {
-      console.log(`\n${'━'.repeat(60)}`);
-      console.log(`🔍 Zpracovávám: "${productName}"`);
       
       // 1. Vygenerujeme embedding pro název produktu
       const embedding = await generateEmbedding(productName);
       
       if (!embedding) {
-        console.error(`❌ Nepodařilo se vygenerovat embedding pro: ${productName}`);
         matches.push({
           screenedName: productName,
           matchedProduct: null
@@ -267,12 +229,6 @@ export async function mapProductsToDatabase(
       await new Promise(resolve => setTimeout(resolve, 300));
     }
     
-    console.log(`\n${'━'.repeat(60)}`);
-    console.log('✅ Mapování dokončeno!');
-    console.log(`📊 Výsledky:`);
-    console.log(`   - Celkem produktů: ${matches.length}`);
-    console.log(`   - Nalezené shody: ${matches.filter(m => m.matchedProduct !== null).length}`);
-    console.log(`   - Nenalezené: ${matches.filter(m => m.matchedProduct === null).length}`);
     
     return {
       success: true,
@@ -280,7 +236,6 @@ export async function mapProductsToDatabase(
     };
     
   } catch (error) {
-    console.error('❌ Kritická chyba při mapování:', error);
     return {
       success: false,
       matches: [],
@@ -297,22 +252,12 @@ export async function mapProductsToDatabase(
  * Vypíše výsledky mapování do console v čitelném formátu
  */
 export function printMappingResults(matches: ProductMatch[]): void {
-  console.log('\n' + '═'.repeat(70));
-  console.log('🎯 PÁROVÁNÍSCRREENOVANÝCH PRODUKTŮ S DATABÁZÍ:');
-  console.log('═'.repeat(70));
   
   matches.forEach((match, index) => {
     if (match.matchedProduct) {
-      console.log(`\n${index + 1}. ${match.screenedName}`);
-      console.log(`   ✅ ${match.matchedProduct.product_name} (kód: ${match.matchedProduct.product_code})`);
-      console.log(`   📊 Podobnost: ${(match.matchedProduct.similarity * 100).toFixed(1)}%`);
-      console.log(`   🔗 URL: ${match.matchedProduct.url}`);
     } else {
-      console.log(`\n${index + 1}. ${match.screenedName}`);
-      console.log(`   ❌ Produkt nenalezen v databázi`);
     }
   });
   
-  console.log('\n' + '═'.repeat(70));
 }
 

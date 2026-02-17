@@ -41,6 +41,7 @@ Tvým úkolem je identifikovat v textu POUZE **KONKRÉTNÍ NÁZVY PRODUKTŮ**.
 5. **Pinyin názvy** - např. "Te Xiao Bi Min Gan Wan", "Chuan Xiong Cha Tiao Wan"
 6. **Produktové kódy** - např. "009", "033", "BEWIT KOKOSOVÝ OLEJ"
 7. **Latinské názvy** - např. "Lavandula angustifolia", "Mentha piperita", "Citrus bergamia"
+8. **PRAWTEINY (superpotravinové směsi)** - např. "PRAWTEIN Aloe Vera Plus", "PRAWTEIN Wofert", "PRAWTEIN Move It", "PRAWTEIN Woman M", "PRAWTEIN Acai Berry Plus", "PRAWTEIN Ava", "PRAWTEIN Alg" – produkty začínající na "PRAWTEIN" + název
 
 **CO NEIDENTIFIKOVAT (IGNORUJ):**
 ❌ Obecné fráze typu: "svěží dech", "zdraví zubů", "bolest hlavy", "esenciální oleje"
@@ -87,10 +88,13 @@ Input: "Ústní voda pro svěží dech a zdraví zubů."
 Output: []
 
 Input: "Pomáhá při zánětech dásní a posiluje obranyschopnost."
-Output: []`;
+Output: []
 
-Input: " SLožení: Huang Qi, Gui PI"
-Output: [];
+Input: "Doporučuji PRAWTEIN Aloe Vera Plus pro podporu imunity a PRAWTEIN Wofert pro harmonizaci."
+Output: ["PRAWTEIN Aloe Vera Plus", "PRAWTEIN Wofert"]
+
+Input: " Složení: Huang Qi, Gui PI"
+Output: []`;
 
 // ============================================================================
 // HLAVNÍ FUNKCE dulezita
@@ -125,7 +129,7 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
     const { data, error } = await supabase.functions.invoke(EDGE_FUNCTION_URL, {
       body: {
         systemPrompt: SYSTEM_PROMPT,
-        userPrompt: `Analyzuj následující text a extrahuj POUZE názvy produktů/wanů/rostlin. Vrať POUZE JSON array:\n\n${text}`,
+        userPrompt: `Analyzuj následující text a extrahuj POUZE názvy produktů (wanů, esenciálních olejů, PRAWTEINů, rostlin). Vrať POUZE JSON array:\n\n${text}`,
         model: 'anthropic/claude-3-haiku',
         temperature: 0.1,
         maxTokens: 500
@@ -133,7 +137,6 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
     });
     
     if (error) {
-      console.error('❌ Edge Function error:', error);
       throw new Error(`Edge Function chyba: ${error.message}`);
     }
     
@@ -163,12 +166,9 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
       products = JSON.parse(jsonText);
       
       if (!Array.isArray(products)) {
-        console.error('⚠️ Response není pole, používám prázdné pole');
         products = [];
       }
     } catch (parseError) {
-      console.error('❌ Chyba při parsování JSON:', parseError);
-      console.error('📄 Response text:', data.response);
       products = [];
     }
     
@@ -180,7 +180,6 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
     };
     
   } catch (error) {
-    console.error('❌ Kritická chyba při screeningu produktů:', error);
     return {
       success: false,
       products: [],

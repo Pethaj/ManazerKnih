@@ -72,7 +72,6 @@ const MessageLimitsDashboard: React.FC = () => {
 
       setChatbotLimits(combined);
     } catch (err) {
-      console.error('Chyba při načítání limitů:', err);
     } finally {
       setLoading(false);
     }

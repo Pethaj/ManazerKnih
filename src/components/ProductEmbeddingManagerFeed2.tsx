@@ -53,7 +53,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
     const offset = append ? products.length : 0;
     const limit = append ? itemsPerPage : 1000; // První load = 1000, další loady = podle pagination
     
-    console.log(`🔍 Načítám produkty z product_feed_2 tabulky... (offset: ${offset}, limit: ${limit})`);
     
     try {
       // Získej celkový počet (pouze při prvním načtení)
@@ -64,7 +63,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
         
         if (!countError && count !== null) {
           setTotalCount(count);
-          console.log(`📊 Celkový počet produktů v databázi: ${count}`);
         }
       }
       
@@ -75,10 +73,8 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
         .order('product_name')
         .range(offset, offset + limit - 1);
 
-      console.log('📊 Products Feed 2 response:', { productsData, productsError });
 
       if (productsError) {
-        console.error('❌ Chyba při načítání produktů Feed 2:', productsError);
         alert(`Chyba při načítání produktů Feed 2: ${productsError.message}`);
         return;
       }
@@ -103,16 +99,13 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
       });
 
       if (append) {
-        console.log(`✅ Načteno dalších ${transformedProducts.length} produktů z Feed 2`);
         setProducts(prev => [...prev, ...transformedProducts]);
         setLoadedCount(prev => prev + transformedProducts.length);
       } else {
-        console.log(`✅ Načteno ${transformedProducts.length} produktů z Feed 2 (prvotní načtení)`);
         setProducts(transformedProducts);
         setLoadedCount(transformedProducts.length);
       }
     } catch (error) {
-      console.error('❌ Chyba při načítání produktů Feed 2:', error);
       alert(`Chyba při načítání produktů Feed 2: ${error}`);
     } finally {
       setLoading(false);
@@ -209,7 +202,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
     const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/3890ccdd-d09f-461b-b409-660d477023a3';
 
     try {
-      console.log(`📤 Odesílám ${selectedProductsArray.length} produktů Feed 2 na N8N webhook`);
 
       // Připrav data všech produktů
       const allProductsData = {
@@ -249,7 +241,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
       });
 
       if (!response.ok) {
-        console.error(`Chyba při odesílání produktů Feed 2:`, response.status, response.statusText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -259,33 +250,18 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
       let responseData;
       try {
         responseData = await response.json();
-        console.log('📥 Odpověď z N8N webhook Feed 2:', responseData);
-        console.log('📥 Response status:', response.status);
-        console.log('📥 responseData.success:', responseData.success);
-        console.log('📥 responseData.status:', responseData.status);
       } catch (error) {
-        console.warn('⚠️ Nepodařilo se parsovat odpověď jako JSON:', error);
         responseData = { success: true, message: 'Odpověď přijata bez JSON formátu' };
       }
 
       // Vyhodnoť výsledek podle odpovědi z webhoku
       const isSuccess = response.status === 200 || response.ok || responseData.success === true || responseData.status === 'success';
-      console.log('🔍 Vyhodnocení úspěchu:');
-      console.log('  - response.status:', response.status);
-      console.log('  - response.ok:', response.ok);
-      console.log('  - responseData.success:', responseData.success);
-      console.log('  - responseData.status:', responseData.status);
-      console.log('  - isSuccess:', isSuccess);
       
       if (isSuccess) {
-        console.log(`✅ Úspěšně odesláno ${selectedProductsArray.length} produktů Feed 2 na N8N webhook`);
         
         // AKTUALIZUJ STATUS V TABULCE product_feed_2
-        console.log('🔄 Aktualizuji embedding_status pro úspěšně odeslané produkty...');
         
         const productCodes = selectedProductsArray.map(p => p.product_code);
-        console.log('📋 Product codes k aktualizaci:', productCodes);
-        console.log('📊 Počet produktů k aktualizaci:', productCodes.length);
         
         try {
           const { data: updateData, error: updateError } = await supabase
@@ -298,15 +274,10 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
             .select();
           
           if (updateError) {
-            console.error('❌ Chyba při aktualizaci embedding_status:', updateError);
             alert(`❌ Chyba při aktualizaci statusu: ${updateError.message}`);
           } else {
-            console.log('✅ Status aktualizován v product_feed_2 tabulce');
-            console.log('✅ Počet aktualizovaných záznamů:', updateData?.length || 0);
-            console.log('✅ Aktualizovaná data:', updateData);
           }
         } catch (err) {
-          console.error('❌ Neočekávaná chyba při aktualizaci statusu:', err);
           alert(`❌ Neočekávaná chyba: ${err}`);
         }
         
@@ -340,7 +311,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
         alert(successMessage);
       } else {
         // Webhook vrátil chybu
-        console.error('❌ Webhook Feed 2 vrátil chybu:', responseData);
         
         let errorMessage = `❌ Webhook Feed 2 vrátil chybu`;
         
@@ -361,7 +331,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
       }
 
     } catch (error) {
-      console.error('❌ Chyba při odesílání na N8N webhook Feed 2:', error);
       alert(`❌ Chyba při komunikaci s N8N webhook Feed 2:\n\n${error}`);
     } finally {
       setN8nProcessing(false);
@@ -393,7 +362,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
         });
 
         try {
-          console.log(`🔄 Zpracovávám produkt Feed 2: ${product.product_name}`);
 
           // 1. Zkopíruj produkt do product_embeddings (pokud tam ještě není)
           const { error: insertError } = await supabase
@@ -419,7 +387,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
             });
 
           if (insertError) {
-            console.error('Chyba při vkládání do product_embeddings:', insertError);
             continue;
           }
 
@@ -449,13 +416,11 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
               .eq('product_code', product.product_code);
 
             if (updateError) {
-              console.error('Chyba při ukládání embeddingu:', updateError);
               await supabase
                 .from('product_embeddings')
                 .update({ embedding_status: 'error' })
                 .eq('product_code', product.product_code);
             } else {
-              console.log(`✅ Embedding Feed 2 úspěšně uložen pro: ${product.product_name}`);
             }
           } else {
             await supabase
@@ -468,7 +433,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
           await new Promise(resolve => setTimeout(resolve, 200));
 
         } catch (error) {
-          console.error(`Chyba při zpracování produktu Feed 2 ${product.product_name}:`, error);
           await supabase
             .from('product_embeddings')
             .update({ embedding_status: 'error' })
@@ -481,7 +445,6 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
       await loadProducts();
 
     } catch (error) {
-      console.error('Chyba při zpracování embeddingů Feed 2:', error);
     } finally {
       setProcessing(false);
       setProgress({ current: 0, total: 0, productName: '' });

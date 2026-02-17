@@ -41,7 +41,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
   // Načti produkty z products tabulky + status embeddingů
   const loadProducts = useCallback(async () => {
     setLoading(true);
-    console.log('🔍 Načítám produkty z products tabulky...');
     
     try {
       // 1. Načti všechny produkty
@@ -50,10 +49,8 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
         .select('id, product_code, name, description, category, price, currency, product_url, image_url')
         .order('name');
 
-      console.log('📊 Products response:', { productsData, productsError });
 
       if (productsError) {
-        console.error('❌ Chyba při načítání produktů:', productsError);
         alert(`Chyba při načítání produktů: ${productsError.message}`);
         return;
       }
@@ -63,10 +60,8 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
         .from('product_embeddings')
         .select('product_code, embedding_status, embedding_generated_at');
 
-      console.log('📊 Embeddings response:', { embeddingsData, embeddingsError });
 
       if (embeddingsError) {
-        console.warn('⚠️ Chyba při načítání embeddingů (možná tabulka neexistuje):', embeddingsError);
       }
 
       // 3. Propoj data
@@ -97,10 +92,8 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
         };
       });
 
-      console.log(`✅ Načteno ${transformedProducts.length} produktů`);
       setProducts(transformedProducts);
     } catch (error) {
-      console.error('❌ Chyba při načítání produktů:', error);
       alert(`Chyba při načítání produktů: ${error}`);
     } finally {
       setLoading(false);
@@ -189,7 +182,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
     const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/15210f31-7432-4002-aaa8-4026c462aa29';
 
     try {
-      console.log(`📤 Odesílám ${selectedProductsArray.length} produktů na N8N webhook`);
 
       // Připrav data všech produktů
       const allProductsData = {
@@ -226,7 +218,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
       });
 
       if (!response.ok) {
-        console.error(`Chyba při odesílání produktů:`, response.status, response.statusText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -236,15 +227,12 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
       let responseData;
       try {
         responseData = await response.json();
-        console.log('📥 Odpověď z N8N webhook:', responseData);
       } catch (error) {
-        console.warn('⚠️ Nepodařilo se parsovat odpověď jako JSON:', error);
         responseData = { success: true, message: 'Odpověď přijata bez JSON formátu' };
       }
 
       // Vyhodnoť výsledek podle odpovědi z webhoku
       if (responseData.success === true || responseData.status === 'success' || response.status === 200) {
-        console.log(`✅ Úspěšně odesláno ${selectedProductsArray.length} produktů na N8N webhook`);
         
         // Resetuj výběr po úspěšném odeslání
         setSelectedProducts(new Set());
@@ -271,7 +259,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
         alert(successMessage);
       } else {
         // Webhook vrátil chybu
-        console.error('❌ Webhook vrátil chybu:', responseData);
         
         let errorMessage = `❌ Webhook vrátil chybu`;
         
@@ -292,7 +279,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
       }
 
     } catch (error) {
-      console.error('❌ Chyba při odesílání na N8N webhook:', error);
       alert(`❌ Chyba při komunikaci s N8N webhook:\n\n${error}`);
     } finally {
       setN8nProcessing(false);
@@ -324,7 +310,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
         });
 
         try {
-          console.log(`🔄 Zpracovávám produkt: ${product.name}`);
 
           // 1. Zkopíruj produkt do product_embeddings (pokud tam ještě není)
           const { error: insertError } = await supabase
@@ -347,7 +332,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
             });
 
           if (insertError) {
-            console.error('Chyba při vkládání do product_embeddings:', insertError);
             continue;
           }
 
@@ -377,13 +361,11 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
               .eq('product_code', product.product_code);
 
             if (updateError) {
-              console.error('Chyba při ukládání embeddingu:', updateError);
               await supabase
                 .from('product_embeddings')
                 .update({ embedding_status: 'error' })
                 .eq('product_code', product.product_code);
             } else {
-              console.log(`✅ Embedding úspěšně uložen pro: ${product.name}`);
             }
           } else {
             await supabase
@@ -396,7 +378,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
           await new Promise(resolve => setTimeout(resolve, 200));
 
         } catch (error) {
-          console.error(`Chyba při zpracování produktu ${product.name}:`, error);
           await supabase
             .from('product_embeddings')
             .update({ embedding_status: 'error' })
@@ -409,7 +390,6 @@ export const ProductEmbeddingManager: React.FC<ProductEmbeddingManagerProps> = (
       await loadProducts();
 
     } catch (error) {
-      console.error('Chyba při zpracování embeddingů:', error);
     } finally {
       setProcessing(false);
       setProgress({ current: 0, total: 0, productName: '' });

@@ -36,6 +36,7 @@ export interface RecommendedProduct {
   thumbnail?: string;    // URL obrázku produktu (z product_feed_2)
   price?: number;        // Cena produktu (z product_feed_2)
   currency?: string;     // Měna (z product_feed_2)
+  category?: string;     // 🆕 Kategorie produktu (z product_feed_2)
 }
 
 export interface IntentRouterRequest {
@@ -247,7 +248,6 @@ Rozhodni o intentu podle pravidel.`;
     };
 
   } catch (error) {
-    console.error('❌ Intent routing error:', error instanceof Error ? error.message : String(error));
     
     // Fallback na chat při chybě
     return {
@@ -382,7 +382,7 @@ export async function enrichFunnelProductsFromDatabase(
     // Použijeme .or() pro hledání podle URL nebo product_code
     let query = supabase
       .from('product_feed_2')
-      .select('product_code, product_name, description_short, description_long, url, thumbnail, price, currency, availability');
+      .select('product_code, product_name, description_short, description_long, url, thumbnail, price, currency, availability, category');
     
     // Sestavíme OR podmínku pro URL nebo product_code
     const orConditions: string[] = [];
@@ -402,7 +402,6 @@ export async function enrichFunnelProductsFromDatabase(
     const { data, error } = await query;
 
     if (error) {
-      console.error('Chyba při načítání z product_feed_2:', error);
       return await enrichByProductName(products);
     }
 
@@ -432,7 +431,8 @@ export async function enrichFunnelProductsFromDatabase(
           url: dbData.url || product.url,
           thumbnail: dbData.thumbnail || undefined,
           price: dbData.price,
-          currency: dbData.currency || 'CZK'
+          currency: dbData.currency || 'CZK',
+          category: dbData.category  // 🆕 Kategorie z databáze
         };
       } else {
         return product;
@@ -442,7 +442,6 @@ export async function enrichFunnelProductsFromDatabase(
     return enrichedProducts;
 
   } catch (error) {
-    console.error('Chyba při obohacování produktů:', error);
     return products; // Vrátíme původní produkty
   }
 }
@@ -465,7 +464,7 @@ async function enrichByProductName(
       if (product.url) {
         const urlResult = await supabase
           .from('product_feed_2')
-          .select('product_code, product_name, description_short, url, thumbnail, price, currency')
+          .select('product_code, product_name, description_short, url, thumbnail, price, currency, category')
           .eq('url', product.url)
           .single();
         
@@ -481,7 +480,7 @@ async function enrichByProductName(
         
         let query = supabase
           .from('product_feed_2')
-          .select('product_code, product_name, description_short, url, thumbnail, price, currency');
+          .select('product_code, product_name, description_short, url, thumbnail, price, currency, category');
 
         if (numberMatch) {
           // Hledáme podle čísla na začátku názvu
@@ -504,7 +503,8 @@ async function enrichByProductName(
           url: data.url || product.url,
           thumbnail: data.thumbnail || undefined,
           price: data.price,
-          currency: data.currency || 'CZK'
+          currency: data.currency || 'CZK',
+          category: data.category  // 🆕 Kategorie z databáze
         });
       } else {
         enrichedProducts.push(product);

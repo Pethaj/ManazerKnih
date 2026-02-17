@@ -22,7 +22,6 @@ const api = {
             .select('name')
             .order('name');
         if (error) {
-            console.error('Error loading labels:', error);
             return [];
         }
         return data.map(item => item.name);
@@ -34,7 +33,6 @@ const api = {
             .select('name')
             .order('name');
         if (error) {
-            console.error('Error loading categories:', error);
             return [];
         }
         return data.map(item => item.name);
@@ -46,7 +44,6 @@ const api = {
             .select('name')
             .order('name');
         if (error) {
-            console.error('Error loading publication types:', error);
             return [];
         }
         return data.map(item => item.name);
@@ -200,21 +197,15 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
         const data = await response.json();
         
         // Debug log pro analysis N8N response structure
-        console.log('N8N webhook response:', JSON.stringify(data, null, 2));
-        console.log('Payload sent to N8N:', JSON.stringify(payload, null, 2));
-        console.log('Metadata being sent:', JSON.stringify(metadata, null, 2));
         
         // Test s ukázkovými daty z problému
         if (process.env.NODE_ENV === 'development') {
-            console.log('--- HTML parsing test ---');
             const testHtml = `\n<style>\n  body, .chatgpt-text { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }\n</style>\n<div class="chatgpt-text">\n<p>Ahoj! Jak ti mohu pomoci? 😊</p>\n</div>\n`;
             const cleanedTest = testHtml
                 .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
                 .replace(/<div class="chatgpt-text">/gi, '')
                 .replace(/<\/div>\s*$/gi, '')
                 .trim();
-            console.log('Original HTML:', testHtml);
-            console.log('Cleaned HTML:', cleanedTest);
         }
         
         let responsePayload = Array.isArray(data) ? data[0] : data;
@@ -272,7 +263,6 @@ const sendMessageToAPI = async (message: string, sessionId: string, history: Cha
         throw new Error('Došlo k neznámé chybě při komunikaci se serverem.');
     }
 };
-const startNewChatOnAPI = () => console.log("New chat started. State cleared in UI.");
 
 
 // --- UI COMPONENTS (from components/*.tsx) ---
@@ -496,7 +486,6 @@ const SanaChatContent: React.FC<SanaChatProps> = ({ selectedCategories, selected
                 currentMetadata.publication_types = selectedPublicationTypes;
             }
             
-            console.log('Sending message with current metadata:', currentMetadata);
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
@@ -527,7 +516,6 @@ const SanaChatContent: React.FC<SanaChatProps> = ({ selectedCategories, selected
                 currentMetadata.publication_types = selectedPublicationTypes;
             }
             
-            console.log('Sending silent prompt with current metadata:', currentMetadata);
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
@@ -588,7 +576,6 @@ const SanaChat: React.FC<SanaChatProps> = ({ selectedCategories, selectedLabels,
                 currentMetadata.publication_types = selectedPublicationTypes;
             }
             
-            console.log('Sending message with current metadata:', currentMetadata);
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
@@ -620,7 +607,6 @@ const SanaChat: React.FC<SanaChatProps> = ({ selectedCategories, selectedLabels,
                 currentMetadata.publication_types = selectedPublicationTypes;
             }
             
-            console.log('Sending silent prompt with current metadata:', currentMetadata);
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
@@ -739,7 +725,6 @@ const FilteredSanaChat: React.FC = () => {
             setSelectedLabels([...fallbackLabels]);
             setSelectedPublicationTypes([...fallbackTypes]);
             
-            console.log('🔄 Nastaveny výchozí hodnoty pro filtry (vše zaškrtnuté):', {
                 categories: fallbackCategories,
                 labels: fallbackLabels,
                 types: fallbackTypes
@@ -752,10 +737,6 @@ const FilteredSanaChat: React.FC = () => {
                     api.getPublicationTypes()
                 ]);
                 
-                console.log('📊 Načtená metadata z databáze do Sana chatu:');
-                console.log('- Štítky:', labels);
-                console.log('- Kategorie:', categories);
-                console.log('- Typy publikací:', publicationTypes);
                 
                 // Pouze pokud se načetly data z databáze, aktualizuji je
                 if (labels.length > 0) {
@@ -772,7 +753,6 @@ const FilteredSanaChat: React.FC = () => {
                 }
                 
             } catch (error) {
-                console.error('Chyba při načítání metadat z databáze, zůstávám u fallback hodnot:', error);
             }
         };
         
@@ -780,14 +760,11 @@ const FilteredSanaChat: React.FC = () => {
     }, []);
 
     const toggleFilter = (value: string, selected: string[], setter: (values: string[]) => void) => {
-        console.log('Toggle filter:', { value, currentSelected: selected });
         if (selected.includes(value)) {
             const newSelection = selected.filter(item => item !== value);
-            console.log('Removing filter, new selection:', newSelection);
             setter(newSelection);
         } else {
             const newSelection = [...selected, value];
-            console.log('Adding filter, new selection:', newSelection);
             setter(newSelection);
         }
     };

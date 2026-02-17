@@ -30,19 +30,20 @@ export interface HybridProductRecommendation {
  * @param limit - Maximální počet výsledků
  * @param useFeed1 - Zda použít Feed 1 (zbozi.xml)
  * @param useFeed2 - Zda použít Feed 2 (Product Feed 2)
+ * @param allowedCategories - Povolené kategorie pro filtrování (prázdné pole = všechny povoleny)
  */
 export async function getHybridProductRecommendations(
   query: string,
   sessionId?: string,
   limit: number = 10,
   useFeed1: boolean = true,
-  useFeed2: boolean = true
+  useFeed2: boolean = true,
+  allowedCategories: string[] = []
 ): Promise<HybridProductRecommendation[]> {
   try {
 
     // Pokud nejsou povoleny žádné feedy, vrátíme prázdný výsledek
     if (!useFeed1 && !useFeed2) {
-      console.warn('⚠️ Žádný feed není povolen pro vyhledávání');
       return [];
     }
 
@@ -53,6 +54,10 @@ export async function getHybridProductRecommendations(
     
 
     let allResults: HybridProductRecommendation[] = [];
+
+    // Připravíme kategorie pro SQL funkci (null pokud je pole prázdné)
+    const filterCategories = allowedCategories.length > 0 ? allowedCategories : null;
+
 
     // 2. Vyhledávání podle povolených feedů
     if (useFeed1 && useFeed2) {
@@ -66,13 +71,13 @@ export async function getHybridProductRecommendations(
           full_text_weight: 1.0,
           semantic_weight: 1.0,
           rrf_k: 50,
-          filter_feed_source: null // null = vyhledávat ve všech feedech
+          filter_feed_source: null, // null = vyhledávat ve všech feedech
+          filter_categories: filterCategories // 🆕 Filtrování podle kategorií
         }
       );
 
       if (searchError) {
-        console.error('❌ Chyba při hybridním vyhledávání:', searchError);
-        return await getPureSemanticRecommendations(query, queryEmbedding, limit, null);
+        return await getPureSemanticRecommendations(query, queryEmbedding, limit, null, filterCategories);
       }
 
       if (searchResults && searchResults.length > 0) {
@@ -89,13 +94,13 @@ export async function getHybridProductRecommendations(
           full_text_weight: 1.0,
           semantic_weight: 1.0,
           rrf_k: 50,
-          filter_feed_source: 'feed_1'
+          filter_feed_source: 'feed_1',
+          filter_categories: filterCategories // 🆕 Filtrování podle kategorií
         }
       );
 
       if (searchError) {
-        console.error('❌ Chyba při vyhledávání Feed 1:', searchError);
-        return await getPureSemanticRecommendations(query, queryEmbedding, limit, 'feed_1');
+        return await getPureSemanticRecommendations(query, queryEmbedding, limit, 'feed_1', filterCategories);
       }
 
       if (searchResults && searchResults.length > 0) {
@@ -112,13 +117,13 @@ export async function getHybridProductRecommendations(
           full_text_weight: 1.0,
           semantic_weight: 1.0,
           rrf_k: 50,
-          filter_feed_source: 'feed_2'
+          filter_feed_source: 'feed_2',
+          filter_categories: filterCategories // 🆕 Filtrování podle kategorií
         }
       );
 
       if (searchError) {
-        console.error('❌ Chyba při vyhledávání Feed 2:', searchError);
-        return await getPureSemanticRecommendations(query, queryEmbedding, limit, 'feed_2');
+        return await getPureSemanticRecommendations(query, queryEmbedding, limit, 'feed_2', filterCategories);
       }
 
       if (searchResults && searchResults.length > 0) {
@@ -133,7 +138,6 @@ export async function getHybridProductRecommendations(
     return allResults;
 
   } catch (error) {
-    console.error('❌ Chyba v hybridním produktovém vyhledávání:', error);
     return [];
   }
 }
@@ -145,7 +149,8 @@ async function getPureSemanticRecommendations(
   query: string,
   queryEmbedding: number[],
   limit: number,
-  feedSource: string | null = null
+  feedSource: string | null = null,
+  filterCategories: string[] | null = null
 ): Promise<HybridProductRecommendation[]> {
   try {
     const { data: searchResults, error } = await supabase.rpc(
@@ -154,12 +159,12 @@ async function getPureSemanticRecommendations(
         query_embedding: queryEmbedding,
         similarity_threshold: 0.5,
         max_results: limit,
-        filter_feed_source: feedSource
+        filter_feed_source: feedSource,
+        filter_categories: filterCategories // 🆕 Filtrování podle kategorií
       }
     );
 
     if (error) {
-      console.error('❌ Chyba při čistě sémantickém vyhledávání:', error);
       return [];
     }
 
@@ -181,7 +186,6 @@ async function getPureSemanticRecommendations(
       similarity_score: result.similarity_score,
     }));
   } catch (error) {
-    console.error('❌ Kritická chyba při fallback vyhledávání:', error);
     return [];
   }
 }
@@ -243,7 +247,6 @@ async function enrichProductsWithMetadata(
       });
 
     } catch (error) {
-      console.error(`⚠️ Chyba při obohacení produktu ${result.product_code}:`, error);
       
       // Pokud selže obohacení, použijeme základní data ze search results
       enrichedProducts.push({

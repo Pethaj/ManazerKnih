@@ -27,7 +27,6 @@ export interface N8nWebhookResponse {
  */
 export async function sendProductToN8n(payload: N8nProductPayload): Promise<N8nWebhookResponse> {
   try {
-    console.log(`📤 Odesílám produkt ${payload.product_code} na n8n webhook...`);
 
     const response = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
@@ -42,7 +41,6 @@ export async function sendProductToN8n(payload: N8nProductPayload): Promise<N8nW
     }
 
     const result = await response.json();
-    console.log(`✅ N8N webhook úspěšný pro produkt ${payload.product_code}`);
 
     return {
       success: true,
@@ -51,7 +49,6 @@ export async function sendProductToN8n(payload: N8nProductPayload): Promise<N8nW
       ...result
     };
   } catch (error) {
-    console.error(`❌ Chyba při volání n8n webhook pro ${payload.product_code}:`, error);
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Neznámá chyba',
@@ -71,7 +68,6 @@ export async function sendProductsBatchToN8n(
   let sent = 0;
   let failed = 0;
 
-  console.log(`📤 Odesílám batch ${products.length} produktů na n8n...`);
 
   for (const product of products) {
     const result = await sendProductToN8n(product);
@@ -88,7 +84,6 @@ export async function sendProductsBatchToN8n(
     }
   }
 
-  console.log(`✅ Batch dokončen: ${sent} úspěšných, ${failed} selhalo`);
 
   return { sent, failed };
 }

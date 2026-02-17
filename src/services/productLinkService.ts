@@ -29,16 +29,13 @@ export function openBewitProductLink(
       // Přidáme token do URL
       const separator = productUrl.includes('?') ? '&' : '?';
       finalUrl = `${productUrl}${separator}t=${encodeURIComponent(token)}`;
-      console.log('🔗 [ProductLink] URL s tokenem:', finalUrl.substring(0, 80) + '...');
     } else {
-      console.log('🔗 [ProductLink] URL bez tokenu:', finalUrl);
     }
 
     // Otevřeme URL
     window.open(finalUrl, target, 'noopener,noreferrer');
 
   } catch (err) {
-    console.error('❌ [ProductLink] Chyba při otevírání odkazu:', err);
     // Fallback - otevřeme původní URL
     window.open(productUrl, target, 'noopener,noreferrer');
   }

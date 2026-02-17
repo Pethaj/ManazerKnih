@@ -76,7 +76,6 @@ Chatbot: ${context.botResponse}`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ N8N webhook error:', response.status, errorText);
       throw new Error(`N8N webhook failed: ${response.status} ${response.statusText}`);
     }
 
@@ -119,14 +118,12 @@ Chatbot: ${context.botResponse}`;
 
     // Validace finálního formátu
     if (!data.text || !Array.isArray(data.products)) {
-      console.error('❌ Invalid N8N response format po konverzi:', JSON.stringify(data, null, 2));
       throw new Error('Invalid response format from N8N webhook - nelze konvertovat na standardní formát');
     }
 
 
     return data;
   } catch (error) {
-    console.error('❌ Chyba při volání N8N webhooku:', error);
     throw error;
   }
 }
@@ -153,12 +150,10 @@ async function enrichProductsWithMetadata(
       .in('product_code', codes);
 
     if (error) {
-      console.error('❌ Chyba při načítání metadat z product_feed_2:', error);
       throw error;
     }
 
     if (!data || data.length === 0) {
-      console.warn('⚠️ Žádná metadata nenalezena pro produkty:', codes);
       // Vrátíme produkty alespoň s doporučeními, i když chybí metadata
       return recommendations.map(rec => ({
         product_code: rec.product_code,
@@ -196,7 +191,6 @@ async function enrichProductsWithMetadata(
 
     return enrichedProducts;
   } catch (error) {
-    console.error('❌ Chyba při obohacování produktů:', error);
     throw error;
   }
 }
@@ -215,10 +209,6 @@ export async function getButtonProductRecommendations(
   products: EnrichedProduct[];
 }> {
   try {
-    console.log('🎯 Zahajuji získávání produktových doporučení na tlačítko');
-    console.log('📝 User Query:', context.userQuery);
-    console.log('🤖 Bot Response:', context.botResponse.substring(0, 100) + '...');
-    console.log('🔑 Session:', context.sessionId);
 
     // 1. Zavolat N8N webhook
     const webhookResponse = await callButtonRecommendationsWebhook(context);
@@ -232,7 +222,6 @@ export async function getButtonProductRecommendations(
       products: enrichedProducts
     };
   } catch (error) {
-    console.error('❌ Kritická chyba při získávání produktových doporučení na tlačítko:', error);
     
     // Vrátíme error response místo thrownutí chyby
     return {
@@ -247,7 +236,6 @@ export async function getButtonProductRecommendations(
  */
 export async function testButtonRecommendationsWebhook(): Promise<boolean> {
   try {
-    console.log('🧪 Testuji Button Recommendations webhook...');
     
     const result = await getButtonProductRecommendations({
       userQuery: 'test dotaz uživatele',
@@ -255,14 +243,13 @@ export async function testButtonRecommendationsWebhook(): Promise<boolean> {
       sessionId: 'test-session-' + Date.now()
     });
     
-    console.log('✅ Test webhook úspěšný:', {
+    console.log({
       hasText: !!result.text,
       productCount: result.products.length
     });
     
     return true;
   } catch (error) {
-    console.error('❌ Test webhook selhal:', error);
     return false;
   }
 }

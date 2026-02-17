@@ -64,7 +64,6 @@ const ChatWidgetWithSettings: React.FC<ChatWidgetWithSettingsProps> = ({
           setSelectedChatbotId(activeChatbots[0].chatbot_id);
         }
       } catch (err) {
-        console.error('Chyba při načítání chatbotů:', err);
         setError('Nepodařilo se načíst dostupné chatboty');
       } finally {
         setLoading(false);

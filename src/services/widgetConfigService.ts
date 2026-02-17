@@ -35,12 +35,10 @@ export function getWidgetConfigFromURL(): WidgetConfig {
  */
 export function validateWidgetConfig(config: Partial<WidgetConfig>): boolean {
   if (!config.chatbotId) {
-    console.error('Widget Config: chatbotId je povinný');
     return false;
   }
   
   if (config.theme && !['light', 'dark'].includes(config.theme)) {
-    console.error('Widget Config: neplatné theme (musí být light nebo dark)');
     return false;
   }
   
@@ -91,7 +89,6 @@ export function setupParentListener(handlers: {
         break;
         
       default:
-        console.log('📨 Neznámá zpráva z parent:', data);
     }
   });
 }
@@ -101,7 +98,6 @@ export function setupParentListener(handlers: {
  */
 export function notifyWidgetReady() {
   sendMessageToParent('WIDGET_READY');
-  console.log('✅ Widget oznámil parent window, že je připraven');
 }
 
 /**
@@ -118,7 +114,6 @@ export async function getChatbotSettings(chatbotId: string) {
       .single();
     
     if (error) {
-      console.error('Error loading chatbot settings:', error);
       // Return default settings for vany_chat
       return {
         chatbot_id: chatbotId,
@@ -137,7 +132,6 @@ export async function getChatbotSettings(chatbotId: string) {
     
     return data;
   } catch (error) {
-    console.error('Failed to load chatbot settings:', error);
     return null;
   }
 }
@@ -154,7 +148,6 @@ export function applyTheme(theme: 'light' | 'dark') {
     root.classList.remove('dark');
   }
   
-  console.log(`🎨 Téma nastaveno na: ${theme}`);
 }
 
 /**
@@ -187,15 +180,12 @@ export function getParentOrigin(): string | null {
  * Logování pro widget (s prefikem)
  */
 export function widgetLog(message: string, ...args: any[]) {
-  console.log(`[Vany Widget] ${message}`, ...args);
 }
 
 export function widgetError(message: string, ...args: any[]) {
-  console.error(`[Vany Widget] ${message}`, ...args);
 }
 
 export function widgetWarn(message: string, ...args: any[]) {
-  console.warn(`[Vany Widget] ${message}`, ...args);
 }
 
 

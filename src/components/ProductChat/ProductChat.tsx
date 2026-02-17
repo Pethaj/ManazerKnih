@@ -109,7 +109,6 @@ const ProductChat: React.FC<ProductChatProps> = ({ onClose }) => {
       setMessages(prev => [...prev, botMsg]);
 
     } catch (error) {
-      console.error('❌ Chyba v Product Chat:', error);
       
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),

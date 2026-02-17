@@ -24,4 +24,3 @@ root.render(
   </StrictMode>
 );
 
-console.log('🚀 EMBED ENTRY POINT - EO Směsi Chat initialized');

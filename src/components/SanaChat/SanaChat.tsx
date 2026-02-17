@@ -142,6 +142,7 @@ interface SanaChatProps {
     enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí automatického produktového routeru
     enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
     summarize_history?: boolean;  // 🆕 Automatická sumarizace historie pro N8N webhook
+    allowed_product_categories?: string[];  // 🆕 Povolené produktové kategorie pro filtrování Product Pills
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
@@ -265,7 +266,8 @@ const sendMessageToAPI = async (
         token_eshop?: string;  // 🆕 E-shop token z Bewit webu
         [key: string]: any;
     },
-    summarizedHistory?: string[]  // 🆕 Sumarizovaná historie (místo plné historie)
+    summarizedHistory?: string[],  // 🆕 Sumarizovaná historie (místo plné historie)
+    allowedProductCategories?: string[]  // 🆕 Povolené produktové kategorie pro filtrování
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
         // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
@@ -496,8 +498,9 @@ const sendMessageToAPI = async (
                 console.log(`📦 GPT identifikoval ${screeningResult.products.length} produktů/témat:`, screeningResult.products);
                 
                 // 2. Matching - vyhledání produktů v databázi
+                // 🆕 PŘEDÁVÁME POVOLENÉ KATEGORIE pro filtrování PŘED matchingem
                 console.log('🔍 Zahajuji matching v databázi...');
-                const matchingResult = await matchProductNames(screeningResult.products);
+                const matchingResult = await matchProductNames(screeningResult.products, allowedProductCategories);
                 
                 console.log('📊 Matching výsledek:', {
                     success: matchingResult.success,
@@ -509,18 +512,21 @@ const sendMessageToAPI = async (
                 
                 if (matchingResult.success && matchingResult.matches.length > 0) {
                     console.log(`✅ Nalezeno ${matchingResult.matches.length} produktů v databázi`);
-                    matchedProducts = matchingResult.matches;
                     
                     console.log('📦 Matched produkty:', matchingResult.matches.map(p => ({
                         matched_from: p.matched_from,
                         product_name: p.product_name,
                         pinyin_name: p.pinyin_name,
+                        category: p.category,
                         similarity: p.similarity
                     })));
                     
+                    // Produkty jsou už vyfiltrované podle kategorií v matchProductNames
+                    matchedProducts = matchingResult.matches;
+                    
                     // 🆕 PŘIDAT PRODUKTY INLINE PŘÍMO DO TEXTU
                     // Odstraň duplicity (stejný product_code)
-                    const uniqueProducts = matchingResult.matches.filter((product, index, self) =>
+                    const uniqueProducts = matchedProducts.filter((product, index, self) =>
                         index === self.findIndex((p) => p.product_code === product.product_code)
                     );
                     
@@ -737,6 +743,7 @@ const Message: React.FC<{
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
         enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
         enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
+        group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
     };
     sessionId?: string;
     token?: string;  // 🆕 Token z externalUserInfo
@@ -749,6 +756,10 @@ const Message: React.FC<{
 }> = ({ message, onSilentPrompt, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] } }) => {
     const isUser = message.role === 'user';
     const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi a Wany.Chat Local používají markdown
+    
+    // 🆕 State pro obohacené produkty (obsahují category pro seskupení v ProductPills)
+    const [enrichedProducts, setEnrichedProducts] = useState<RecommendedProduct[]>([]);
+    const [productsLoading, setProductsLoading] = useState(false);
     
     // 🆕 State pro inline produktové linky
     
@@ -802,6 +813,55 @@ const Message: React.FC<{
         
         return processedText;
     };
+    
+    // 🆕 useEffect pro načtení obohacených produktů z databáze
+    useEffect(() => {
+        const loadEnrichedProducts = async () => {
+            // Načíst pouze pokud:
+            // 1. Je to bot zpráva
+            // 2. Jsou zapnuté inline product links
+            // 3. Text obsahuje product markery
+            if (message.role !== 'bot' || !chatbotSettings?.inline_product_links || !message.text) {
+                return;
+            }
+            
+            // Extrahuj produkty z markerů
+            const productMarkerRegex = /<<<PRODUCT:([^|]+)\|\|\|([^|]+)\|\|\|([^|]+)\|\|\|([^>]+)>>>/g;
+            const products: RecommendedProduct[] = [];
+            let match;
+            
+            while ((match = productMarkerRegex.exec(message.text)) !== null) {
+                const [, productCode, productUrl, productName, pinyinName] = match;
+                products.push({
+                    product_code: productCode.trim(),
+                    product_name: productName.trim(),
+                    url: productUrl.trim(),
+                    description: pinyinName.trim()
+                });
+            }
+            
+            if (products.length === 0) {
+                return;
+            }
+            
+            console.log('🔄 Načítám obohacená data produktů z databáze...', products.length);
+            setProductsLoading(true);
+            
+            try {
+                // Obohacení pomocí existující funkce
+                const enriched = await enrichFunnelProductsFromDatabase(products);
+                console.log('✅ Produkty obohaceny:', enriched);
+                setEnrichedProducts(enriched);
+            } catch (error) {
+                console.error('❌ Chyba při obohacování produktů:', error);
+                setEnrichedProducts(products); // Fallback na základní data
+            } finally {
+                setProductsLoading(false);
+            }
+        };
+        
+        loadEnrichedProducts();
+    }, [message.text, message.role, chatbotSettings?.inline_product_links]);
     
     // 🆕 Funkce pro extrakci všech product markerů z textu (pro horní sekci)
     /**
@@ -926,29 +986,80 @@ const Message: React.FC<{
                     
                     // 🆕 VLOŽENÍ SEKCE "Související produkty BEWIT"
                     console.log('📦 Vkládám sekci s produkty po prvním odstavci');
-                    segments.push(
-                        <div key={`products-section`} className="my-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
-                            <h4 className="text-sm font-semibold text-bewit-blue mb-3 flex items-center gap-2">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="9" cy="21" r="1"></circle>
-                                    <circle cx="20" cy="21" r="1"></circle>
-                                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                                </svg>
-                                Související produkty BEWIT
-                            </h4>
-                            <div className="flex flex-col gap-2">
-                                {allProducts.map((product, index) => (
-                                    <ProductPill
-                                        key={`top-product-${index}`}
-                                        productName={product.productName}
-                                        pinyinName={product.pinyinName}
-                                        url={product.productUrl}
-                                        token={token}
-                                    />
-                                ))}
+                    
+                    const useGroupedView = (chatbotSettings as any)?.group_products_by_category === true;
+                    const productsToShow = useGroupedView && enrichedProducts.length > 0 && !productsLoading
+                        ? enrichedProducts
+                        : null;
+                    
+                    // Vždy stejný design: modrý box + ProductPills. Při group_products_by_category seskupíme podle kategorií.
+                    if (productsToShow && productsToShow.length > 0) {
+                        const byCategory = productsToShow.reduce<Record<string, typeof productsToShow>>((acc, p) => {
+                            const cat = p.category?.trim() || 'Ostatní';
+                            if (!acc[cat]) acc[cat] = [];
+                            acc[cat].push(p);
+                            return acc;
+                        }, {});
+                        const categories = Object.keys(byCategory);
+                        
+                        segments.push(
+                            <div key={`products-section`} className="my-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
+                                <h4 className="text-sm font-semibold text-bewit-blue mb-3 flex items-center gap-2">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="9" cy="21" r="1"></circle>
+                                        <circle cx="20" cy="21" r="1"></circle>
+                                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                                    </svg>
+                                    Související produkty BEWIT
+                                    {productsLoading && <span className="text-xs text-gray-500">(načítám...)</span>}
+                                </h4>
+                                <div className="flex flex-col gap-4">
+                                    {categories.map((cat) => (
+                                        <div key={cat}>
+                                            <p className="text-xs font-medium text-gray-600 mb-2">{cat}</p>
+                                            <div className="flex flex-col gap-2">
+                                                {byCategory[cat].map((product, index) => (
+                                                    <ProductPill
+                                                        key={`${cat}-${index}`}
+                                                        productName={product.product_name}
+                                                        pinyinName={product.description || product.product_name}
+                                                        url={product.url || ''}
+                                                        token={token}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    );
+                        );
+                    } else {
+                        segments.push(
+                            <div key={`products-section`} className="my-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
+                                <h4 className="text-sm font-semibold text-bewit-blue mb-3 flex items-center gap-2">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="9" cy="21" r="1"></circle>
+                                        <circle cx="20" cy="21" r="1"></circle>
+                                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                                    </svg>
+                                    Související produkty BEWIT
+                                    {productsLoading && <span className="text-xs text-gray-500">(načítám...)</span>}
+                                </h4>
+                                <div className="flex flex-col gap-2">
+                                    {allProducts.map((product, index) => (
+                                        <ProductPill
+                                            key={`top-product-${index}`}
+                                            productName={product.productName}
+                                            pinyinName={product.pinyinName}
+                                            url={product.productUrl}
+                                            token={token}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    }
+                    
                     segmentIndex++;
                     productsSectionInserted = true;
                     
@@ -1610,19 +1721,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         use_feed_2: true,
         enable_product_router: true,   // 🆕 Defaultně zapnutý
         enable_manual_funnel: false,    // 🆕 Defaultně vypnutý
-        summarize_history: false       // 🆕 Defaultně vypnutá sumarizace
+        summarize_history: false,       // 🆕 Defaultně vypnutá sumarizace
+        allowed_product_categories: []  // 🆕 Defaultně všechny kategorie povoleny
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
     externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
-    // 🚨 EXTREME DIAGNOSTIKA #2 - SANACHATCONTENT
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #FF0000; color: #FFFFFF; font-size: 20px; font-weight: bold;');
-    console.log('%c🚨 SANACHATCONTENT COMPONENT LOADED', 'background: #FF0000; color: #FFFFFF; font-size: 16px; font-weight: bold;');
-    console.log(`%c🔍 chatbotId prop: "${chatbotId}" (type: ${typeof chatbotId})`, 'background: #FFFF00; color: #000; font-size: 14px;');
-    console.log(`%c🔍 chatbotId === 'vany_chat': ${chatbotId === 'vany_chat'}`, 'background: #FFFF00; color: #000; font-size: 14px;');
-    console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #FF0000; color: #FFFFFF; font-size: 20px; font-weight: bold;');
-
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [sessionId, setSessionId] = useState<string>('');
@@ -2188,7 +2293,8 @@ Symptomy zákazníka: ${symptomsList}
                     undefined,  // detectedSymptoms
                     currentUser,  // 🆕 Přidáno: informace o uživateli
                     externalUserInfo,  // 🆕 External user data z iframe
-                    undefined  // Tenhle parametr už nepoužíváme - posíláme přímo v history
+                    undefined,  // Tenhle parametr už nepoužíváme - posíláme přímo v history
+                    chatbotSettings.allowed_product_categories  // 🆕 Povolené produktové kategorie
                 );
                 
                 // 🆕 Spočítáme produkty pro detekci calloutu
@@ -2264,17 +2370,16 @@ Symptomy zákazníka: ${symptomsList}
                     );
                     
                     // Konvertuj hybridní produkty na standardní ProductRecommendation formát
-                    const productRecommendations: ProductRecommendation[] = hybridProducts.map((product, index) => ({
-                        id: product.id || index + 1,
+                    const productRecommendations: ProductRecommendation[] = hybridProducts.map((product) => ({
                         product_code: product.product_code,
                         product_name: product.product_name,
                         description: product.description,
-                        category: product.category,
-                        price: product.price,
-                        currency: product.currency,
                         product_url: product.product_url,
                         image_url: product.image_url,
-                        similarity_score: product.similarity_score
+                        price: product.price || null,
+                        currency: product.currency || 'CZK',
+                        category: product.category,
+                        similarity: product.similarity_score
                     }));
                     
                     const botMessage: ChatMessage = { 
@@ -2352,7 +2457,8 @@ Symptomy zákazníka: ${symptomsList}
                 undefined,  // detectedSymptoms
                 currentUser,  // 🆕 Přidáno: informace o uživateli
                 externalUserInfo,  // 🆕 External user data z iframe
-                chatbotSettings.summarize_history ? summarizedHistory : undefined  // 🆕 Sumarizovaná historie
+                chatbotSettings.summarize_history ? summarizedHistory : undefined,  // 🆕 Sumarizovaná historie
+                chatbotSettings.allowed_product_categories  // 🆕 Povolené produktové kategorie
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
@@ -2671,7 +2777,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     undefined,  // detectedSymptoms
                     currentUser,  // 🆕 Přidáno: informace o uživateli
                     externalUserInfo,  // 🆕 External user data z iframe
-                    undefined  // Tenhle parametr už nepoužíváme
+                    undefined,  // Tenhle parametr už nepoužíváme
+                    chatbotSettings.allowed_product_categories  // 🆕 Povolené produktové kategorie
                 );
                 
                 // 🆕 Spočítáme produkty pro detekci calloutu
@@ -2730,17 +2837,16 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     );
                     
                     // Konvertuj hybridní produkty na standardní ProductRecommendation formát
-                    const productRecommendations: ProductRecommendation[] = hybridProducts.map((product, index) => ({
-                        id: product.id || index + 1,
+                    const productRecommendations: ProductRecommendation[] = hybridProducts.map((product) => ({
                         product_code: product.product_code,
                         product_name: product.product_name,
                         description: product.description,
-                        category: product.category,
-                        price: product.price,
-                        currency: product.currency,
                         product_url: product.product_url,
                         image_url: product.image_url,
-                        similarity_score: product.similarity_score
+                        price: product.price || null,
+                        currency: product.currency || 'CZK',
+                        category: product.category,
+                        similarity: product.similarity_score
                     }));
                     
                     const botMessage: ChatMessage = { 
@@ -2819,7 +2925,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 undefined,  // detectedSymptoms
                 currentUser,  // 🆕 Přidáno: informace o uživateli
                 externalUserInfo,  // 🆕 External user data z iframe
-                chatbotSettings.summarize_history ? summarizedHistory : undefined  // 🆕 Sumarizovaná historie
+                chatbotSettings.summarize_history ? summarizedHistory : undefined,  // 🆕 Sumarizovaná historie
+                chatbotSettings.allowed_product_categories  // 🆕 Povolené produktové kategorie
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 

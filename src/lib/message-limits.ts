@@ -55,7 +55,6 @@ export async function checkMessageLimit(chatbotId: string): Promise<LimitCheckRe
     return result
 
   } catch (error) {
-    console.error('❌ Error checking message limit:', error)
     // V případě chyby povolit zprávu (fail-open strategie)
     return {
       allowed: true,
@@ -82,10 +81,8 @@ export async function incrementMessageCount(chatbotId: string): Promise<void> {
       })
     })
 
-    console.log('📈 Message count incremented')
 
   } catch (error) {
-    console.error('❌ Error incrementing message count:', error)
   }
 }
 
@@ -105,7 +102,6 @@ export async function getChatbotLimit(
     .single()
 
   if (error) {
-    console.error('❌ Error fetching chatbot limit:', error)
     return null
   }
 
@@ -125,7 +121,6 @@ export async function getGlobalLimit(
     .single()
 
   if (error) {
-    console.error('❌ Error fetching global limit:', error)
     return null
   }
 
@@ -166,16 +161,13 @@ export async function setChatbotLimit(
         })
 
       if (insertError) {
-        console.error('❌ Error inserting limit:', insertError)
         return false
       }
     }
 
-    console.log(`✅ Limit set for chatbot ${chatbotId}: ${limit ?? 'unlimited'}`)
     return true
 
   } catch (error) {
-    console.error('❌ Error setting chatbot limit:', error)
     return false
   }
 }
@@ -199,15 +191,12 @@ export async function setGlobalLimit(
       .is('chatbot_id', null)
 
     if (error) {
-      console.error('❌ Error setting global limit:', error)
       return false
     }
 
-    console.log(`✅ Global limit set: ${limit ?? 'unlimited'}`)
     return true
 
   } catch (error) {
-    console.error('❌ Error setting global limit:', error)
     return false
   }
 }

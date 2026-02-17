@@ -50,12 +50,10 @@ export class ILovePDFService {
   }
 
   static async performOCR(file: File, language: string = 'ces'): Promise<File> {
-    console.warn('⚠️ ILovePDF OCR není implementováno, vrací se původní soubor');
     return file;
   }
 
   static async compressPDF(file: File, compressionLevel: string = 'recommended'): Promise<File> {
-    console.warn('⚠️ ILovePDF komprese není implementována, vrací se původní soubor');
     return file;
   }
 
@@ -64,7 +62,6 @@ export class ILovePDFService {
     language: string = 'ces',
     compressionLevel: string = 'recommended'
   ): Promise<File> {
-    console.warn('⚠️ ILovePDF OCR + komprese není implementováno, vrací se původní soubor');
     return file;
   }
 }

@@ -75,7 +75,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 const chatbots = await ChatbotSettingsService.getActiveChatbots();
                 setAvailableChatbots(chatbots);
                 
-                console.log('✅ Načteno aktivních chatbotů:', chatbots.length);
                 
                 // Pokud jsou nějaké chatboty k dispozici, nastav první jako výchozí
                 if (chatbots.length > 0) {
@@ -100,7 +99,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     });
                 }
             } catch (error) {
-                console.error('❌ Chyba při načítání chatbotů:', error);
                 // Fallback na defaultní nastavení
                 setChatbotSettings({
                     product_recommendations: false,
@@ -128,12 +126,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         try {
             const settings = await ChatbotSettingsService.getChatbotSettings(chatbotIdToLoad);
             
-            console.log('═══════════════════════════════════════════════════════════');
-            console.log('🔍 CHATWIDGET: loadChatbotById');
-            console.log('📝 Chatbot ID:', chatbotIdToLoad);
-            console.log('📦 Settings z databáze:', settings);
-            console.log('🔍 summarize_history z DB:', settings?.summarize_history);
-            console.log('═══════════════════════════════════════════════════════════');
             
             if (settings) {
                 setChatbotId(settings.chatbot_id);
@@ -157,12 +149,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     summarize_history: settings.summarize_history === true,          // default false
                 };
                 
-                console.log('✅ Sestavené chatbotSettings:', newSettings);
-                console.log('🔍 summarize_history po sestavení:', newSettings.summarize_history);
-                console.log('═══════════════════════════════════════════════════════════');
                 
                 setChatbotSettings(newSettings);
-                console.log(`✅ Načten chatbot: ${settings.chatbot_name}`, {
+                console.log({
                     chatbot_id: settings.chatbot_id,
                     webhook_url: settings.webhook_url,  // 🆕 PŘIDÁNO: Debug log
                     categories: settings.allowed_categories?.length || 0,
@@ -174,13 +163,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 });
             }
         } catch (error) {
-            console.error('❌ Chyba při načítání chatbota:', error);
         }
     };
 
     // Handler pro výběr chatbota ze selectoru
     const handleChatbotSelect = async (selectedChatbotId: string) => {
-        console.log('🤖 Uživatel vybral chatbota:', selectedChatbotId);
         setShowSelector(false);
         await loadChatbotById(selectedChatbotId);
         setIsOpen(true);

@@ -8,7 +8,8 @@ import {
   ChatbotSettingsService, 
   ChatbotSettings, 
   Category, 
-  PublicationType, 
+  PublicationType,
+  ProductCategory,
   CreateChatbotSettingsData,
   UpdateChatbotSettingsData 
 } from '../services/chatbotSettingsService';
@@ -110,6 +111,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
     const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings[]>([]);
     const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
     const [availablePublicationTypes, setAvailablePublicationTypes] = useState<PublicationType[]>([]);
+    const [availableProductCategories, setAvailableProductCategories] = useState<ProductCategory[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [savingChatbotId, setSavingChatbotId] = useState<string | null>(null);
@@ -152,37 +154,22 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                 setLoading(true);
                 setError(null);
                 
-                console.log('🔄 Načítám data chatbotů z databáze...');
-                
-                // Zkontrolujeme, zda tabulka existuje (volitelně, protože už víme že existuje)
-                console.log('📋 Tabulka chatbot_settings existuje v databázi');
-                
-                const [settings, categories, publicationTypes] = await Promise.all([
+                const [settings, categories, publicationTypes, productCategories] = await Promise.all([
                     ChatbotSettingsService.getAllChatbotSettings(),
                     ChatbotSettingsService.getCategories(),
                     ChatbotSettingsService.getPublicationTypes(),
+                    ChatbotSettingsService.getProductCategories(),
                 ]);
-                
-                console.log('📊 Načtená data:', {
-                    settings: settings.length,
-                    categories: categories.length,
-                    publicationTypes: publicationTypes.length
-                });
                 
                 if (settings.length === 0) {
                     setError('V databázi nejsou žádné chatboti. Spusťte SQL script create_chatbot_settings_table.sql pro vytvoření výchozích chatbotů.');
                     return;
                 }
                 
-                console.log('🤖 Existující chatboti v databázi:');
-                settings.forEach(chatbot => {
-                    console.log(`- ID: "${chatbot.chatbot_id}", Název: "${chatbot.chatbot_name}"`);
-                    console.log(`  🎯 enable_product_router: ${chatbot.enable_product_router}, enable_manual_funnel: ${chatbot.enable_manual_funnel}`);
-                });
-                
                 setChatbotSettings(settings);
                 setAvailableCategories(categories);
                 setAvailablePublicationTypes(publicationTypes);
+                setAvailableProductCategories(productCategories);
                 
             } catch (err) {
                 console.error('❌ Chyba při načítání dat chatbotů:', err);
@@ -234,6 +221,19 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
             : [...chatbot.allowed_publication_types, publicationTypeId];
 
         updateLocalSettings(chatbotId, { allowed_publication_types: updatedTypes });
+    };
+
+    // 🆕 Funkce pro toggle produktové kategorie u konkrétního chatbota
+    const toggleChatbotProductCategory = (chatbotId: string, categoryName: string) => {
+        const chatbot = chatbotSettings.find(c => c.chatbot_id === chatbotId);
+        if (!chatbot) return;
+
+        const currentCategories = chatbot.allowed_product_categories || [];
+        const updatedCategories = currentCategories.includes(categoryName)
+            ? currentCategories.filter(name => name !== categoryName)
+            : [...currentCategories, categoryName];
+
+        updateLocalSettings(chatbotId, { allowed_product_categories: updatedCategories });
     };
 
     // Funkce pro toggle funkcí chatbota s logikou závislostí
@@ -676,6 +676,30 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                         Automaticky sumarizuje historii konverzace pomocí LLM před odesláním do N8N webhooku. Snižuje latenci a náklady na tokeny.
                                                     </div>
                                                 </div>
+                                                
+                                                {/* 🆕 Grupování produktů podle kategorií */}
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.group_products_by_category === true}
+                                                            onChange={() => updateLocalSettings(chatbot.chatbot_id, { 
+                                                                group_products_by_category: !(chatbot.group_products_by_category === true) 
+                                                            })}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <rect x="3" y="3" width="7" height="7"></rect>
+                                                            <rect x="14" y="3" width="7" height="7"></rect>
+                                                            <rect x="14" y="14" width="7" height="7"></rect>
+                                                            <rect x="3" y="14" width="7" height="7"></rect>
+                                                        </svg>
+                                                        Rozdělit produkty podle kategorií
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        ⚠️ Tato funkce je momentálně vypnutá. Inline produktové linky se zobrazují bez grupování podle kategorií.
+                                                    </div>
+                                                </div>
                                             </div>
                                             
                                             {/* Filtrace kategorií - pouze pokud je povolena databáze knih */}
@@ -746,6 +770,128 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                     </div>
                                                 )}
                                             </div>
+
+                                            {/* 🆕 Produktové kategorie (Product Pills) - pouze pokud jsou inline produktové linky zapnuté */}
+                                            {chatbot.inline_product_links && (
+                                                <div style={styles.filterSection}>
+                                                    <details style={{
+                                                        border: '1px solid #E5E7EB',
+                                                        borderRadius: '8px',
+                                                        padding: '12px',
+                                                        backgroundColor: '#F9FAFB'
+                                                    }}>
+                                                        <summary style={{
+                                                            cursor: 'pointer',
+                                                            fontWeight: 500,
+                                                            fontSize: '14px',
+                                                            color: '#374151',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            userSelect: 'none'
+                                                        }}>
+                                                            🛍️ Produktové kategorie ({(chatbot.allowed_product_categories || []).length}/{availableProductCategories.length})
+                                                            {(chatbot.allowed_product_categories || []).length === 0 ? (
+                                                                <span style={{ fontSize: '12px', color: '#D97706', fontWeight: 400 }}>
+                                                                    - všechny povoleny
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{ fontSize: '12px', color: '#059669', fontWeight: 400 }}>
+                                                                    - {(chatbot.allowed_product_categories || []).length} vybráno
+                                                                </span>
+                                                            )}
+                                                        </summary>
+                                                        
+                                                        <div style={{ marginTop: '12px' }}>
+                                                            {/* Tlačítka pro rychlý výběr */}
+                                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        updateLocalSettings(chatbot.chatbot_id, {
+                                                                            allowed_product_categories: availableProductCategories.map(c => c.category)
+                                                                        });
+                                                                    }}
+                                                                    style={{
+                                                                        padding: '6px 12px',
+                                                                        fontSize: '12px',
+                                                                        backgroundColor: '#10B981',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '4px',
+                                                                        cursor: 'pointer',
+                                                                        fontWeight: 500
+                                                                    }}
+                                                                >
+                                                                    ✓ Vybrat vše
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        updateLocalSettings(chatbot.chatbot_id, {
+                                                                            allowed_product_categories: []
+                                                                        });
+                                                                    }}
+                                                                    style={{
+                                                                        padding: '6px 12px',
+                                                                        fontSize: '12px',
+                                                                        backgroundColor: '#EF4444',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '4px',
+                                                                        cursor: 'pointer',
+                                                                        fontWeight: 500
+                                                                    }}
+                                                                >
+                                                                    ✗ Zrušit výběr
+                                                                </button>
+                                                            </div>
+                                                            
+                                                            {/* Seznam kategorií */}
+                                                            <div style={{
+                                                                maxHeight: '300px',
+                                                                overflowY: 'auto',
+                                                                border: '1px solid #E5E7EB',
+                                                                borderRadius: '6px',
+                                                                padding: '8px',
+                                                                backgroundColor: 'white'
+                                                            }}>
+                                                                {availableProductCategories.map(productCategory => (
+                                                                    <label 
+                                                                        key={productCategory.category}
+                                                                        style={{
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            padding: '6px 8px',
+                                                                            cursor: 'pointer',
+                                                                            borderRadius: '4px',
+                                                                            fontSize: '13px',
+                                                                            transition: 'background-color 0.15s'
+                                                                        }}
+                                                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                                                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                                    >
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={(chatbot.allowed_product_categories || []).includes(productCategory.category)}
+                                                                            onChange={() => toggleChatbotProductCategory(chatbot.chatbot_id, productCategory.category)}
+                                                                            style={{ marginRight: '8px', cursor: 'pointer' }}
+                                                                        />
+                                                                        <span style={{ flex: 1, color: '#374151' }}>
+                                                                            {productCategory.category}
+                                                                        </span>
+                                                                        <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
+                                                                            ({productCategory.product_count})
+                                                                        </span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </details>
+                                                </div>
+                                            )}
                                             
                                             {/* Tlačítka pro správu nastavení */}
                                             {unsavedChanges.has(chatbot.chatbot_id) && (

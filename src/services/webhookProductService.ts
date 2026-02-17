@@ -12,7 +12,6 @@ export interface WebhookProduct {
 }
 
 export async function requestProductRecommendations(query: string): Promise<WebhookProduct[]> {
-  console.warn('⚠️ Webhook product recommendations není implementován');
   return [];
 }
 

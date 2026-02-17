@@ -87,11 +87,9 @@ const EmbedVanyChat = () => {
   }>({});
 
   useEffect(() => {
-    console.log('🔥 EMBED VANY CHAT - Loading settings...');
     
     // ✅ PRVNÍ: Zkontroluj jestli už data čekají v globální cache (z early listeneru v HTML)
     if (window.__PENDING_USER_DATA__) {
-      console.log('🎉 [WANY] Nalezena CACHED user data z early listeneru:', window.__PENDING_USER_DATA__);
       setUserContext({
         id: String(window.__PENDING_USER_DATA__.id || ''),
         email: window.__PENDING_USER_DATA__.email || '',
@@ -102,7 +100,6 @@ const EmbedVanyChat = () => {
       });
       window.__PENDING_USER_DATA__ = null; // Vyčisti cache
     } else {
-      console.log('ℹ️ [WANY] Žádná cached data nenalezena, čekám na postMessage...');
     }
     
     const loadChatbotSettings = async () => {
@@ -115,7 +112,6 @@ const EmbedVanyChat = () => {
           .single();
 
         if (error || !data) {
-          console.warn('⚠️ Nelze načíst nastavení z DB, používám fallback:', error?.message);
           // Použijeme fallback nastavení - VŽDY musí fungovat
           setChatbotSettings({
             chatbot_id: 'vany_chat',
@@ -125,18 +121,14 @@ const EmbedVanyChat = () => {
             description: 'AI chatbot pro podporu a informace'
           });
         } else {
-          console.log('✅ Chatbot settings loaded from DB:', data);
           // 🔒 Pro embed verzi vynucujeme prázdné štítky (skrytí sekce Štítky)
           const modifiedSettings = {
             ...data,
             allowed_labels: [] // Vždy prázdné - štítky nebudou viditelné u klienta
           };
-          console.log('🔒 EMBED: Vynucuji prázdné allowed_labels:', modifiedSettings.allowed_labels);
-          console.log('🔒 EMBED: Celé nastavení:', modifiedSettings);
           setChatbotSettings(modifiedSettings);
         }
       } catch (err) {
-        console.warn('⚠️ Exception při načítání nastavení, používám fallback:', err);
         // Fallback nastavení - zajistí že chat VŽDY funguje
         setChatbotSettings({
           chatbot_id: 'vany_chat',
@@ -159,15 +151,11 @@ const EmbedVanyChat = () => {
     const handleMessage = (event: MessageEvent) => {
       // Validace struktury dat
       if (event.data.type === 'USER_DATA' && event.data.user) {
-        console.log('✅ [WANY LISTENER] PostMessage PŘIJATA:', event.origin);
-        console.log('👤 [WANY LISTENER] User data:', event.data.user);
         
         // 💾 NOVÉ: Uložit do localStorage pro pozdější použití
         try {
           localStorage.setItem('BEWIT_USER_DATA', JSON.stringify(event.data.user));
-          console.log('💾 User data uložena do localStorage');
         } catch (e) {
-          console.error('❌ Chyba při ukládání do localStorage:', e);
         }
         
         setUserContext({
@@ -183,7 +171,6 @@ const EmbedVanyChat = () => {
     
     // 🔥 Zaregistruj listener
     window.addEventListener('message', handleMessage);
-    console.log('✅ PostMessage listener zaregistrován');
     
     // ℹ️ IFRAME_READY se posílá pouze z early scriptu v embed.html (ne zde z Reactu)
     // Tím se zabrání duplicitnímu posílání READY signálu
@@ -202,13 +189,10 @@ const EmbedVanyChat = () => {
       
       // Pokud nějaké data existují, nastav je okamžitě
       if (userData.id || userData.email) {
-        console.log('📋 User data načtena z data-* atributů iframe:', userData);
         setUserContext(userData);
       } else {
-        console.log('⚠️ Žádná user data v data-* atributech nenalezena');
       }
     } else {
-      console.log('⚠️ window.frameElement není dostupný (možná není v iframe)');
     }
     
     // Cleanup - odregistruj listener při unmount
@@ -231,11 +215,6 @@ const EmbedVanyChat = () => {
 
     // Zobraz POUZE pokud jsou nějaká data
     if (externalUserInfo) {
-      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
-      console.log('%c🟢 WANY CHAT - USER DATA LOADED', 'color: #22c55e; font-size: 16px; font-weight: bold;');
-      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
-      console.log(JSON.stringify(externalUserInfo, null, 2));
-      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #22c55e; font-weight: bold;');
     }
   }, [userContext]); // Spustí se POUZE když se userContext změní
 
@@ -260,12 +239,6 @@ const EmbedVanyChat = () => {
     token_eshop: userContext.tokenEshop  // 🆕 E-shop token
   } : undefined;
 
-  console.log('🔍 EMBED RENDER DIAGNOSTIKA:');
-  console.log('  - userContext:', userContext);
-  console.log('  - externalUserInfo:', externalUserInfo);
-  console.log('  - userContext.id:', userContext.id);
-  console.log('  - userContext.email:', userContext.email);
-  console.log('  - Podmínka (userContext.id || userContext.email):', !!(userContext.id || userContext.email));
 
   return (
     <div className="w-full h-screen overflow-hidden">

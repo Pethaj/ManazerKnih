@@ -31,7 +31,6 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
                 setUser(null);
             }
         } catch (err) {
-            console.error('❌ Neočekávaná chyba při ověřování:', err);
             setUser(null);
         } finally {
             setIsLoading(false);

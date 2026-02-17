@@ -72,7 +72,7 @@ export async function saveMessage(
   message: ChatHistoryMessage
 ): Promise<{ error: string | null }> {
   try {
-    console.log('💾 [ChatHistory] Ukládám zprávu do Supabase:', {
+    console.log({
       session_id: message.session_id,
       role: message.role,
       text_length: message.message_text.length,
@@ -152,15 +152,12 @@ export async function saveMessage(
       .insert([dataToSave]);
 
     if (error) {
-      console.error('❌ [ChatHistory] Chyba při ukládání zprávy:', error);
       return { error: error.message };
     }
 
-    console.log('✅ [ChatHistory] Zpráva úspěšně uložena');
     return { error: null };
 
   } catch (err) {
-    console.error('❌ [ChatHistory] Neočekávaná chyba při ukládání:', err);
     return { error: err instanceof Error ? err.message : 'Neznámá chyba' };
   }
 }
@@ -267,7 +264,7 @@ export async function saveChatPair(
   }
 ): Promise<{ error: string | null }> {
   try {
-    console.log('💾 [ChatHistory] Ukládám PAR otázka-odpověď:', {
+    console.log({
       session_id: sessionId,
       question_length: userQuestion.length,
       answer_length: botAnswer.length,
@@ -344,24 +341,19 @@ export async function saveChatPair(
           position: parsed.position || '',
           token_eshop: parsed.tokenEshop || ''
         };
-        console.log('💾 [ChatHistory] User info načtena z localStorage:', finalUserInfo);
       }
     } catch (e) {
-      console.warn('⚠️ [ChatHistory] Nepodařilo se načíst z localStorage:', e);
     }
     
     // Fallback na answerData.user_info
     if (!finalUserInfo && answerData?.user_info && Object.keys(answerData.user_info).length > 0) {
       finalUserInfo = answerData.user_info;
-      console.log('🔄 [ChatHistory] Použity user_info z answerData:', finalUserInfo);
     }
     
     // Uložíme do SAMOSTATNÉHO sloupce user_data
     if (finalUserInfo && Object.keys(finalUserInfo).length > 0) {
-      console.log('🔍 [ChatHistory] Ukládám user_info do user_data sloupce:', finalUserInfo);
       dataToSave.user_data = finalUserInfo;
     } else {
-      console.log('⚠️ [ChatHistory] user_info NEEXISTUJE nebo je prázdné');
     }
 
     // Question metadata (filtry od usera) - jen pokud existují
@@ -388,15 +380,12 @@ export async function saveChatPair(
       .insert([dataToSave]);
 
     if (error) {
-      console.error('❌ [ChatHistory] Chyba při ukládání páru:', error);
       return { error: error.message };
     }
 
-    console.log('✅ [ChatHistory] Pár otázka-odpověď úspěšně uložen');
     return { error: null };
 
   } catch (err) {
-    console.error('❌ [ChatHistory] Neočekávaná chyba při ukládání páru:', err);
     return { error: err instanceof Error ? err.message : 'Neznámá chyba' };
   }
 }

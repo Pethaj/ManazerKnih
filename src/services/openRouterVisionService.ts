@@ -18,7 +18,6 @@ export async function extractMetadataFromImages(
   images: string[],
   filename: string
 ): Promise<ExtractedMetadata> {
-  console.warn('⚠️ OpenRouter Vision extrakce metadat není implementována, vrací se prázdná metadata');
   return {
     title: filename.replace(/\.[^/.]+$/, ''),
     summary: '',

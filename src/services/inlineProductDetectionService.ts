@@ -61,7 +61,6 @@ const SENTENCE_MIN_LENGTH = 10;     // Minimální délka věty pro zpracování
  * @returns Pole objektů { sentence, position }
  */
 function extractProductMentions(text: string): Array<{ sentence: string; position: number }> {
-  console.log('📝 Extrakce zmínek produktů z textu...');
   
   // Rozdělení na věty (tečka, vykřičník, otazník)
   const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > SENTENCE_MIN_LENGTH);
@@ -84,7 +83,6 @@ function extractProductMentions(text: string): Array<{ sentence: string; positio
     }
   }
   
-  console.log(`📋 Nalezeno ${mentions.length} vět k analýze`);
   return mentions;
 }
 
@@ -105,7 +103,6 @@ function extractProductMentions(text: string): Array<{ sentence: string; positio
 async function searchProductsByVector(
   mentions: Array<{ sentence: string; position: number }>
 ): Promise<ProductMatch[]> {
-  console.log('🔍 Vektorové vyhledávání produktů...');
   
   const matches: ProductMatch[] = [];
   
@@ -116,7 +113,6 @@ async function searchProductsByVector(
       // Pro produkci by mělo volat stejný OpenAI model jako N8N (text-embedding-3-large)
       const embedding = await generateEmbedding(mention.sentence);
       
-      console.log(`🔎 Hledám produkty pro: "${mention.sentence.substring(0, 50)}..."`);
       
       // Voláme RPC funkci pro vektorové vyhledávání
       // Tato funkce hledá v product_embeddings, které obsahují:
@@ -129,14 +125,12 @@ async function searchProductsByVector(
       });
       
       if (error) {
-        console.error('❌ Chyba při vektorovém vyhledávání:', error);
         continue;
       }
       
       if (data && data.length > 0) {
         // Přidáme nejlepší match
         const topMatch = data[0];
-        console.log(`✅ Nalezen produkt: ${topMatch.product_name} (similarity: ${topMatch.similarity_score})`);
         
         matches.push({
           product_code: topMatch.product_code,
@@ -147,12 +141,10 @@ async function searchProductsByVector(
         });
       }
     } catch (error) {
-      console.error('❌ Chyba při zpracování věty:', error);
       continue;
     }
   }
   
-  console.log(`📊 Celkem nalezeno ${matches.length} produktů`);
   return matches;
 }
 
@@ -166,7 +158,6 @@ async function searchProductsByVector(
  * @returns Obohacené produkty s URL
  */
 async function enrichWithFeed2Metadata(productCodes: string[]): Promise<EnrichedProduct[]> {
-  console.log(`📦 Obohacuji ${productCodes.length} produktů z Feed 2...`);
   
   if (productCodes.length === 0) {
     return [];
@@ -179,16 +170,13 @@ async function enrichWithFeed2Metadata(productCodes: string[]): Promise<Enriched
       .in('product_code', productCodes);
     
     if (error) {
-      console.error('❌ Chyba při načítání z Feed 2:', error);
       return [];
     }
     
     if (!data || data.length === 0) {
-      console.warn('⚠️ Žádné produkty nenalezeny v Feed 2');
       return [];
     }
     
-    console.log(`✅ Obohaceno ${data.length} produktů`);
     return data.map(product => ({
       product_code: product.product_code,
       product_name: product.product_name,
@@ -196,7 +184,6 @@ async function enrichWithFeed2Metadata(productCodes: string[]): Promise<Enriched
       thumbnail: product.thumbnail || undefined
     }));
   } catch (error) {
-    console.error('❌ Kritická chyba při obohacování:', error);
     return [];
   }
 }
@@ -218,15 +205,12 @@ async function enrichWithFeed2Metadata(productCodes: string[]): Promise<Enriched
  * @returns Pole detekovaných produktů s pozicemi
  */
 export async function detectInlineProducts(text: string): Promise<DetectedProduct[]> {
-  console.log('🎯 Zahajuji detekci inline produktů...');
-  console.log(`📄 Délka textu: ${text.length} znaků`);
   
   try {
     // Krok 1: Extrakce zmínek
     const mentions = extractProductMentions(text);
     
     if (mentions.length === 0) {
-      console.log('ℹ️ Žádné věty k analýze');
       return [];
     }
     
@@ -234,7 +218,6 @@ export async function detectInlineProducts(text: string): Promise<DetectedProduc
     const matches = await searchProductsByVector(mentions);
     
     if (matches.length === 0) {
-      console.log('ℹ️ Žádné produkty nenalezeny');
       return [];
     }
     
@@ -243,7 +226,6 @@ export async function detectInlineProducts(text: string): Promise<DetectedProduc
     const enrichedProducts = await enrichWithFeed2Metadata(productCodes);
     
     if (enrichedProducts.length === 0) {
-      console.log('⚠️ Produkty nenalezeny v Feed 2');
       return [];
     }
     
@@ -266,11 +248,9 @@ export async function detectInlineProducts(text: string): Promise<DetectedProduc
       }
     }
     
-    console.log(`🎉 Detekce dokončena: ${detectedProducts.length} produktů s URL`);
     return detectedProducts;
     
   } catch (error) {
-    console.error('❌ Kritická chyba při detekci produktů:', error);
     return [];
   }
 }
@@ -283,7 +263,6 @@ export async function detectInlineProducts(text: string): Promise<DetectedProduc
  * Test funkce pro ověření funkčnosti
  */
 export async function testProductDetection(): Promise<void> {
-  console.log('🧪 Spouštím test detekce produktů...');
   
   const testText = `
     Pro bolest hlavy doporučuji 009 - Čistý dech. 
@@ -293,8 +272,6 @@ export async function testProductDetection(): Promise<void> {
   
   const results = await detectInlineProducts(testText);
   
-  console.log('📋 Výsledky testu:');
-  console.log(JSON.stringify(results, null, 2));
 }
 
 
