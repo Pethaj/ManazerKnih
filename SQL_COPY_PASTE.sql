@@ -79,7 +79,7 @@ BEGIN
   -- Obohatit o data z product_feed_2
   -- 🔧 FIX: Matching podle NÁZVU produktu s ignorováním prefixu "PRAWTEIN"
   --         Protože v tabulce leceni jsou NÁZVY bez prefixu (např. "Frankincense Plus")
-  --         ale v product_feed_2 jsou s prefixem (např. "PRAWTEIN Frankincense Plus")
+  --         ale v product_feed_2 djsou s prefixem (např. "PRAWTEIN Frankincense Plus")
   SELECT DISTINCT
     COALESCE(pf.product_code::TEXT, mp.product_code::TEXT) as matched_product_code,
     COALESCE(pf.category, mp.category)::TEXT as category,
