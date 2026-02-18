@@ -371,7 +371,13 @@ export async function enrichFunnelProductsFromDatabase(
     
     const productUrls = products
       .map(p => p.url)
-      .filter(url => url && url.length > 0);
+      .filter(url => url && url.length > 0 && url !== 'null' && url !== 'undefined');
+    
+    console.log('🔍 enrichFunnelProductsFromDatabase - Hledám produkty:', {
+      productCodes,
+      productUrls,
+      total: products.length
+    });
 
     // Pokud nemáme ani product_codes ani URLs, použijeme fallback
     if (productCodes.length === 0 && productUrls.length === 0) {
@@ -402,13 +408,15 @@ export async function enrichFunnelProductsFromDatabase(
     const { data, error } = await query;
 
     if (error) {
+      console.error('❌ enrichFunnelProductsFromDatabase - Chyba při načítání z DB:', error);
       return await enrichByProductName(products);
     }
 
     if (!data || data.length === 0) {
+      console.warn('⚠️ enrichFunnelProductsFromDatabase - Žádná data z DB, fallback na enrichByProductName');
       return await enrichByProductName(products);
     }
-
+    
     // Spojíme data - obohacení původních produktů o metadata z DB
     // 🔧 OPRAVA: Prioritizujeme URL matching (URL je unikátní identifikátor!)
     const enrichedProducts: RecommendedProduct[] = products.map(product => {
@@ -417,12 +425,12 @@ export async function enrichFunnelProductsFromDatabase(
       if (product.url) {
         dbData = data.find(d => d.url === product.url);
       }
-      
+
       // 2. Fallback: Matching podle product_code
       if (!dbData) {
         dbData = data.find(d => d.product_code === product.product_code);
       }
-      
+
       if (dbData) {
         return {
           product_code: dbData.product_code,
@@ -435,7 +443,11 @@ export async function enrichFunnelProductsFromDatabase(
           category: dbData.category  // 🆕 Kategorie z databáze
         };
       } else {
-        return product;
+        // 🔧 FIX: Zachovat kategorii i když produkt není v DB
+        return {
+          ...product,
+          category: product.category || undefined  // Zachovat existující kategorii!
+        };
       }
     });
 

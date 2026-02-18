@@ -38,6 +38,9 @@ import { saveChatPairToHistory } from '../../utils/chatHistoryUtils';
 import { createSimpleSummary } from '../../services/simpleChatSummary';
 // 🔗 Product Link Service - pro přidání tokenu do URL
 import { openBewitProductLink } from '../../services/productLinkService';
+// 🔗 Problem Classification & Pairing Service - párování produktů s kombinacemi
+import { classifyProblemFromUserMessage } from '../../services/problemClassificationService';
+import { matchProductCombinationsWithProblems } from '../../services/productPairingService';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -116,6 +119,13 @@ interface ChatMessage {
   isUpdateFunnel?: boolean;        // Uživatel chce změnit výběr v existujícím funnelu
   // 🆕 Flag pro žlutý callout (více než 2 produkty)
   hasCallout?: boolean;             // True = zobrazil se žlutý callout "Potřebujete přesnější doporučení?"
+  // 🔗 Pairing info - párování produktů s kombinacemi z leceni
+  pairingInfo?: {
+    prawteins: string[];
+    tcmWans: string[];
+    aloe: boolean;
+    merkaba: boolean;
+  };
 }
 
 // Rozhraní pro metadata filtrace
@@ -144,6 +154,8 @@ interface SanaChatProps {
     summarize_history?: boolean;  // 🆕 Automatická sumarizace historie pro N8N webhook
     allowed_product_categories?: string[];  // 🆕 Povolené produktové kategorie pro filtrování Product Pills
     show_sources?: boolean;  // 🆕 Zobrazovat zdroje v odpovědích
+    group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
+    enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
@@ -268,7 +280,8 @@ const sendMessageToAPI = async (
         [key: string]: any;
     },
     summarizedHistory?: string[],  // 🆕 Sumarizovaná historie (místo plné historie)
-    allowedProductCategories?: string[]  // 🆕 Povolené produktové kategorie pro filtrování
+    allowedProductCategories?: string[],  // 🆕 Povolené produktové kategorie pro filtrování
+    pairedProductNames?: string[]  // 🆕 Názvy produktů z SQL párování
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
         // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
@@ -387,11 +400,6 @@ const sendMessageToAPI = async (
         }
         const data = await response.json();
         
-        // Debug log pro analysis N8N response structure
-        console.log('N8N webhook response:', JSON.stringify(data, null, 2));
-        console.log('Payload sent to N8N:', JSON.stringify(payload, null, 2));
-        console.log('Metadata being sent:', JSON.stringify(metadata, null, 2));
-        
         // Test s ukázkovými daty z problému
         if (process.env.NODE_ENV === 'development') {
             console.log('--- HTML parsing test ---');
@@ -475,52 +483,42 @@ const sendMessageToAPI = async (
         // 🆕 PRODUCT NAME MATCHING - Screening produktů a matching proti databázi
         let matchedProducts: any[] = [];
         
-        console.log('═══════════════════════════════════════════════════════════');
-        console.log('🔍 INLINE PRODUCT BUTTONS - DIAGNOSTIKA');
-        console.log('═══════════════════════════════════════════════════════════');
-        console.log('📝 Text délka:', finalBotText.length, 'znaků');
-        console.log('📄 Text preview:', finalBotText.substring(0, 200) + '...');
-        console.log('═══════════════════════════════════════════════════════════');
-        
         try {
-            console.log('🔍 Zahajuji screening produktů z odpovědi...');
-            
             // 1. Screening - extrakce názvů produktů z textu pomocí GPT
             const screeningResult = await screenTextForProducts(finalBotText);
             
-            console.log('📊 Screening výsledek:', {
-                success: screeningResult.success,
-                productCount: screeningResult.products?.length || 0,
-                products: screeningResult.products,
-                error: screeningResult.error
+            // 2. Spojení názvů z textu + názvů z SQL párování
+            const allProductNames = [
+                ...(screeningResult.success ? screeningResult.products : []),
+                ...(pairedProductNames || [])
+            ];
+            
+            console.log('📝 Všechny názvy produktů (text + párování):', {
+                fromText: screeningResult.products?.length || 0,
+                fromPairing: pairedProductNames?.length || 0,
+                total: allProductNames.length,
+                names: allProductNames
             });
             
-            if (screeningResult.success && screeningResult.products.length > 0) {
-                console.log(`📦 GPT identifikoval ${screeningResult.products.length} produktů/témat:`, screeningResult.products);
+            if (allProductNames.length > 0) {
                 
-                // 2. Matching - vyhledání produktů v databázi
+                // 3. Matching - vyhledání VŠECH produktů v databázi (včetně párovaných!)
                 // 🆕 PŘEDÁVÁME POVOLENÉ KATEGORIE pro filtrování PŘED matchingem
-                console.log('🔍 Zahajuji matching v databázi...');
-                const matchingResult = await matchProductNames(screeningResult.products, allowedProductCategories);
+                const matchingResult = await matchProductNames(allProductNames, allowedProductCategories);
                 
-                console.log('📊 Matching výsledek:', {
-                    success: matchingResult.success,
-                    matchCount: matchingResult.matches?.length || 0,
-                    unmatchedCount: matchingResult.unmatched?.length || 0,
-                    unmatched: matchingResult.unmatched,
-                    error: matchingResult.error
+                console.log('🔍 Fuzzy matching výsledky:', {
+                    inputNames: allProductNames,
+                    foundCount: matchingResult.matches?.length || 0,
+                    matches: matchingResult.matches?.map(m => ({
+                        name: m.product_name,
+                        code: m.product_code,
+                        category: m.category,
+                        matched_from: m.matched_from
+                    })),
+                    unmatched: matchingResult.unmatched
                 });
                 
                 if (matchingResult.success && matchingResult.matches.length > 0) {
-                    console.log(`✅ Nalezeno ${matchingResult.matches.length} produktů v databázi`);
-                    
-                    console.log('📦 Matched produkty:', matchingResult.matches.map(p => ({
-                        matched_from: p.matched_from,
-                        product_name: p.product_name,
-                        pinyin_name: p.pinyin_name,
-                        category: p.category,
-                        similarity: p.similarity
-                    })));
                     
                     // Produkty jsou už vyfiltrované podle kategorií v matchProductNames
                     matchedProducts = matchingResult.matches;
@@ -531,8 +529,6 @@ const sendMessageToAPI = async (
                         index === self.findIndex((p) => p.product_code === product.product_code)
                     );
                     
-                    console.log('🔍 Vkládám produktové tlačítka přímo do textu na konec vět...');
-                    
                     // Pro každý produkt najdeme výskyt v textu a vložíme tlačítko HNED ZA NÍM
                     uniqueProducts.forEach((product) => {
                         const searchTerms = [
@@ -540,8 +536,6 @@ const sendMessageToAPI = async (
                             product.pinyin_name,   // Pinyin název
                             product.product_name   // Název produktu
                         ].filter(Boolean);
-                        
-                        console.log(`  🔎 Hledám "${product.matched_from}" v textu...`);
                         
                         let inserted = false;
                         for (const term of searchTerms) {
@@ -588,38 +582,17 @@ const sendMessageToAPI = async (
                                 // Vložíme marker hned za název produktu (a za markdown markup)
                                 finalBotText = finalBotText.slice(0, matchEnd) + productMarker + finalBotText.slice(matchEnd);
                                 
-                                console.log(`    ✅ Marker vložen hned za "${term}" na pozici ${matchEnd} (markdown offset: ${markdownEndOffset})`);
-                                console.log(`    📝 Marker:`, productMarker);
                                 inserted = true;
                                 break;
                             }
                         }
-                        
-                        if (!inserted) {
-                            console.log(`    ⚠️ Nenalezen výskyt "${product.matched_from}"`);
-                        }
                     });
-                    
-                    console.log('✅ Produktové tlačítka vložena do textu');
-                    console.log('📝 Finální text s markery (preview):',finalBotText.substring(0, 300) + '...');
-                    console.log('═══════════════════════════════════════════════════════════');
                 } else {
-                    console.log('⚠️ Žádné produkty nebyly namatchovány v databázi');
-                    console.log('═══════════════════════════════════════════════════════════');
                 }
             } else {
-                console.log('ℹ️ GPT neidentifikoval žádné produkty v odpovědi');
-                console.log('💡 TIP: Zkus se zeptat na konkrétní produkt nebo čínský název');
-                console.log('═══════════════════════════════════════════════════════════');
             }
         } catch (screeningError) {
             // Screening chyba není kritická - nezpůsobí selhání celé odpovědi
-            console.error('❌ CHYBA při screeningu/matchingu produktů:', screeningError);
-            console.error('📊 Detaily chyby:', {
-                message: screeningError instanceof Error ? screeningError.message : String(screeningError),
-                stack: screeningError instanceof Error ? screeningError.stack : undefined
-            });
-            console.log('═══════════════════════════════════════════════════════════');
         }
 
         return {
@@ -734,17 +707,19 @@ const TypingIndicator: React.FC = () => (
 const Message: React.FC<{ 
     message: ChatMessage; 
     onSilentPrompt: (prompt: string) => void; 
-    chatbotSettings?: { 
-        product_recommendations: boolean; 
-        product_button_recommendations: boolean; 
+    chatbotSettings?: {
+        product_recommendations: boolean;
+        product_button_recommendations: boolean;
         inline_product_links?: boolean;  // 🆕 Inline produktové linky
-        book_database: boolean; 
-        use_feed_1?: boolean; 
+        book_database: boolean;
+        use_feed_1?: boolean;
         use_feed_2?: boolean;
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
         enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
         enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
         group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
+        show_sources?: boolean;  // 🆕 Zobrazování zdrojů
+        enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
     };
     sessionId?: string;
     token?: string;  // 🆕 Token z externalUserInfo
@@ -761,6 +736,12 @@ const Message: React.FC<{
     // 🆕 State pro obohacené produkty (obsahují category pro seskupení v ProductPills)
     const [enrichedProducts, setEnrichedProducts] = useState<RecommendedProduct[]>([]);
     const [productsLoading, setProductsLoading] = useState(false);
+    
+    // 🆕 State pro Aloe/Merkaba doporučení z párování
+    const [pairingRecommendations, setPairingRecommendations] = useState<{
+        aloe: boolean;
+        merkaba: boolean;
+    }>({ aloe: false, merkaba: false });
     
     // 🆕 Prioritní kategorie pro řazení produktů BEWIT
     const PRIORITY_CATEGORIES = [
@@ -858,25 +839,12 @@ const Message: React.FC<{
             // Načíst pouze pokud:
             // 1. Je to bot zpráva
             // 2. Jsou zapnuté inline product links
-            // 3. Text obsahuje product markery
-            if (message.role !== 'bot' || !chatbotSettings?.inline_product_links || !message.text) {
+            // 3. Zpráva obsahuje matchedProducts
+            if (message.role !== 'bot' || !chatbotSettings?.inline_product_links || !message.matchedProducts) {
                 return;
             }
             
-            // Extrahuj produkty z markerů
-            const productMarkerRegex = /<<<PRODUCT:([^|]+)\|\|\|([^|]+)\|\|\|([^|]+)\|\|\|([^>]+)>>>/g;
-            const products: RecommendedProduct[] = [];
-            let match;
-            
-            while ((match = productMarkerRegex.exec(message.text)) !== null) {
-                const [, productCode, productUrl, productName, pinyinName] = match;
-                products.push({
-                    product_code: productCode.trim(),
-                    product_name: productName.trim(),
-                    url: productUrl.trim(),
-                    description: pinyinName.trim()
-                });
-            }
+            const products = message.matchedProducts;
             
             if (products.length === 0) {
                 return;
@@ -886,13 +854,14 @@ const Message: React.FC<{
             setProductsLoading(true);
             
             try {
-                // Obohacení pomocí existující funkce
+                // ✅ JEDNODUCHÉ ŘEŠENÍ: Použij enrichFunnelProductsFromDatabase pro VŠECHNY produkty
+                // Tato funkce už umí pracovat s produkty z Product Extractor i z párování
                 const enriched = await enrichFunnelProductsFromDatabase(products);
-                console.log('✅ Produkty obohaceny:', enriched);
+                
+                console.log('✅ Obohaceno produktů:', enriched.length);
                 
                 // 🆕 Seřadíme produkty podle prioritních kategorií
                 const sortedProducts = sortProductsByPriorityCategories(enriched);
-                console.log('🔄 Produkty seřazeny podle priorit:', sortedProducts.map(p => `${p.product_name} (${p.category})`));
                 
                 setEnrichedProducts(sortedProducts);
             } catch (error) {
@@ -904,7 +873,7 @@ const Message: React.FC<{
         };
         
         loadEnrichedProducts();
-    }, [message.text, message.role, chatbotSettings?.inline_product_links]);
+    }, [message.matchedProducts, message.role, chatbotSettings?.inline_product_links, chatbotSettings?.enable_product_pairing]);
     
     // 🆕 Funkce pro extrakci všech product markerů z textu (pro horní sekci)
     /**
@@ -947,10 +916,6 @@ const Message: React.FC<{
     const renderTextWithProductButtons = () => {
         const text = message.text || '';
         
-        console.log('🎨 renderTextWithProductButtons - začínám parsování');
-        console.log('📝 Text délka:', text.length);
-        console.log('🔍 Hledám markery ve formátu: <<<PRODUCT:...');
-        
         // Regex pro vyhledání product markerů
         // Formát: <<<PRODUCT:code|||url|||name|||pinyin>>>
         const productMarkerRegex = /<<<PRODUCT:([^|]+)\|\|\|([^|]+)\|\|\|([^|]+)\|\|\|([^>]+)>>>/g;
@@ -962,8 +927,6 @@ const Message: React.FC<{
         const firstParagraphEnd = text.indexOf('\n\n');
         const insertProductsSectionAt = firstParagraphEnd > 0 ? firstParagraphEnd : -1;
         
-        console.log('📍 První odstavec končí na pozici:', insertProductsSectionAt);
-        
         const segments: React.ReactNode[] = [];
         let lastIndex = 0;
         let match;
@@ -972,7 +935,6 @@ const Message: React.FC<{
         
         // Najdeme všechny product markery v textu
         while ((match = productMarkerRegex.exec(text)) !== null) {
-            console.log('✅ Nalezen product marker:', match[0]);
             const matchStart = match.index;
             const matchEnd = match.index + match[0].length;
             
@@ -1028,10 +990,10 @@ const Message: React.FC<{
                     }
                     
                     // 🆕 VLOŽENÍ SEKCE "Související produkty BEWIT"
-                    console.log('📦 Vkládám sekci s produkty po prvním odstavci');
                     
                     const useGroupedView = (chatbotSettings as any)?.group_products_by_category === true;
-                    const productsToShow = useGroupedView && enrichedProducts.length > 0 && !productsLoading
+                    // 🔧 FIX: Zobraz produkty i když group_products_by_category není zapnuto
+                    const productsToShow = enrichedProducts.length > 0 && !productsLoading
                         ? enrichedProducts
                         : null;
                     
@@ -1080,6 +1042,27 @@ const Message: React.FC<{
                                         </div>
                                     ))}
                                 </div>
+                                
+                                {/* 🆕 Aloe/Merkaba indikátory (pokud je zapnuté párování) */}
+                                {chatbotSettings?.enable_product_pairing && (pairingRecommendations.aloe || pairingRecommendations.merkaba) && (
+                                    <div className="mt-4 pt-4 border-t border-blue-200">
+                                        <p className="text-xs font-medium text-gray-600 mb-2">Doplňkové doporučení:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {pairingRecommendations.aloe && (
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                                                    <span className="text-base">💧</span>
+                                                    <span>Aloe doporučeno</span>
+                                                </div>
+                                            )}
+                                            {pairingRecommendations.merkaba && (
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                                                    <span className="text-base">✨</span>
+                                                    <span>Merkaba doporučeno</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         );
                     } else {
@@ -1105,6 +1088,27 @@ const Message: React.FC<{
                                         />
                                     ))}
                                 </div>
+                                
+                                {/* 🆕 Aloe/Merkaba indikátory (pokud je zapnuté párování) */}
+                                {chatbotSettings?.enable_product_pairing && (pairingRecommendations.aloe || pairingRecommendations.merkaba) && (
+                                    <div className="mt-4 pt-4 border-t border-blue-200">
+                                        <p className="text-xs font-medium text-gray-600 mb-2">Doplňkové doporučení:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {pairingRecommendations.aloe && (
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                                                    <span className="text-base">💧</span>
+                                                    <span>Aloe doporučeno</span>
+                                                </div>
+                                            )}
+                                            {pairingRecommendations.merkaba && (
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                                                    <span className="text-base">✨</span>
+                                                    <span>Merkaba doporučeno</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         );
                     }
@@ -1194,7 +1198,6 @@ const Message: React.FC<{
             
             // Product button - parsujeme data z markeru
             const [, productCode, productUrl, productName, productPinyin] = match;
-            console.log('🔘 Vytvářím ProductPill:', { productCode, productName, productPinyin });
             segments.push(
                 <ProductPill
                     key={`product-${segmentIndex}`}
@@ -1250,12 +1253,8 @@ const Message: React.FC<{
             );
         }
         
-        console.log(`📊 Celkem nalezeno ${segments.length / 2} product markerů`);
-        console.log(`📦 Vytvořeno ${segments.length} segmentů (text + buttony)`);
-        
         // Pokud nebyl nalezen žádný marker, vrátíme celý text přes ReactMarkdown
         if (segments.length === 0) {
-            console.log('⚠️ Žádné product markery nenalezeny - renderuji normální markdown');
             return (
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
@@ -1381,7 +1380,6 @@ const Message: React.FC<{
                     {!isUser && message.productRecommendations && message.productRecommendations.length > 0 && 
                      chatbotSettings?.product_recommendations && (
                         <div className="mt-4">
-                            {console.log('🎠 Renderuji ProductCarousel s produkty:', message.productRecommendations.length, 'Settings:', chatbotSettings)}
                             <ProductCarousel 
                                 products={message.productRecommendations} 
                                 showSimilarity={true}
@@ -1394,11 +1392,6 @@ const Message: React.FC<{
                     {/* Produktové doporučení na tlačítko - zobrazí se pokud je zapnuté v nastavení */}
                     {!isUser && chatbotSettings?.product_button_recommendations && sessionId && lastUserQuery && (
                         <div className="mt-4">
-                            {console.log('🔘 Zobrazuji tlačítko doporučení', { 
-                                product_button_recommendations: chatbotSettings?.product_button_recommendations,
-                                sessionId: !!sessionId,
-                                lastUserQuery: lastUserQuery.substring(0, 30) 
-                            })}
                             <ProductRecommendationButton
                                 userQuery={lastUserQuery}
                                 botResponse={message.text}
@@ -1409,12 +1402,6 @@ const Message: React.FC<{
                     )}
                     
                     {/* 🆕 Žlutý callout NEBO manuální funnel tlačítko - zobrazí se když zpráva má flag hasCallout = true */}
-                    {/* 🔍 DEBUG: Logování enable_manual_funnel */}
-                    {!isUser && message.hasCallout && console.log('🎯 CALLOUT DECISION:', {
-                        hasCallout: message.hasCallout,
-                        enable_manual_funnel: chatbotSettings?.enable_manual_funnel,
-                        chatbotSettings: chatbotSettings
-                    })}
                     {!isUser && message.hasCallout && (
                         chatbotSettings?.enable_manual_funnel ? (
                             /* 🆕 Manuální funnel spouštěč - tlačítko místo calloutu */
@@ -1481,17 +1468,19 @@ const ChatWindow: React.FC<{
     isLoading: boolean; 
     onSilentPrompt: (prompt: string) => void;
     shouldAutoScroll?: boolean;
-    chatbotSettings?: { 
-        product_recommendations: boolean; 
-        product_button_recommendations: boolean; 
+    chatbotSettings?: {
+        product_recommendations: boolean;
+        product_button_recommendations: boolean;
         inline_product_links?: boolean;  // 🆕 Inline produktové linky
-        book_database: boolean; 
-        use_feed_1?: boolean; 
+        book_database: boolean;
+        use_feed_1?: boolean;
         use_feed_2?: boolean;
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
         enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
         enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
         show_sources?: boolean;  // 🆕 Zobrazování zdrojů
+        group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
+        enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
     };
     sessionId?: string;
     token?: string;  // 🆕 Token z externalUserInfo
@@ -1695,14 +1684,16 @@ const Header: React.FC<{
     onToggleFilters?: () => void;
     isFilterPanelVisible?: boolean;
     onToggleProductRecommendations?: () => void;
-    chatbotSettings?: { 
-        product_recommendations: boolean; 
-        product_button_recommendations: boolean; 
+    chatbotSettings?: {
+        product_recommendations: boolean;
+        product_button_recommendations: boolean;
         inline_product_links?: boolean;  // 🆕 Inline produktové linky
-        book_database: boolean; 
-        use_feed_1?: boolean; 
+        book_database: boolean;
+        use_feed_1?: boolean;
         use_feed_2?: boolean;
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
+        group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
+        enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
     };
     onClose?: () => void;
 }> = ({ onNewChat, onExportPdf, selectedLanguage, onLanguageChange, onToggleFilters, isFilterPanelVisible, onToggleProductRecommendations, chatbotSettings, onClose }) => (
@@ -1896,7 +1887,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 product_recommendations: chatbotSettings.product_recommendations,
                 willUseCombinedSearch: chatbotSettings.book_database && chatbotSettings.product_recommendations,
                 webhook_url: chatbotSettings.webhook_url,
-                summarize_history: chatbotSettings.summarize_history  // 🆕 DEBUG
+                summarize_history: chatbotSettings.summarize_history,
+                enable_product_pairing: chatbotSettings.enable_product_pairing  // 🆕 DEBUG párování
             });
             
             // Připravíme metadata pro filtry
@@ -2332,6 +2324,61 @@ Symptomy zákazníka: ${symptomsList}
                 
                 // Standardní chat - bez intent routingu (žádný callout v historii)
                 // N8N sám přidá žlutý callout pokud detekuje zdravotní symptomy
+                
+                // 🔗 KLASIFIKACE PROBLÉMU - Pokud je zapnuté párování, klasifikuj problém PARALELNĚ s webhookem
+                let classifiedProblems: string[] = [];
+                console.log('🔍 DEBUG: enable_product_pairing =', chatbotSettings.enable_product_pairing);
+                if (chatbotSettings.enable_product_pairing) {
+                    console.log('🔍 Spouštím klasifikaci problému z user message...');
+                    try {
+                        const classificationResult = await classifyProblemFromUserMessage(text.trim());
+                        if (classificationResult.success) {
+                            classifiedProblems = classificationResult.problems;
+                            console.log(`✅ Klasifikované problémy:`, classifiedProblems);
+                        }
+                    } catch (classificationError) {
+                        console.error('❌ Chyba při klasifikaci problému:', classificationError);
+                    }
+                } else {
+                    console.log('⏭️ Párování produktů VYPNUTO - přeskakuji klasifikaci');
+                }
+                
+                // 🔗 KROK 2: SQL PÁROVÁNÍ (PŘED voláním N8N webhooku!)
+                // Získáme NÁZVY produktů z SQL, které se pak spojí s extrahovanými názvy
+                let pairedProductNames: string[] = [];
+                let pairingMetadata: any = null;
+                
+                if (chatbotSettings.enable_product_pairing && classifiedProblems.length > 0) {
+                    console.log('🔗 Spouštím SQL párování PŘED voláním N8N...');
+                    console.log('🔍 Klasifikované problémy:', classifiedProblems);
+                    
+                    try {
+                        const pairingResult = await matchProductCombinationsWithProblems(classifiedProblems);
+                        
+                        if (pairingResult.products.length > 0) {
+                            console.log('✅ SQL vrátilo produkty:', pairingResult.products.length);
+                            
+                            // Extrahuj POUZE NÁZVY produktů (ne kódy, ne URL)
+                            pairedProductNames = pairingResult.products.map((p: any) => p.matched_product_name);
+                            console.log('📝 Názvy napárovaných produktů:', pairedProductNames);
+                            
+                            // Uložíme metadata pro pozdější použití
+                            pairingMetadata = {
+                                aloe: pairingResult.aloe,
+                                merkaba: pairingResult.merkaba,
+                                productCount: pairingResult.products.length
+                            };
+                            
+                            console.log('💧 Aloe doporučeno:', pairingResult.aloe);
+                            console.log('✨ Merkaba doporučeno:', pairingResult.merkaba);
+                        } else {
+                            console.log('ℹ️ SQL nevrátilo žádné produkty pro problémy:', classifiedProblems);
+                        }
+                    } catch (pairingError) {
+                        console.error('❌ Chyba při párování kombinací:', pairingError);
+                    }
+                }
+                
                 const webhookResult = await sendMessageToAPI(
                     promptForBackend, 
                     sessionId, 
@@ -2344,14 +2391,23 @@ Symptomy zákazníka: ${symptomsList}
                     currentUser,  // 🆕 Přidáno: informace o uživateli
                     externalUserInfo,  // 🆕 External user data z iframe
                     undefined,  // Tenhle parametr už nepoužíváme - posíláme přímo v history
-                    chatbotSettings.allowed_product_categories  // 🆕 Povolené produktové kategorie
+                    chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
+                    pairedProductNames  // 🆕 Názvy produktů z SQL párování
                 );
                 
-                // 🆕 Spočítáme produkty pro detekci calloutu
-                const markerCount = (webhookResult.text?.match(/<<<PRODUCT:/g) || []).length;
-                const shouldShowCallout = markerCount > 2;
+                // 🔗 Přidáme párování metadata do výsledku (pokud existují)
+                let pairingInfo: any = null;
+                if (pairingMetadata) {
+                    pairingInfo = {
+                        ...pairingMetadata,
+                        mergedCount: webhookResult.matchedProducts?.length || 0
+                    };
+                }
                 
-                console.log(`🟡 Callout detekce: ${markerCount} vložených produktů v textu → callout = ${shouldShowCallout ? 'ANO' : 'NE'}`);
+                // 🆕 Detekce calloutu - pokud máme více než 2 produkty, zobraz callout
+                const shouldShowCallout = (webhookResult.matchedProducts?.length || 0) > 2;
+                
+                console.log(`🟡 Callout detekce: ${webhookResult.matchedProducts?.length || 0} produktů → callout = ${shouldShowCallout ? 'ANO' : 'NE'}`);
                 
                 const botMessage: ChatMessage = { 
                     id: (Date.now() + 1).toString(), 
@@ -2360,7 +2416,8 @@ Symptomy zákazníka: ${symptomsList}
                     sources: webhookResult.sources || [],
                     productRecommendations: undefined,
                     matchedProducts: webhookResult.matchedProducts || [],
-                    hasCallout: shouldShowCallout
+                    hasCallout: shouldShowCallout,
+                    pairingInfo: pairingInfo || undefined  // 🔗 Přidáno párování
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
@@ -2392,7 +2449,6 @@ Symptomy zákazníka: ${symptomsList}
                             // Aktualizuj STATE (pro React rendering)
                             setSummarizedHistory(prev => {
                                 const newHistory = [...prev, summary];
-                                console.log('✅ Sumarizace připravena pro příští zprávu. Celkem:', newHistory.length);
                                 return newHistory;
                             });
                         }
@@ -2432,6 +2488,28 @@ Symptomy zákazníka: ${symptomsList}
                         similarity: product.similarity_score
                     }));
                     
+                    // 🔗 PÁROVÁNÍ KOMBINACÍ - Pokud máme produkty, hledej kombinace v leceni
+                    let pairingInfo: any = null;
+                    if (productRecommendations.length > 0 && chatbotSettings.enable_product_pairing) {
+                        console.log('🔗 Spouštím párování kombinací produktů...');
+                        try {
+                            const productCodes = productRecommendations
+                                .filter(p => p.category === 'Esenciální oleje' || p.product_code)
+                                .map(p => p.product_code);
+                            
+                            if (productCodes.length > 0) {
+                                console.log('📦 Product codes pro párování:', productCodes);
+                                const combinations = await findCombinationsForEOs(productCodes);
+                                if (combinations.length > 0) {
+                                    pairingInfo = extractPairingProducts(combinations);
+                                    console.log('✅ Párování úspěšné:', pairingInfo);
+                                }
+                            }
+                        } catch (pairingError) {
+                            console.error('❌ Chyba při párování kombinací:', pairingError);
+                        }
+                    }
+                    
                     const botMessage: ChatMessage = { 
                         id: (Date.now() + 1).toString(), 
                         role: 'bot', 
@@ -2439,7 +2517,8 @@ Symptomy zákazníka: ${symptomsList}
                             `🎯 Našel jsem ${productRecommendations.length} doporučených produktů podle vašich potřeb:` : 
                             '🔍 Bohužel jsem nenašel žádné produkty odpovídající vašemu dotazu.',
                         sources: [],
-                        productRecommendations: productRecommendations.length > 0 ? productRecommendations : undefined
+                        productRecommendations: productRecommendations.length > 0 ? productRecommendations : undefined,
+                        pairingInfo: pairingInfo || undefined
                     };
                     
                     setMessages(prev => [...prev, botMessage]);
@@ -2799,6 +2878,27 @@ const SanaChat: React.FC<SanaChatProps> = ({
             else if (chatbotSettings.book_database) {
                 console.log('📚 Používám pouze webhook pro databázi knih - IGNORUJI produktová doporučení...');
                 
+                // 🔗 KROK 1: KLASIFIKACE PROBLÉMU
+                let classifiedProblems: string[] = [];
+                console.log('🔍 DEBUG: enable_product_pairing =', chatbotSettings.enable_product_pairing);
+                if (chatbotSettings.enable_product_pairing) {
+                    console.log('🔍 [VĚTEV 2] Spouštím klasifikaci problému z user message...');
+                    
+                    try {
+                        const problemResult = await classifyProblemFromUserMessage(text.trim());
+                        if (problemResult.success && problemResult.problems.length > 0) {
+                            classifiedProblems = problemResult.problems;
+                            console.log('✅ [VĚTEV 2] Klasifikované problémy:', classifiedProblems);
+                        } else {
+                            console.log('ℹ️ [VĚTEV 2] Žádné problémy nenalezeny');
+                        }
+                    } catch (classificationError) {
+                        console.error('❌ [VĚTEV 2] Chyba při klasifikaci problému:', classificationError);
+                    }
+                } else {
+                    console.log('⏭️ [VĚTEV 2] Párování produktů VYPNUTO');
+                }
+                
                 // 🔥 SUMARIZACE: Pokud je zapnutá, vytvoříme sumarizovanou historii MÍSTO plné historie
                 // Používáme REF protože React state je asynchronní!
                 let historyToSend;
@@ -2816,6 +2916,39 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     historyToSend = newMessages.slice(0, -1);
                 }
                 
+                // 🔗 KROK 2: SQL PÁROVÁNÍ (PŘED voláním N8N webhooku!)
+                // Získáme NÁZVY produktů z SQL, které se pak spojí s extrahovanými názvy
+                let pairedProductNames: string[] = [];
+                let pairingMetadata: any = null;
+                
+                if (chatbotSettings.enable_product_pairing && classifiedProblems.length > 0) {
+                    console.log('🔗 [VĚTEV 2] Spouštím SQL párování PŘED voláním N8N...');
+                    console.log('🔍 Klasifikované problémy:', classifiedProblems);
+                    
+                    try {
+                        const pairingResult = await matchProductCombinationsWithProblems(classifiedProblems);
+                        
+                        if (pairingResult.products.length > 0) {
+                            console.log('✅ SQL vrátilo produkty:', pairingResult.products.length);
+                            
+                            // Extrahuj POUZE NÁZVY produktů
+                            pairedProductNames = pairingResult.products.map((p: any) => p.matched_product_name);
+                            console.log('📝 Názvy napárovaných produktů:', pairedProductNames);
+                            
+                            pairingMetadata = {
+                                aloe: pairingResult.aloe,
+                                merkaba: pairingResult.merkaba,
+                                productCount: pairingResult.products.length
+                            };
+                            
+                            console.log('💧 Aloe doporučeno:', pairingResult.aloe);
+                            console.log('✨ Merkaba doporučeno:', pairingResult.merkaba);
+                        }
+                    } catch (pairingError) {
+                        console.error('❌ Chyba při párování kombinací:', pairingError);
+                    }
+                }
+                
                 const webhookResult = await sendMessageToAPI(
                     promptForBackend, 
                     sessionId, 
@@ -2828,14 +2961,23 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     currentUser,  // 🆕 Přidáno: informace o uživateli
                     externalUserInfo,  // 🆕 External user data z iframe
                     undefined,  // Tenhle parametr už nepoužíváme
-                    chatbotSettings.allowed_product_categories  // 🆕 Povolené produktové kategorie
+                    chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
+                    pairedProductNames  // 🆕 Názvy produktů z SQL párování
                 );
                 
-                // 🆕 Spočítáme produkty pro detekci calloutu
-                const markerCount = (webhookResult.text?.match(/<<<PRODUCT:/g) || []).length;
-                const shouldShowCallout = markerCount > 2;
+                // 🔗 Přidáme párování metadata do výsledku (pokud existují)
+                let pairingInfo: any = null;
+                if (pairingMetadata) {
+                    pairingInfo = {
+                        ...pairingMetadata,
+                        mergedCount: webhookResult.matchedProducts?.length || 0
+                    };
+                }
                 
-                console.log(`🟡 Callout detekce: ${markerCount} vložených produktů v textu → callout = ${shouldShowCallout ? 'ANO' : 'NE'}`);
+                // 🆕 Detekce calloutu - pokud máme více než 2 produkty, zobraz callout
+                const shouldShowCallout = (webhookResult.matchedProducts?.length || 0) > 2;
+                
+                console.log(`🟡 Callout detekce: ${webhookResult.matchedProducts?.length || 0} produktů → callout = ${shouldShowCallout ? 'ANO' : 'NE'}`);
                 
                 const botMessage: ChatMessage = { 
                     id: (Date.now() + 1).toString(), 
@@ -2844,7 +2986,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     sources: webhookResult.sources || [],
                     productRecommendations: undefined,
                     matchedProducts: webhookResult.matchedProducts || [],
-                    hasCallout: shouldShowCallout
+                    hasCallout: shouldShowCallout,
+                    pairingInfo: pairingInfo || undefined  // 🔗 Přidáno párování
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
@@ -2859,7 +3002,6 @@ const SanaChat: React.FC<SanaChatProps> = ({
                             // Aktualizuj STATE (pro React rendering)
                             setSummarizedHistory(prev => {
                                 const newHistory = [...prev, summary];
-                                console.log('✅ Sumarizace připravena pro příští zprávu. Celkem:', newHistory.length);
                                 return newHistory;
                             });
                         }
@@ -2899,6 +3041,28 @@ const SanaChat: React.FC<SanaChatProps> = ({
                         similarity: product.similarity_score
                     }));
                     
+                    // 🔗 PÁROVÁNÍ KOMBINACÍ - Pokud máme produkty, hledej kombinace v leceni
+                    let pairingInfo: any = null;
+                    if (productRecommendations.length > 0 && chatbotSettings.enable_product_pairing) {
+                        console.log('🔗 Spouštím párování kombinací produktů...');
+                        try {
+                            const productCodes = productRecommendations
+                                .filter(p => p.category === 'Esenciální oleje' || p.product_code)
+                                .map(p => p.product_code);
+                            
+                            if (productCodes.length > 0) {
+                                console.log('📦 Product codes pro párování:', productCodes);
+                                const combinations = await findCombinationsForEOs(productCodes);
+                                if (combinations.length > 0) {
+                                    pairingInfo = extractPairingProducts(combinations);
+                                    console.log('✅ Párování úspěšné:', pairingInfo);
+                                }
+                            }
+                        } catch (pairingError) {
+                            console.error('❌ Chyba při párování kombinací:', pairingError);
+                        }
+                    }
+                    
                     const botMessage: ChatMessage = { 
                         id: (Date.now() + 1).toString(), 
                         role: 'bot', 
@@ -2906,7 +3070,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                             `🎯 Našel jsem ${productRecommendations.length} doporučených produktů podle vašich potřeb:` : 
                             '🔍 Bohužel jsem nenašel žádné produkty odpovídající vašemu dotazu.',
                         sources: [],
-                        productRecommendations: productRecommendations.length > 0 ? productRecommendations : undefined
+                        productRecommendations: productRecommendations.length > 0 ? productRecommendations : undefined,
+                        pairingInfo: pairingInfo || undefined
                     };
                     
                     setMessages(prev => [...prev, botMessage]);
@@ -3107,7 +3272,11 @@ interface FilteredSanaChatProps {
         allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
         enable_product_router?: boolean;  // 🆕 Produktový router
         enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
-        summarize_history?: boolean;      // 🆕 Sumarizace historie
+        summarize_history?: boolean;  // 🆕 Sumarizace historie
+        allowed_product_categories?: string[];  // 🆕 Povolené produktové kategorie
+        group_products_by_category?: boolean;  // 🆕 Grupování produktů
+        show_sources?: boolean;  // 🆕 Zobrazování zdrojů
+        enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
     };
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;
@@ -3251,11 +3420,6 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                     api.getCategories(), 
                     api.getPublicationTypes()
                 ]);
-                
-                console.log('📊 Načtená metadata z databáze do Sana chatu:');
-                console.log('- Štítky:', labels);
-                console.log('- Kategorie:', categories);
-                console.log('- Typy publikací:', publicationTypes);
                 
                 // Filtrujeme metadata podle povolených hodnot v chatbotSettings
                 // allowed_* obsahují UUID, takže porovnáváme podle ID

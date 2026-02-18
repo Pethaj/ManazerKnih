@@ -58,6 +58,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
         summarize_history?: boolean;  // 🆕 Sumarizace historie
         show_sources?: boolean;  // 🆕 Zobrazovat zdroje
+        enable_product_pairing?: boolean;  // 🔗 Párování kombinací produktů
     } | null>(null);
     const [chatbotId, setChatbotId] = useState<string>('sana_chat'); // 🆕 Pro markdown rendering
     const [isLoading, setIsLoading] = useState(true);
@@ -154,6 +155,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     summarize_history: settings.summarize_history === true,          // default false
                     // 🆕 DŮLEŽITÉ: Zobrazování zdrojů
                     show_sources: settings.show_sources !== false,                   // default true
+                    // 🔗 DŮLEŽITÉ: Párování kombinací produktů
+                    enable_product_pairing: settings.enable_product_pairing === true, // default false
                 };
                 
                 
@@ -168,6 +171,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     enableManualFunnel: settings.enable_manual_funnel === true,
                     summarizeHistory: settings.summarize_history === true,  // 🆕 DEBUG: Sumarizace
                     showSources: settings.show_sources !== false,  // 🆕 DEBUG: Zobrazování zdrojů
+                    enableProductPairing: settings.enable_product_pairing === true,  // 🔗 DEBUG: Párování
                     newSettings  // 🔥 DEBUG: Celý objekt
                 });
             }

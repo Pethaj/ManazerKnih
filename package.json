@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:watch": "vite build --watch",
+    "dev:serve": "vite preview",
+    "dev:all": "concurrently \"npm run dev:watch\" \"npm run dev:serve\"",
     "build": "vite build && cp -r dist/public/widgets dist/ && echo '✅ Widgets zkopírovány do dist/widgets/'",
     "preview": "vite preview"
   },
@@ -31,6 +34,8 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.1.4",
+    "concurrently": "^9.2.1",
     "shadcn": "^3.5.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

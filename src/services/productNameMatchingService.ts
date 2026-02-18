@@ -81,9 +81,6 @@ export async function matchProductNames(
   productNames: string[], 
   allowedCategories?: string[]
 ): Promise<MatchingResult> {
-  // 🔢 VERZE KONTROLA - Aktuální verze: 3.2 (RPC pagination fix)
-  console.log('🔢 MATCHING SERVICE VERSION: 3.2 (2026-02-17 - RPC pagination fix: load >1000 rows)');
-  
   if (productNames.length === 0) {
     return {
       success: true,
@@ -105,14 +102,10 @@ export async function matchProductNames(
       };
     }
     
-    console.log(`✅ Načteno ${allProducts.length} produktů z databáze`);
-    
     // 🆕 FILTROVÁNÍ PODLE POVOLENÝCH KATEGORIÍ - PŘED MATCHINGEM!
     let products = allProducts;
     
     if (allowedCategories && allowedCategories.length > 0) {
-      console.log(`🔍 Filtrování produktů podle ${allowedCategories.length} povolených kategorií:`, allowedCategories);
-      
       products = allProducts.filter(product => {
         const productCategory = product.category?.toLowerCase().trim() || '';
         
@@ -123,11 +116,6 @@ export async function matchProductNames(
         
         return isAllowed;
       });
-      
-      console.log(`✅ Po filtraci kategorií: ${products.length} z ${allProducts.length} produktů`);
-      console.log(`   📊 Kategorie zahrnuty: ${allowedCategories.join(', ')}`);
-    } else {
-      console.log(`ℹ️ Žádné kategorie nejsou nastaveny - načteny všechny produkty`);
     }
     
     // Pro každý název z GPT najdeme best match
@@ -136,10 +124,6 @@ export async function matchProductNames(
     
     for (const gptName of productNames) {
       const match = findBestMatch(gptName, products);
-      
-      const categoryEmoji = match ? getCategoryEmoji(match.category) : '';
-      
-      console.log(`🔍 "${gptName}" → ${match ? `✅ ${match.product_name} (${match.similarity.toFixed(2)}) ${categoryEmoji}` : '❌ NOT FOUND'}`);
       
       if (match && match.similarity >= 0.5) {
         matches.push(match);
@@ -191,28 +175,22 @@ function findBestMatch(
   // 1️⃣ DETEKCE KATEGORIE z GPT názvu
   const detectedCategory = detectProductCategory(gptName);
   
-  console.log(`  🎯 Detekovaná kategorie pro "${gptName}": ${detectedCategory}`);
-  
   // 2️⃣ FILTROVÁNÍ produktů podle kategorie
   let filteredProducts = products;
   
   if (detectedCategory === 'EO_BLEND') {
     // Pouze směsi esenciálních olejů
     filteredProducts = products.filter(p => isEssentialOilBlendCategory(p.category));
-    console.log(`  📦 Filtrováno na ${filteredProducts.length} směsí EO (z ${products.length} celkem)`);
   } else if (detectedCategory === 'WAN') {
     // Pouze wany (TČM)
     filteredProducts = products.filter(p => isWanCategory(p.category));
-    console.log(`  📦 Filtrováno na ${filteredProducts.length} wanů (z ${products.length} celkem)`);
   } else if (detectedCategory === 'PRAWTEIN') {
     // Pouze prawteiny
     filteredProducts = products.filter(p => isPrawteinCategory(p.category));
-    console.log(`  📦 Filtrováno na ${filteredProducts.length} prawteinů (z ${products.length} celkem)`);
   }
   // Pro 'UNKNOWN' hledáme ve všech produktech
   
   if (filteredProducts.length === 0) {
-    console.log(`  ⚠️  Po filtraci na kategorii ${detectedCategory} nezůstaly žádné produkty!`);
     return null;
   }
   

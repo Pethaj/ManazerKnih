@@ -38,6 +38,8 @@ export interface ChatbotSettings {
   group_products_by_category?: boolean;  // Zobrazit produkty rozdělené podle kategorií
   // 🆕 Zobrazování zdrojů v chatbotu
   show_sources?: boolean;  // Zobrazovat zdroje v odpovědích chatbota
+  // 🆕 Párování kombinací produktů
+  enable_product_pairing?: boolean;  // Automatické párování produktů podle tabulky leceni
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -97,6 +99,8 @@ export interface CreateChatbotSettingsData {
   group_products_by_category?: boolean;
   // 🆕 Zobrazování zdrojů v chatbotu
   show_sources?: boolean;
+  // 🆕 Párování kombinací produktů
+  enable_product_pairing?: boolean;
 }
 
 // Interface pro aktualizaci chatbota
@@ -127,6 +131,8 @@ export interface UpdateChatbotSettingsData {
   group_products_by_category?: boolean;
   // 🆕 Zobrazování zdrojů v chatbotu
   show_sources?: boolean;
+  // 🆕 Párování kombinací produktů
+  enable_product_pairing?: boolean;
 }
 
 // Interface pro filtry chatbota
@@ -152,6 +158,8 @@ export interface ChatbotFilters {
   groupProductsByCategory: boolean;  // Zobrazit produkty rozdělené podle kategorií
   // 🆕 Zobrazování zdrojů v chatbotu
   showSources: boolean;  // Zobrazovat zdroje v odpovědích
+  // 🆕 Párování kombinací produktů
+  enableProductPairing: boolean;  // Automatické párování produktů podle tabulky leceni
 }
 
 export class ChatbotSettingsService {
@@ -194,7 +202,8 @@ export class ChatbotSettingsService {
       console.log(`📥 Načteno nastavení pro chatbot "${chatbotId}":`, {
         summarize_history: data?.summarize_history,
         book_database: data?.book_database,
-        product_recommendations: data?.product_recommendations
+        product_recommendations: data?.product_recommendations,
+        enable_product_pairing: data?.enable_product_pairing  // 🔗 PÁROVÁNÍ KOMBINACÍ
       });
 
       return data;
@@ -494,6 +503,8 @@ export class ChatbotSettingsService {
         groupProductsByCategory: settings.group_products_by_category === true, // default false
         // 🆕 Zobrazování zdrojů
         showSources: settings.show_sources !== false, // default true
+        // 🔗 Párování kombinací produktů
+        enableProductPairing: settings.enable_product_pairing === true, // default false
       };
     } catch (error) {
       console.error('Chyba při načítání filtrů chatbota:', error);

@@ -1,12 +1,19 @@
 /**
- * Inline Product Screening Service
+ * Inline Product Screening Service (Product Extractor)
  * 
- * Agent pro identifikaci produktů/témat v textu odpovědi chatbota
+ * Product Extractor - Agent pro identifikaci produktů/témat v textu odpovědi chatbota
  * Volá Supabase Edge Function, která používá OpenRouter GPT-4o-mini
  * související s čínskou medicínou a přírodní/alternativní medicínou
+ * 
+ * + Orchestrace párování kombinací produktů:
+ *   1. Identifikace problému z user message (Problem Classifier)
+ *   2. Extrakce produktů z bot response (Product Extractor)
+ *   3. Párování kombinací podle tabulky leceni (Product Pairing Service)
  */
 
 import { supabase } from '../lib/supabase';
+import { classifyProblemFromUserMessage } from './problemClassificationService';
+import { matchProductCombinations } from './productPairingService';
 
 // ============================================================================
 // KONFIGURACE
@@ -22,6 +29,28 @@ export interface ScreeningResult {
   success: boolean;
   products: string[]; // Seznam názvů produktů/témat
   rawResponse?: string; // Pro debug
+  error?: string;
+}
+
+/**
+ * Výsledek kompletní orchestrace (problém + produkty + párování)
+ */
+export interface ProductScreeningWithPairingResult {
+  success: boolean;
+  
+  // Krok 1: Identifikace problému
+  problems: string[]; // Identifikované problémy z user message
+  
+  // Krok 2: Extrakce produktů
+  extractedProducts: string[]; // Produkty extrahované z bot response
+  
+  // Krok 3: Párování kombinací (pokud je zapnuto)
+  pairedProducts?: any[]; // Napárované produkty z leceni tabulky
+  aloeRecommended?: boolean;
+  merkabaRecommended?: boolean;
+  
+  // Debugging & errors
+  rawResponse?: string;
   error?: string;
 }
 
@@ -189,6 +218,210 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
 }
 
 // ============================================================================
+// ORCHESTRACE: Product Screening + Problem Classification + Pairing
+// ============================================================================
+
+/**
+ * Kompletní orchestrace pro webhook událost:
+ * 
+ * FLOW:
+ * 1. ⚡ Parallel: Identifikace problému (z user msg) + Extrakce produktů (z bot response)
+ * 2. ⏳ Čekání na oba výsledky
+ * 3. 🔗 Spuštění Product Pairing Service (pokud máme problém + produkty)
+ * 
+ * @param userMessage - Zpráva od uživatele (např. "bolí mě hlava")
+ * @param botResponse - Odpověď chatbota (obsahuje zmínky o produktech)
+ * @param enablePairing - Zapnuto párování kombinací? (z chatbot settings)
+ * @returns Kompletní výsledek s problémem, produkty a napárovanými kombinacemi
+ */
+export async function screenProductsWithPairing(
+  userMessage: string,
+  botResponse: string,
+  enablePairing: boolean = true
+): Promise<ProductScreeningWithPairingResult> {
+  
+  console.log('🚀 Spouštím kompletní product screening s párováním...');
+  console.log('📥 User message:', userMessage);
+  console.log('📥 Bot response length:', botResponse.length);
+  console.log('🔗 Párování zapnuto:', enablePairing);
+  
+  try {
+    // ============================================================================
+    // KROK 1: PARALLEL - Identifikace problému + Extrakce produktů
+    // ============================================================================
+    
+    console.log('⚡ Spouštím parallel: Problem Classification + Product Extraction...');
+    
+    const [problemResult, productResult] = await Promise.all([
+      // Agent 1: Problem Classifier
+      classifyProblemFromUserMessage(userMessage),
+      
+      // Agent 2: Product Extractor
+      screenTextForProducts(botResponse)
+    ]);
+    
+    console.log('✅ Problem Classification dokončena:', problemResult.problems);
+    console.log('✅ Product Extraction dokončena:', productResult.products);
+    
+    // ============================================================================
+    // KROK 2: VALIDACE - Máme problém a produkty?
+    // ============================================================================
+    
+    const hasProblems = problemResult.success && problemResult.problems.length > 0;
+    const hasProducts = productResult.success && productResult.products.length > 0;
+    
+    if (!hasProblems) {
+      console.log('⚠️ Žádný problém identifikován - párování nebude spuštěno');
+    }
+    
+    if (!hasProducts) {
+      console.log('⚠️ Žádné produkty extrahovány - párování nebude spuštěno');
+    }
+    
+    // Základní výsledek bez párování
+    const result: ProductScreeningWithPairingResult = {
+      success: true,
+      problems: problemResult.problems,
+      extractedProducts: productResult.products,
+      rawResponse: productResult.rawResponse
+    };
+    
+    // ============================================================================
+    // KROK 3: PÁROVÁNÍ - Pouze pokud máme problém + produkty + je zapnuto
+    // ============================================================================
+    
+    if (enablePairing && hasProblems && hasProducts) {
+      console.log('🔗 Spouštím Product Pairing Service...');
+      console.log('📋 Vstup - Problémy:', problemResult.problems);
+      console.log('📋 Vstup - Produkty:', productResult.products);
+      
+      try {
+        // Najdi product_code pro extrahované produkty
+        const productCodes = await findProductCodesByNames(productResult.products);
+        
+        if (productCodes.length === 0) {
+          console.log('⚠️ Žádné product_code nalezeny pro extrahované produkty');
+          return result;
+        }
+        
+        console.log('🔍 Nalezené product_code:', productCodes);
+        
+        // Spusť párování kombinací
+        const pairingResult = await matchProductCombinations(productCodes);
+        
+        result.pairedProducts = pairingResult.products;
+        result.aloeRecommended = pairingResult.aloe;
+        result.merkabaRecommended = pairingResult.merkaba;
+        
+        console.log('✅ Product Pairing dokončeno:');
+        console.log('   - Napárované produkty:', pairingResult.products.length);
+        console.log('   - Aloe doporučeno:', pairingResult.aloe);
+        console.log('   - Merkaba doporučeno:', pairingResult.merkaba);
+        
+      } catch (pairingError) {
+        console.error('❌ Chyba při párování kombinací:', pairingError);
+        // Nepřerušujeme - vracíme alespoň základní výsledek
+      }
+    }
+    
+    console.log('🎉 Kompletní screening dokončen!');
+    return result;
+    
+  } catch (error) {
+    console.error('❌ Kritická chyba v product screening orchestraci:', error);
+    return {
+      success: false,
+      problems: [],
+      extractedProducts: [],
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+/**
+ * Helper: Najde product_code v databázi podle názvů produktů
+ * 
+ * @param productNames - Názvy produktů extrahované z textu
+ * @returns Pole product_code
+ */
+async function findProductCodesByNames(productNames: string[]): Promise<string[]> {
+  if (productNames.length === 0) {
+    return [];
+  }
+  
+  console.log('🔍 Hledám product_code pro názvy:', productNames);
+  
+  try {
+    // Hledej v product_feed_2 (obsahuje esenciální oleje, prawteiny, TČM)
+    const { data, error } = await supabase
+      .from('product_feed_2')
+      .select('product_code, product_name');
+    
+    if (error) {
+      console.error('❌ Chyba při načítání product_feed_2:', error);
+      return [];
+    }
+    
+    if (!data || data.length === 0) {
+      console.log('⚠️ Žádné produkty v product_feed_2');
+      return [];
+    }
+    
+    // Matching logika: Fuzzy match (case-insensitive, obsahuje)
+    const productCodes: string[] = [];
+    
+    productNames.forEach(extractedName => {
+      const normalizedExtracted = extractedName.toLowerCase().trim();
+      
+      // Najdi produkt, jehož název obsahuje extrahovaný název
+      const matchedProduct = data.find(product => {
+        const normalizedProductName = product.product_name.toLowerCase();
+        
+        // Match 1: Extrahovaný název je obsažen v product_name
+        if (normalizedProductName.includes(normalizedExtracted)) {
+          return true;
+        }
+        
+        // Match 2: Product_name je obsažen v extrahovaném názvu
+        if (normalizedExtracted.includes(normalizedProductName)) {
+          return true;
+        }
+        
+        // Match 3: Odstranit "esenciální olej", "BEWIT", "PRAWTEIN" a zkusit znovu
+        const cleanedProductName = normalizedProductName
+          .replace(/esenciální olej/gi, '')
+          .replace(/bewit/gi, '')
+          .replace(/prawtein/gi, '')
+          .trim();
+        
+        const cleanedExtracted = normalizedExtracted
+          .replace(/esenciální olej/gi, '')
+          .replace(/bewit/gi, '')
+          .replace(/prawtein/gi, '')
+          .trim();
+        
+        return cleanedProductName === cleanedExtracted || 
+               cleanedProductName.includes(cleanedExtracted) ||
+               cleanedExtracted.includes(cleanedProductName);
+      });
+      
+      if (matchedProduct) {
+        console.log(`   ✅ Match: "${extractedName}" → ${matchedProduct.product_code} (${matchedProduct.product_name})`);
+        productCodes.push(matchedProduct.product_code);
+      } else {
+        console.log(`   ❌ No match: "${extractedName}"`);
+      }
+    });
+    
+    return [...new Set(productCodes)]; // Deduplikace
+    
+  } catch (error) {
+    console.error('❌ Chyba při hledání product_code:', error);
+    return [];
+  }
+}
+
+// ============================================================================
 // TEST FUNKCE
 // ============================================================================
 
@@ -197,5 +430,65 @@ export async function screenTextForProducts(text: string): Promise<ScreeningResu
  */
 export async function testProductScreening(): Promise<void> {
   // Test funkce - lze použít pro debugging
+}
+
+/**
+ * Testovací funkce pro kompletní orchestraci
+ * 
+ * Použití:
+ * import { testProductScreeningWithPairing } from './services/inlineProductScreeningService';
+ * await testProductScreeningWithPairing();
+ */
+export async function testProductScreeningWithPairing(): Promise<void> {
+  console.log('🧪 TEST: Product Screening s párováním');
+  console.log('='.repeat(60));
+  
+  // Testovací data
+  const userMessage = "Bolí mě hlava ze stresu a jsem přepracovaný";
+  const botResponse = `
+    Doporučuji vám LEVANDULE esenciální olej pro uklidnění a KADIDLO pro meditaci.
+    Můžete také zkusit směs RELAX nebo NOPA pro podporu nervového systému.
+    PRAWTEIN Aloe Vera Plus může pomoct s regenerací.
+  `;
+  const enablePairing = true;
+  
+  console.log('📥 User message:', userMessage);
+  console.log('📥 Bot response:', botResponse.trim());
+  console.log('🔗 Párování:', enablePairing);
+  console.log('='.repeat(60));
+  
+  const result = await screenProductsWithPairing(
+    userMessage,
+    botResponse,
+    enablePairing
+  );
+  
+  console.log('='.repeat(60));
+  console.log('📤 VÝSLEDEK:');
+  console.log('='.repeat(60));
+  console.log('✅ Success:', result.success);
+  console.log('');
+  console.log('🔍 Identifikované problémy:', result.problems);
+  console.log('📦 Extrahované produkty:', result.extractedProducts);
+  console.log('');
+  
+  if (result.pairedProducts && result.pairedProducts.length > 0) {
+    console.log('🔗 Napárované produkty:');
+    result.pairedProducts.forEach(p => {
+      console.log(`   - ${p.matched_product_name} (${p.matched_category})`);
+    });
+    console.log('');
+    console.log('💧 Aloe doporučeno:', result.aloeRecommended ? '✅ ANO' : '❌ NE');
+    console.log('✨ Merkaba doporučeno:', result.merkabaRecommended ? '✅ ANO' : '❌ NE');
+  } else {
+    console.log('⚠️ Žádné napárované produkty');
+  }
+  
+  if (result.error) {
+    console.log('');
+    console.log('❌ Error:', result.error);
+  }
+  
+  console.log('='.repeat(60));
 }
 

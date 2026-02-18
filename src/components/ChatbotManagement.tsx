@@ -700,6 +700,28 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                         ⚠️ Tato funkce je momentálně vypnutá. Inline produktové linky se zobrazují bez grupování podle kategorií.
                                                     </div>
                                                 </div>
+
+                                                {/* 🆕 Párování kombinací produktů */}
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.enable_product_pairing === true}
+                                                            onChange={() => updateLocalSettings(chatbot.chatbot_id, {
+                                                                enable_product_pairing: !(chatbot.enable_product_pairing === true)
+                                                            })}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 4.93"></path>
+                                                            <path d="M14 11a5 5 0 0 0-7.07 0L5.52 12.41a5 5 0 0 0 7.07 7.07L14 19.07"></path>
+                                                        </svg>
+                                                        Párování kombinací produktů
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Automaticky přidá doplňkové produkty (Prawtein, TČM, Aloe, Merkaba) na základě tabulky léčebných kombinací.
+                                                    </div>
+                                                </div>
                                             </div>
                                             
                                             {/* Filtrace kategorií - pouze pokud je povolena databáze knih */}

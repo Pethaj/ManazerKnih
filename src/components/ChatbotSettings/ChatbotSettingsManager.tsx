@@ -187,6 +187,8 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     group_products_by_category: chatbotSettings?.group_products_by_category ?? false,
     // 🆕 Zobrazování zdrojů
     show_sources: chatbotSettings?.show_sources ?? true,
+    // 🆕 Párování kombinací produktů
+    enable_product_pairing: chatbotSettings?.enable_product_pairing ?? false,
   });
 
   // 🆕 State pro denní limit zpráv
@@ -524,6 +526,21 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
                 <span className="text-xs text-gray-500">
                   Tabulka "Súvisející produkty BEWIT" se zobrazí rozdělená na sekce podle kategorií. 
                   Produkty zůstanou v jednom bloku, ale budou vizuálně seskupené.
+                </span>
+              </div>
+            </label>
+            <label className="flex items-start">
+              <input
+                type="checkbox"
+                checked={formData.enable_product_pairing}
+                onChange={(e) => setFormData(prev => ({ ...prev, enable_product_pairing: e.target.checked }))}
+                className="mr-2 mt-1"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700 font-medium">🔗 Párování kombinací produktů</span>
+                <span className="text-xs text-gray-500">
+                  Automaticky přidá doplňkové produkty (Prawtein, TČM, Aloe, Merkaba) na základě 
+                  vybraných produktů podle tabulky léčebných kombinací.
                 </span>
               </div>
             </label>
@@ -1019,6 +1036,16 @@ const ChatbotSettingsManager: React.FC = () => {
                     : 'bg-gray-100 text-gray-600'
                 }`}>
                   {chatbot.show_sources !== false ? 'Zapnuto' : 'Vypnuto'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-gray-700">Párování kombinací:</span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                  chatbot.enable_product_pairing === true
+                    ? 'bg-blue-100 text-blue-800' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {chatbot.enable_product_pairing === true ? '🔗 Aktivní' : 'Vypnuto'}
                 </span>
               </div>
             </div>
