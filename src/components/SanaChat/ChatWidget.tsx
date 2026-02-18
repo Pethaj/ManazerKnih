@@ -32,6 +32,7 @@ interface ChatWidgetProps {
         enable_product_router?: boolean;  // 🆕 Produktový router
         enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
         summarize_history?: boolean;  // 🆕 Sumarizace historie
+        show_sources?: boolean;  // 🆕 Zobrazovat zdroje
     };
 }
 
@@ -56,6 +57,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         enable_product_router?: boolean;  // 🆕 Produktový router
         enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
         summarize_history?: boolean;  // 🆕 Sumarizace historie
+        show_sources?: boolean;  // 🆕 Zobrazovat zdroje
     } | null>(null);
     const [chatbotId, setChatbotId] = useState<string>('sana_chat'); // 🆕 Pro markdown rendering
     const [isLoading, setIsLoading] = useState(true);
@@ -91,29 +93,31 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                         use_feed_1: true,
                         use_feed_2: true,
                         allowed_categories: [],
-                        allowed_labels: [],
-                        allowed_publication_types: [],
-                        enable_product_router: true,   // default true
-                        enable_manual_funnel: false,   // default false
-                        summarize_history: false,      // default false
-                    });
-                }
-            } catch (error) {
-                // Fallback na defaultní nastavení
-                setChatbotSettings({
-                    product_recommendations: false,
-                    product_button_recommendations: false,
-                    book_database: true,
-                    use_feed_1: true,
-                    use_feed_2: true,
-                    allowed_categories: [],
                     allowed_labels: [],
                     allowed_publication_types: [],
                     enable_product_router: true,   // default true
                     enable_manual_funnel: false,   // default false
                     summarize_history: false,      // default false
+                    show_sources: true,            // default true
                 });
-            } finally {
+            }
+        } catch (error) {
+            // Fallback na defaultní nastavení
+            setChatbotSettings({
+                product_recommendations: false,
+                product_button_recommendations: false,
+                book_database: true,
+                use_feed_1: true,
+                use_feed_2: true,
+                allowed_categories: [],
+                allowed_labels: [],
+                allowed_publication_types: [],
+                enable_product_router: true,   // default true
+                enable_manual_funnel: false,   // default false
+                summarize_history: false,      // default false
+                show_sources: true,            // default true
+            });
+        } finally {
                 setIsLoading(false);
             }
         };
@@ -124,6 +128,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // Funkce pro načtení konkrétního chatbota podle ID
     const loadChatbotById = async (chatbotIdToLoad: string) => {
         try {
+            console.log('🔄 ChatWidget: Načítám chatbot z databáze', { chatbotIdToLoad });
             const settings = await ChatbotSettingsService.getChatbotSettings(chatbotIdToLoad);
             
             
@@ -147,11 +152,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     enable_manual_funnel: settings.enable_manual_funnel === true,    // default false
                     // 🆕 DŮLEŽITÉ: Sumarizace historie
                     summarize_history: settings.summarize_history === true,          // default false
+                    // 🆕 DŮLEŽITÉ: Zobrazování zdrojů
+                    show_sources: settings.show_sources !== false,                   // default true
                 };
                 
                 
                 setChatbotSettings(newSettings);
-                console.log({
+                console.log('✅ ChatWidget: Nastavení chatbota načteno z DB:', {
                     chatbot_id: settings.chatbot_id,
                     webhook_url: settings.webhook_url,  // 🆕 PŘIDÁNO: Debug log
                     categories: settings.allowed_categories?.length || 0,
@@ -159,10 +166,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     publicationTypes: settings.allowed_publication_types?.length || 0,
                     enableProductRouter: settings.enable_product_router !== false,
                     enableManualFunnel: settings.enable_manual_funnel === true,
-                    summarizeHistory: settings.summarize_history === true  // 🆕 DEBUG: Sumarizace
+                    summarizeHistory: settings.summarize_history === true,  // 🆕 DEBUG: Sumarizace
+                    showSources: settings.show_sources !== false,  // 🆕 DEBUG: Zobrazování zdrojů
+                    newSettings  // 🔥 DEBUG: Celý objekt
                 });
             }
         } catch (error) {
+            console.error('❌ ChatWidget: Chyba při načítání chatbota', { chatbotIdToLoad, error });
         }
     };
 
@@ -197,7 +207,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             {/* Selector chatbotů */}
             {showSelector && (
                 <ChatbotSelector
-                    chatbots={availableChatbots}
+                    chatbots={availableChatbots
+                        .filter(c => c.id !== undefined)
+                        .map(c => ({
+                            id: c.id!,
+                            chatbot_id: c.chatbot_id,
+                            chatbot_name: c.chatbot_name,
+                            description: c.description || null,
+                            is_active: c.is_active
+                        }))
+                    }
                     onSelect={handleChatbotSelect}
                     onClose={() => setShowSelector(false)}
                 />

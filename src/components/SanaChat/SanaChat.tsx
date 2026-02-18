@@ -143,6 +143,7 @@ interface SanaChatProps {
     enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
     summarize_history?: boolean;  // 🆕 Automatická sumarizace historie pro N8N webhook
     allowed_product_categories?: string[];  // 🆕 Povolené produktové kategorie pro filtrování Product Pills
+    show_sources?: boolean;  // 🆕 Zobrazovat zdroje v odpovědích
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
@@ -761,6 +762,43 @@ const Message: React.FC<{
     const [enrichedProducts, setEnrichedProducts] = useState<RecommendedProduct[]>([]);
     const [productsLoading, setProductsLoading] = useState(false);
     
+    // 🆕 Prioritní kategorie pro řazení produktů BEWIT
+    const PRIORITY_CATEGORIES = [
+        'Směsi esenciálních olejů',
+        'PRAWTEIN® – superpotravinové směsi',
+        'TČM - Tradiční čínská medicína'
+    ];
+    
+    // 🆕 Funkce pro získání priority kategorie
+    const getCategoryPriority = (category: string | undefined): number => {
+        if (!category) return 999;
+        
+        const index = PRIORITY_CATEGORIES.findIndex(priorityCategory => {
+            const categoryLower = category.toLowerCase();
+            const priorityLower = priorityCategory.toLowerCase();
+            
+            return categoryLower.includes(priorityLower) || priorityLower.includes(categoryLower);
+        });
+        
+        return index === -1 ? 999 : index;
+    };
+    
+    // 🆕 Funkce pro řazení produktů podle prioritních kategorií
+    const sortProductsByPriorityCategories = (products: RecommendedProduct[]): RecommendedProduct[] => {
+        return [...products].sort((a, b) => {
+            const priorityA = getCategoryPriority(a.category);
+            const priorityB = getCategoryPriority(b.category);
+            
+            // Seřadit podle priority kategorií
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+            
+            // V rámci stejné kategorie zachovat původní pořadí
+            return 0;
+        });
+    };
+    
     // 🆕 State pro inline produktové linky
     
     // Vylepšené zpracování HTML pro lepší zobrazení obrázků a formátování
@@ -851,7 +889,12 @@ const Message: React.FC<{
                 // Obohacení pomocí existující funkce
                 const enriched = await enrichFunnelProductsFromDatabase(products);
                 console.log('✅ Produkty obohaceny:', enriched);
-                setEnrichedProducts(enriched);
+                
+                // 🆕 Seřadíme produkty podle prioritních kategorií
+                const sortedProducts = sortProductsByPriorityCategories(enriched);
+                console.log('🔄 Produkty seřazeny podle priorit:', sortedProducts.map(p => `${p.product_name} (${p.category})`));
+                
+                setEnrichedProducts(sortedProducts);
             } catch (error) {
                 console.error('❌ Chyba při obohacování produktů:', error);
                 setEnrichedProducts(products); // Fallback na základní data
@@ -1000,7 +1043,13 @@ const Message: React.FC<{
                             acc[cat].push(p);
                             return acc;
                         }, {});
-                        const categories = Object.keys(byCategory);
+                        
+                        // 🆕 Seřadíme kategorie podle priority
+                        const categories = Object.keys(byCategory).sort((catA, catB) => {
+                            const priorityA = getCategoryPriority(catA);
+                            const priorityB = getCategoryPriority(catB);
+                            return priorityA - priorityB;
+                        });
                         
                         segments.push(
                             <div key={`products-section`} className="my-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
@@ -1395,7 +1444,7 @@ const Message: React.FC<{
                     
                     {/* Standardní zdroje uvnitř bubble (pro ostatní chatboty) */}
                     {/* Zdroje UVNITŘ bubble - pro všechny chatboty (včetně Sana Local Format) - VŽDY NAPOSLED */}
-                    {!isUser && message.sources && message.sources.length > 0 && (
+                    {!isUser && message.sources && message.sources.length > 0 && chatbotSettings?.show_sources !== false && (
                         <div className={`mt-4 pt-4 border-t ${isUser ? 'border-t-white/30' : 'border-t-slate-200'}`}>
                             <h4 className={`text-xs font-semibold mb-2 uppercase tracking-wider ${isUser ? 'text-white/80' : 'text-slate-500'}`}>
                                 Zdroje
@@ -1442,6 +1491,7 @@ const ChatWindow: React.FC<{
         webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
         enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
         enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
+        show_sources?: boolean;  // 🆕 Zobrazování zdrojů
     };
     sessionId?: string;
     token?: string;  // 🆕 Token z externalUserInfo
@@ -3083,19 +3133,36 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
         use_feed_2: true,
         enable_product_router: true,   // 🆕 Defaultně zapnutý
         enable_manual_funnel: false,   // 🆕 Defaultně vypnutý
-        summarize_history: false       // 🆕 Defaultně vypnutá sumarizace
+        summarize_history: false,      // 🆕 Defaultně vypnutá sumarizace
+        show_sources: true             // 🆕 Defaultně zapnuté zobrazování zdrojů
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
     externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
+    // 🔥 DEBUG: Log přijatých props při každém renderu
+    console.log('🔍 FilteredSanaChat PROPS:', {
+        chatbotId,
+        chatbotSettings,
+        enable_product_router: chatbotSettings?.enable_product_router,
+        enable_manual_funnel: chatbotSettings?.enable_manual_funnel,
+        summarize_history: chatbotSettings?.summarize_history,
+        show_sources: chatbotSettings?.show_sources
+    });
+    
     // Uložíme nastavení do state pro správný scope v useCallback
     const [settings, setSettings] = useState(chatbotSettings);
     
-    // Aktualizujeme settings když se chatbotSettings změní
+    // 🔥 KRITICKÉ: Aktualizujeme settings když se chatbotSettings změní
+    // Tento useEffect zajišťuje, že změny z databáze se VŽDY promítnou do chatu
     useEffect(() => {
+        console.log('🔄 FilteredSanaChat: Aktualizuji nastavení', {
+            chatbotId,
+            old_settings: settings,
+            new_settings: chatbotSettings
+        });
         setSettings(chatbotSettings);
-    }, [chatbotSettings]);
+    }, [chatbotSettings, chatbotId]);
     
     // Dostupné filtry - načtou se z databáze
     const [availableCategories, setAvailableCategories] = useState<string[]>([]);

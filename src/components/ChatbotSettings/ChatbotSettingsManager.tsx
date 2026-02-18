@@ -185,6 +185,8 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     allowed_product_categories: chatbotSettings?.allowed_product_categories || [],
     // 🆕 Grupování produktů podle kategorií
     group_products_by_category: chatbotSettings?.group_products_by_category ?? false,
+    // 🆕 Zobrazování zdrojů
+    show_sources: chatbotSettings?.show_sources ?? true,
   });
 
   // 🆕 State pro denní limit zpráv
@@ -439,6 +441,15 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
                 className="mr-2"
               />
               <span className="text-sm text-gray-700">Povolit přístup k databázi knih</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.show_sources}
+                onChange={(e) => setFormData(prev => ({ ...prev, show_sources: e.target.checked }))}
+                className="mr-2"
+              />
+              <span className="text-sm text-gray-700">Zobrazovat zdroje</span>
             </label>
             <label className="flex items-center">
               <input
@@ -998,6 +1009,16 @@ const ChatbotSettingsManager: React.FC = () => {
                     : 'bg-gray-100 text-gray-600'
                 }`}>
                   {chatbot.group_products_by_category === true ? 'Podle kategorií' : 'Standardní'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-gray-700">Zobrazování zdrojů:</span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                  chatbot.show_sources !== false
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {chatbot.show_sources !== false ? 'Zapnuto' : 'Vypnuto'}
                 </span>
               </div>
             </div>

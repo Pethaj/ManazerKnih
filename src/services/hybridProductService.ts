@@ -22,6 +22,57 @@ export interface HybridProductRecommendation {
 }
 
 /**
+ * Prioritní kategorie pro řazení produktů BEWIT
+ * Pokud jsou nalezeny produkty ze všech těchto kategorií, zobrazí se v tomto pořadí:
+ * 1. Směsi esenciálních olejů (nejvyšší priorita)
+ * 2. PRAWTEIN - superpotravinové směsi
+ * 3. TČM - Tradiční čínská medicína
+ */
+const PRIORITY_CATEGORIES = [
+  'Směsi esenciálních olejů',
+  'PRAWTEIN® – superpotravinové směsi',
+  'TČM - Tradiční čínská medicína'
+];
+
+/**
+ * Vrací prioritu kategorie (nižší číslo = vyšší priorita)
+ * @param category - Kategorie produktu
+ * @returns Číslo priority (0 = nejvyšší, 999 = žádná priorita)
+ */
+function getCategoryPriority(category: string | undefined): number {
+  if (!category) return 999;
+  
+  const index = PRIORITY_CATEGORIES.findIndex(priorityCategory => {
+    const categoryLower = category.toLowerCase();
+    const priorityLower = priorityCategory.toLowerCase();
+    
+    return categoryLower.includes(priorityLower) || priorityLower.includes(categoryLower);
+  });
+  
+  return index === -1 ? 999 : index;
+}
+
+/**
+ * Seřadí produkty podle prioritních kategorií a similarity score
+ * @param products - Pole produktů k seřazení
+ * @returns Seřazené produkty
+ */
+function sortProductsByPriorityCategories(
+  products: HybridProductRecommendation[]
+): HybridProductRecommendation[] {
+  return products.sort((a, b) => {
+    const priorityA = getCategoryPriority(a.category);
+    const priorityB = getCategoryPriority(b.category);
+    
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    return (b.similarity_score || 0) - (a.similarity_score || 0);
+  });
+}
+
+/**
  * Hlavní funkce pro získání produktových doporučení
  * Kombinuje vektorové vyhledávání s aktuálními metadata z tabulek
  * 
@@ -135,7 +186,10 @@ export async function getHybridProductRecommendations(
       return [];
     }
 
-    return allResults;
+    // 3. Seřadíme produkty podle prioritních kategorií
+    const sortedResults = sortProductsByPriorityCategories(allResults);
+
+    return sortedResults;
 
   } catch (error) {
     return [];
@@ -172,8 +226,7 @@ async function getPureSemanticRecommendations(
       return [];
     }
 
-
-    return searchResults.map((result: any) => ({
+    const products = searchResults.map((result: any) => ({
       id: result.id || 0,
       product_code: result.product_code,
       product_name: result.product_name,
@@ -185,6 +238,8 @@ async function getPureSemanticRecommendations(
       image_url: result.image_url,
       similarity_score: result.similarity_score,
     }));
+
+    return sortProductsByPriorityCategories(products);
   } catch (error) {
     return [];
   }

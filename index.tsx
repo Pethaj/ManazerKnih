@@ -2282,26 +2282,40 @@ const api = {
     },
 
     // Funkce pro aktualizaci metadata v Qdrant přes n8n webhook
-    async updateQdrantMetadata(bookId: string, categories: string[], labels: string[], publicationTypes: string[]): Promise<{success: boolean, message: string}> {
+    async updateQdrantMetadata(bookId: string, book: Book): Promise<{success: boolean, message: string}> {
         // Použijeme n8n webhook pro aktualizaci metadata
         const webhookUrl = 'https://n8n.srv980546.hstgr.cloud/webhook/822e584e-0836-4d1d-aef1-5c4dce6573c0';
 
         try {
             console.log('🔄 Odesílám požadavek na aktualizaci Qdrant metadata přes n8n webhook');
             console.log('📂 Kniha ID:', bookId);
-            console.log('📂 Nové categories:', categories);
-            console.log('📂 Nové labels:', labels);
-            console.log('📂 Nové publicationTypes:', publicationTypes);
+            console.log('📂 Nové categories:', book.categories);
+            console.log('📂 Nové labels:', book.labels);
+            console.log('📂 Nové publicationTypes:', book.publicationTypes);
 
-            // Vytvoříme payload pro n8n webhook s indikátorem, že jde o aktualizaci metadata
+            // Vytvoříme kompletní metadata stejně jako v updateMetadataWebhook
+            const metadata = {
+                title: book.title,
+                author: book.author,
+                publicationYear: book.publicationYear,
+                publisher: book.publisher,
+                summary: book.summary,
+                keywords: book.keywords,
+                language: book.language,
+                format: book.format,
+                fileSize: book.fileSize,
+                coverImageUrl: book.coverImageUrl,
+                publicationTypes: book.publicationTypes,
+                labels: book.labels,
+                categories: book.categories,
+                releaseVersion: book.releaseVersion
+            };
+
+            // Vytvoříme payload pro n8n webhook
             const payload = {
-                action: 'update_metadata', // Nový parametr pro rozlišení typu operace
+                action: "update_metadata",
                 bookId: bookId,
-                metadata: {
-                    categories: categories,
-                    labels: labels,
-                    publicationTypes: publicationTypes
-                }
+                metadata: metadata
             };
 
             const response = await fetch(webhookUrl, {
@@ -2312,6 +2326,9 @@ const api = {
                 body: JSON.stringify(payload)
             });
 
+            console.log('📡 HTTP Status:', response.status);
+            console.log('📡 Response OK:', response.ok);
+
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('❌ Chyba při volání n8n webhook:', response.status, errorText);
@@ -2321,8 +2338,21 @@ const api = {
                 };
             }
 
-            const result = await response.json();
-            console.log('✅ Odpověď z n8n webhook:', result);
+            const responseText = await response.text();
+            console.log('📡 Raw response:', responseText);
+            
+            let result;
+            try {
+                result = JSON.parse(responseText);
+                console.log('✅ Parsed odpověď z n8n webhook:', result);
+            } catch (parseError) {
+                console.error('❌ Chyba při parsování JSON odpovědi:', parseError);
+                console.error('📡 Response text:', responseText);
+                return {
+                    success: false,
+                    message: `Chyba při parsování odpovědi z webhooku: ${parseError instanceof Error ? parseError.message : 'Neznámá chyba'}`
+                };
+            }
             
             // Zpracujeme odpověď - pokud má status 'ok', považujeme za úspěch
             if (result.status === 'ok') {
@@ -7157,8 +7187,8 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
             // Nejdříve uložíme změny do Supabase (stejně jako handleSave)
             onUpdate(localBook);
             
-            // Pak odešleme metadata do webhooku
-            const result = await api.updateQdrantMetadata(book.id, localBook.categories, localBook.labels, localBook.publicationTypes);
+            // Pak odešleme kompletní knihu do webhooku
+            const result = await api.updateQdrantMetadata(book.id, localBook);
             
             if (result.success) {
                 alert(result.message);

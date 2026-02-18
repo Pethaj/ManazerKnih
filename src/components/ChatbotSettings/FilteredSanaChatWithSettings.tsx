@@ -49,6 +49,7 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
     summarize_history: false,
     allowed_product_categories: [] as string[],  // 🆕 Povolené produktové kategorie (prázdné = všechny)
     group_products_by_category: false,  // 🆕 Grupování produktů podle kategorií
+    show_sources: true,  // 🆕 Zobrazovat zdroje (defaultně zapnuté)
   });
   
   // State pro UI
@@ -103,9 +104,17 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
           summarize_history: filters.summarizeHistory,           // 🆕 Sumarizace historie
           allowed_product_categories: filters.allowedProductCategories || [],  // 🆕 Povolené produktové kategorie
           group_products_by_category: filters.groupProductsByCategory,          // 🆕 Grupování produktů podle kategorií
+          show_sources: filters.showSources,  // 🆕 Zobrazovat zdroje
         };
         
-        
+        console.log('✅ FilteredSanaChatWithSettings: Nastavení načteno z DB:', {
+          chatbotId,
+          enable_product_router: filters.enableProductRouter,
+          enable_manual_funnel: filters.enableManualFunnel,
+          summarize_history: filters.summarizeHistory,
+          show_sources: filters.showSources,
+          newSettings
+        });
         setChatbotSettings(newSettings);
         
         // Pokud máme nastavení z databáze, použij název z databáze
@@ -149,6 +158,7 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
           summarize_history: false,
           allowed_product_categories: [],
           group_products_by_category: false,
+          show_sources: true,  // 🆕 Zobrazovat zdroje (defaultně zapnuté)
         });
       } finally {
         setLoading(false);

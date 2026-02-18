@@ -36,6 +36,8 @@ export interface ChatbotSettings {
   allowed_product_categories?: string[];  // Povolené kategorie z product_feed_2 pro Product Pills
   // 🆕 Grupování produktů podle kategorií v tabulce
   group_products_by_category?: boolean;  // Zobrazit produkty rozdělené podle kategorií
+  // 🆕 Zobrazování zdrojů v chatbotu
+  show_sources?: boolean;  // Zobrazovat zdroje v odpovědích chatbota
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -93,6 +95,8 @@ export interface CreateChatbotSettingsData {
   allowed_product_categories?: string[];
   // 🆕 Grupování produktů podle kategorií
   group_products_by_category?: boolean;
+  // 🆕 Zobrazování zdrojů v chatbotu
+  show_sources?: boolean;
 }
 
 // Interface pro aktualizaci chatbota
@@ -121,6 +125,8 @@ export interface UpdateChatbotSettingsData {
   allowed_product_categories?: string[];
   // 🆕 Grupování produktů podle kategorií
   group_products_by_category?: boolean;
+  // 🆕 Zobrazování zdrojů v chatbotu
+  show_sources?: boolean;
 }
 
 // Interface pro filtry chatbota
@@ -144,6 +150,8 @@ export interface ChatbotFilters {
   allowedProductCategories: string[];  // Povolené kategorie z product_feed_2
   // 🆕 Grupování produktů podle kategorií
   groupProductsByCategory: boolean;  // Zobrazit produkty rozdělené podle kategorií
+  // 🆕 Zobrazování zdrojů v chatbotu
+  showSources: boolean;  // Zobrazovat zdroje v odpovědích
 }
 
 export class ChatbotSettingsService {
@@ -484,6 +492,8 @@ export class ChatbotSettingsService {
         allowedProductCategories: settings.allowed_product_categories || [], // default všechny
         // 🆕 Grupování produktů podle kategorií
         groupProductsByCategory: settings.group_products_by_category === true, // default false
+        // 🆕 Zobrazování zdrojů
+        showSources: settings.show_sources !== false, // default true
       };
     } catch (error) {
       console.error('Chyba při načítání filtrů chatbota:', error);
