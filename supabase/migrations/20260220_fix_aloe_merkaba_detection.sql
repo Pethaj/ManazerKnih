@@ -1,19 +1,8 @@
--- ============================================================================
--- SQL FUNKCE: Párování produktů podle problému (bez input_codes)
--- ============================================================================
--- 
--- Tato funkce hledá produktové kombinace POUZE podle problému
--- Nepoužívá input_codes (EO) - ty se řeší jinak
--- 
--- Vstup:
---   - problems: pole problémů (např. ["Bolest hlavy – ze stresu"])
--- 
--- Výstup: Napárované produkty (Prawtein, TČM) + Aloe/Merkaba doporučení
--- ============================================================================
+-- Oprava detekce Aloe/Merkaba + oprava struktury tabulky leceni
+-- Změna: Kontrolujeme na NOT NULL a ne prázdný string místo konkrétních hodnot
+-- Oprava: Tabulka leceni NEMÁ sloupce "nazev" ani "aktivni"
 
-CREATE OR REPLACE FUNCTION match_product_combinations_with_problems(
-  problems TEXT[]
-)
+CREATE OR REPLACE FUNCTION match_product_combinations_with_problems(problems TEXT[])
 RETURNS TABLE (
   matched_product_code TEXT,
   category TEXT,
@@ -29,7 +18,6 @@ BEGIN
   RETURN QUERY
   WITH matched_rules AS (
     -- Najdi všechna pravidla která matchují problém
-    -- ⚠️ POZOR: Tabulka leceni NEMÁ sloupce "nazev" ani "aktivni"!
     SELECT 
       l."Problém" as problem,
       l."Prawtein" as prawtein,
@@ -51,7 +39,7 @@ BEGIN
   matched_products AS (
     -- Pro každé pravidlo vyber Prawtein a TČM produkty
     SELECT 
-      mr.problem as combination_name,  -- Používáme název problému jako combination_name
+      mr.problem as combination_name,
       mr.problem,
       mr.prawtein as product_code,
       'Prawtein' as category,
@@ -63,7 +51,7 @@ BEGIN
     UNION ALL
     
     SELECT 
-      mr.problem as combination_name,  -- Používáme název problému jako combination_name
+      mr.problem as combination_name,
       mr.problem,
       mr.tcm_wan as product_code,
       'TČM - Tradiční čínská medicína' as category,
@@ -80,12 +68,12 @@ BEGIN
     pf.url::TEXT,
     pf.thumbnail::TEXT,
     CASE 
-      -- ✅ OPRAVA: Pokud je buňka vyplněná (NOT NULL a ne prázdný string), je to TRUE
+      -- Pokud je buňka vyplněná (NOT NULL a ne prázdný string), je to TRUE
       WHEN mp.aloe IS NOT NULL AND TRIM(mp.aloe) != '' THEN 'ano'::TEXT
       ELSE 'ne'::TEXT
     END as aloe_recommended,
     CASE 
-      -- ✅ OPRAVA: Pokud je buňka vyplněná (NOT NULL a ne prázdný string), je to TRUE
+      -- Pokud je buňka vyplněná (NOT NULL a ne prázdný string), je to TRUE
       WHEN mp.merkaba IS NOT NULL AND TRIM(mp.merkaba) != '' THEN 'ano'::TEXT
       ELSE 'ne'::TEXT
     END as merkaba_recommended,

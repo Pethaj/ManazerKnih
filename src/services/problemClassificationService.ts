@@ -20,6 +20,8 @@ const EDGE_FUNCTION_URL = 'openrouter-proxy';
 export interface ProblemClassificationResult {
   success: boolean;
   problems: string[]; // Seznam klasifikovaných problémů
+  uncertainProblems?: string[]; // 🆕 Pokud si agent není jistý - nabídne výběr
+  requiresUserSelection?: boolean; // 🆕 Zobrazit formulář?
   rawResponse?: string;
   error?: string;
 }
@@ -86,50 +88,67 @@ Tvým úkolem je KLASIFIKOVAT zdravotní problém z textu uživatele podle těch
 ${problemsList}
 
 **PRAVIDLA KLASIFIKACE:**
-1. Přečti si uživatelskou zprávu
-2. Identifikuj zdravotní problém/symptom
-3. Vyber POUZE kategorii, která se PŘESNĚ nachází v seznamu výše
-4. NIKDY si nevymýšlej kategorie, které nejsou v seznamu
-5. Můžeš vybrat VÍCE kategorií pokud uživatel popisuje více problémů
-6. Pokud problém NENÍ PŘESNĚ v seznamu, vrať prázdné pole []
+
+**SITUACE A: JASNÝ/KONKRÉTNÍ PROBLÉM**
+- Uživatel zmíní PŘÍČINU (ze stresu, po sportování, chronická, nervová, atd.)
+- Uživatel zmíní ČASOVÉ určení (už několik měsíců, opakovaně, chronicky)
+- Uživatel je KONKRÉTNÍ
+
+→ Vrať JSON ve formátu:
+{
+  "certain": ["přesný název kategorie"],
+  "uncertain": []
+}
+
+**SITUACE B: VÁGNÍ/OBECNÝ PROBLÉM**
+- Uživatel použije POUZE obecný termín ("bolí mě hlava", "bolí koleno")
+- BEZ uvedení příčiny, časového určení, nebo dalších detailů
+
+→ Vrať JSON ve formátu:
+{
+  "certain": [],
+  "uncertain": ["kategorie1", "kategorie2", "kategorie3"]
+}
+(Max 5 nejrelevantnějších kategorií)
 
 **PŘÍKLADY:**
 
-Input: "Bolí mě hlava ze stresu a jsem přepracovaný"
-Output: ["Bolest hlavy – ze stresu"]
+Input: "Bolí mě hlava už několik měsíců vždy večer"
+Output: {
+  "certain": ["Bolest hlavy – chronická"],
+  "uncertain": []
+}
 
-Input: "Bolí mě hlava z přepracování"
-Output: ["Bolest hlavy – ze stresu"]
+Input: "Bolí mě hlava"
+Output: {
+  "certain": [],
+  "uncertain": ["Bolest hlavy – akutní", "Bolest hlavy – ze stresu", "Bolest hlavy – nervová"]
+}
 
-Input: "Mám migrénové záchvaty"
-Output: ["Migréna"]
+Input: "Bolí mě hlava ze stresu"
+Output: {
+  "certain": ["Bolest hlavy – ze stresu"],
+  "uncertain": []
+}
 
-Input: "Bolí mě koleno a ruka"
-Output: ["Bolest kloubů – akutní"]
-
-Input: "Boláček v zádech po sportování"
-Output: ["Bolest svalů – přetížení"]
-
-Input: "Bolí mě hlava a zub"
-Output: ["Bolest hlavy – ze stresu", "Bolest zubů – akutní"]
-
-Input: "Bolí mě dlouho hlava"
-Output: ["Bolest hlavy – ze stresu"]
-(POZOR: "Bolest hlavy – chronická" není v seznamu, proto vyber nejbližší EXISTUJÍCÍ kategorii)
+Input: "Mám bolavé koleno"
+Output: {
+  "certain": [],
+  "uncertain": ["Bolest kloubů – akutní", "Bolest kloubů – chronická"]
+}
 
 Input: "Jak se máš?"
-Output: []
-
-Input: "Dobrý den, chtěl bych poradit"
-Output: []
+Output: {
+  "certain": [],
+  "uncertain": []
+}
 
 **KRITICKÉ PRAVIDLO PRO VÝSTUP:**
-- Vrať VÝHRADNĚ validní JSON array - žádný text před ani za
+- Vrať VÝHRADNĚ validní JSON objekt - žádný text před ani za
 - NEPIŠ vysvětlení, komentáře, zdůvodnění
 - NEPOUŽÍVEJ markdown code blocks
-- POUZE čistý JSON: ["kategorie1", "kategorie2"]
-- Prázdný výsledek (žádný zdravotní problém): []
-- ŽÁDNÝ další text - POUZE JSON array`;
+- POUZE čistý JSON: {"certain": [...], "uncertain": [...]}
+- ŽÁDNÝ další text - POUZE JSON objekt`;
 }
 
 // ============================================================================
@@ -188,42 +207,57 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
     
     // Parsuj JSON response
     let problems: string[] = [];
+    let uncertainProblems: string[] = [];
     
     try {
       const responseText = data.response || '';
       
       // Odstranit markdown code blocks pokud jsou
       let jsonText = responseText.trim();
-      const jsonMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/) || responseText.match(/(\[[\s\S]*\])/);
+      const jsonMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) || responseText.match(/(\{[\s\S]*\})/);
       if (jsonMatch) {
         jsonText = jsonMatch[1];
       }
       
-      problems = JSON.parse(jsonText);
+      const parsed = JSON.parse(jsonText);
       
-      if (!Array.isArray(problems)) {
-        problems = [];
+      // Nový formát: { "certain": [...], "uncertain": [...] }
+      if (parsed && typeof parsed === 'object') {
+        const certain = Array.isArray(parsed.certain) ? parsed.certain : [];
+        const uncertain = Array.isArray(parsed.uncertain) ? parsed.uncertain : [];
+        
+        // 🛡️ VALIDACE: Zkontroluj, že všechny problémy jsou v availableProblems
+        problems = certain.filter(p => availableProblems.includes(p));
+        uncertainProblems = uncertain.filter(p => availableProblems.includes(p));
+        
+        const invalidCertain = certain.filter(p => !availableProblems.includes(p));
+        const invalidUncertain = uncertain.filter(p => !availableProblems.includes(p));
+        
+        if (invalidCertain.length > 0) {
+          console.warn('⚠️ LLM vrátilo neplatné certain problémy (ignoruji):', invalidCertain);
+        }
+        if (invalidUncertain.length > 0) {
+          console.warn('⚠️ LLM vrátilo neplatné uncertain problémy (ignoruji):', invalidUncertain);
+        }
       }
-      
-      // 🛡️ VALIDACE: Zkontroluj, že všechny problémy jsou v availableProblems
-      const validProblems = problems.filter(p => availableProblems.includes(p));
-      const invalidProblems = problems.filter(p => !availableProblems.includes(p));
-      
-      if (invalidProblems.length > 0) {
-        console.warn('⚠️ LLM vrátilo neplatné problémy (ignoruji):', invalidProblems);
-      }
-      
-      problems = validProblems;
     } catch (parseError) {
       console.error('❌ Chyba při parsování JSON:', parseError);
       problems = [];
+      uncertainProblems = [];
     }
     
+    const requiresUserSelection = uncertainProblems.length > 0 && problems.length === 0;
+    
     console.log(`🔍 Klasifikované problémy:`, problems);
+    if (uncertainProblems.length > 0) {
+      console.log(`❓ Možné problémy k výběru:`, uncertainProblems);
+    }
     
     return {
       success: true,
       problems: problems,
+      uncertainProblems: uncertainProblems,
+      requiresUserSelection: requiresUserSelection,
       rawResponse: data.response
     };
     
@@ -232,6 +266,8 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
     return {
       success: false,
       problems: [],
+      uncertainProblems: [],
+      requiresUserSelection: false,
       error: error instanceof Error ? error.message : String(error)
     };
   }

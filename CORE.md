@@ -22,6 +22,7 @@ CORE slouží jako:
 ## 📋 Obsah funkcí
 
 1. [Synchronizace Product Feed 2](#funkce-1-synchronizace-product-feed-2)
+2. [EO Směsi Chat - Léčebná Tabulka](#funkce-2-eo-směsi-chat---léčebná-tabulka)
 
 ---
 
@@ -871,4 +872,544 @@ console.log('✅ Hybridní vyhledávání našlo', allResults.length, 'produktů
 **Vlastník:** Admin/Developer  
 **Schváleno:** ✅ Ano
 
+---
+
+# Funkce 2: EO Směsi Chat - Léčebná Tabulka
+
+## Základní informace
+
+- **Název:** EO Směsi Chat - Léčebná Tabulka (Fáze 1)
+- **ID:** FUNC-002
+- **Oblast:** Chatbot → EO Směsi Chat → Automatické párování produktů z tabulky léčení
+- **Stav:** ✅ Aktivní a schváleno
+- **Datum schválení:** 2026-02-20
+- **Verze:** 1.0 (Fáze 1)
+
+## Popis funkce
+
+Systém pro automatické zpracování dotazů v EO Směsi chatu, který:
+1. Analyzuje dotaz uživatele a klasifikuje zdravotní problém pomocí GPT
+2. Vyhledá odpovídající kombinaci produktů v tabulce `leceni`
+3. Extrahuje produkty: **EO 1, EO 2, EO 3** (esenciální oleje - směsi), **Prawtein**, **TCM Wan**, **Aloe** (ano/ne), **Merkaba** (ano/ne)
+4. Zobrazí produkty v modrém callout boxu "Související produkty BEWIT" (existující UI design)
+5. Produkty jsou kategorizovány podle typu: Esenciální oleje, Prawtein, TČM
+
+**⚠️ POZNÁMKA:** Toto je pouze **Fáze 1** implementace. Tlačítko "Chci se o produktech dozvědět více" pro detailní embeddings-based doporučení (N8N webhook) bude implementováno v Fázi 2.
+
+## Business logika
+
+### Účel
+- Poskytnout okamžité produktové doporučení na základě zdravotních problémů
+- Využít tradiční znalosti léčení z tabulky `leceni`
+- Zjednodušit výběr produktů pro uživatele
+- Připravit data pro detailnější doporučení v Fázi 2
+
+### Použití
+1. **Uživatel zadá dotaz** v EO Směsi chatu (např. "Bolí mě hlava ze stresu")
+2. **Systém klasifikuje problém** pomocí GPT modelu
+3. **Najde kombinaci** v tabulce `leceni`
+4. **Zobrazí léčebnou tabulku** s doporučenými produkty
+5. **(Fáze 2)** Uživatel klikne na tlačítko → spustí N8N pro detailní info
+
+### Workflow (Fáze 1)
+
+```
+User dotaz → Problem Classification (GPT) 
+             ↓
+Problem nalezen v tabulce leceni?
+             ↓
+        ANO         |         NE
+         ↓          |          ↓
+Extract produkty    |    "Nenašel jsem vhodnou
+(EO 1, EO 2, EO 3, |     kombinaci produktů"
+Prawtein, TCM,     |
+Aloe, Merkaba)     |
+         ↓          |
+Zobraz produkty v  |
+"Související       |
+produkty BEWIT"    |
+callout            |
+(modrý box s       |
+product pills)     |
+         ↓          |
+    (Fáze 2:       |
+ N8N webhook pro   |
+detailní info)     |
+```
+
+## Technická implementace
+
+### Frontend služby
+
+#### 1. eoSmesiWorkflowService.ts
+**Cesta:** `src/services/eoSmesiWorkflowService.ts`
+
+**Hlavní funkce:**
+```typescript
+export async function processEoSmesiQuery(
+  userQuery: string,
+  sessionId?: string
+): Promise<EoSmesiResult>
+```
+
+**Proces:**
+1. Volá `classifyProblemFromUserMessage()` - GPT klasifikace problému
+2. Volá `matchProductCombinationsWithProblems()` - SQL query na `leceni`
+3. Volá `getEOProductsForProblem()` - Načte EO 1, EO 2, EO 3 z `leceni` a jejich detaily z `product_feed_2`
+4. Extrahuje všechny produkty do pole `matchedProducts` (Prawtein, TCM, EO směsi)
+5. Připraví `pairingInfo` (Prawtein, TCM, Aloe, Merkaba flags)
+6. Vrací výsledek ve formátu `MedicineTable`
+
+**Helper funkce:**
+```typescript
+export async function getEOProductsForProblem(
+  problemName: string
+): Promise<Array<{ 
+  code: string; 
+  name: string; 
+  category: string; 
+  url: string | null; 
+  thumbnail: string | null; 
+}>>
+```
+Načítá EO produkty z tabulky `leceni` (sloupce `"EO 1"`, `"EO 2"`, `"EO 3"`) a obohacuje je detaily z `product_feed_2`.
+
+**Interface - MedicineTable:**
+```typescript
+interface MedicineTable {
+  products: Array<{              // Všechny produkty (EO, Prawtein, TCM)
+    code: string;
+    name: string;
+    category: string;
+    url: string | null;
+    thumbnail: string | null;
+  }>;
+  prawtein: string | null;       // První Prawtein produkt
+  aloe: boolean;                 // Doporučit Aloe?
+  merkaba: boolean;              // Doporučit Merkaba?
+  problemName: string;           // Název identifikovaného problému
+  combinationName: string;       // Název kombinace z leceni
+}
+```
+
+**Závislosti:**
+- `problemClassificationService.ts` - Klasifikace problémů
+- `productPairingService.ts` - Párování z tabulky leceni
+
+### Frontend komponenty
+
+#### 2. SanaChat.tsx - Využití existujícího UI
+**Cesta:** `src/components/SanaChat/SanaChat.tsx`
+
+**Změny:**
+1. Nový import `processEoSmesiQuery` z `eoSmesiWorkflowService.ts`
+2. Rozšíření `ChatMessage` interface:
+   ```typescript
+   matchedProducts?: Array<{
+     productName: string;
+     pinyinName: string;
+     productUrl: string;
+     productCode: string;
+     category: string;
+   }>;
+   pairingInfo?: {
+     prawteins: string[];
+     tcmWans: string[];
+     aloe: boolean;
+     merkaba: boolean;
+   };
+   ```
+3. Nová větev ve `handleSubmit()`:
+   ```typescript
+   if (chatbotId === 'eo_smesi') {
+     const result = await processEoSmesiQuery(text, sessionId);
+     if (result.shouldShowTable && result.medicineTable) {
+       // Připravíme matchedProducts ve formátu existujícího UI
+       const matchedProducts = result.medicineTable.products.map(p => ({
+         productName: p.name,
+         pinyinName: '',
+         productUrl: p.url || '',
+         productCode: p.code,
+         category: p.category
+       }));
+       const botMessage: ChatMessage = {
+         id: Date.now().toString(),
+         role: 'bot',
+         text: `Našel jsem vhodnou kombinaci produktů pro váš problém.`,
+         matchedProducts: matchedProducts,
+         pairingInfo: {
+           prawteins: result.medicineTable.prawtein ? [result.medicineTable.prawtein] : [],
+           tcmWans: [],
+           aloe: result.medicineTable.aloe,
+           merkaba: result.medicineTable.merkaba
+         }
+       };
+       setMessages(prev => [...prev, botMessage]);
+     }
+   }
+   ```
+4. **Renderování:** Využívá existující UI block "Související produkty BEWIT" (modrý callout s product pills, kategorizace podle typu produktu)
+
+**Design:**
+- Modrý gradient callout box (identický s Wany Chatem)
+- Product pills (oranžový/teal gradient podle kategorie)
+- Kategorizace: Esenciální oleje, Prawtein, TČM
+- Explicitní badge pro Aloe (pokud `aloe: true`)
+- Explicitní badge pro Merkaba (pokud `merkaba: true`)
+
+### Backend služby (využití existujících)
+
+#### Použité služby:
+
+1. **problemClassificationService.ts**
+   - Funkce: `classifyProblemFromUserMessage()`
+   - Účel: GPT-4 klasifikace zdravotního problému
+   - Input: User dotaz (text)
+   - Output: Pole problémů (např. `["Bolest hlavy – ze stresu"]`)
+
+2. **productPairingService.ts**
+   - Funkce: `matchProductCombinationsWithProblems()`
+   - Účel: SQL query na tabulku `leceni`
+   - Input: Pole problémů
+   - Output: Napárované produkty + Aloe/Merkaba flags
+
+## Databázové schéma
+
+### Tabulka: leceni (existující)
+
+**Definice:**
+```sql
+CREATE TABLE public.leceni (
+  id BIGSERIAL PRIMARY KEY,
+  nazev VARCHAR(255) NOT NULL,
+  "Problém" VARCHAR(255),          -- Název problému (case-insensitive matching)
+  
+  -- Vstupní produkty (EO - Esenciální oleje směsi)
+  "EO 1" VARCHAR(100),             -- Sloupec pojmenován s mezerou (podle Excel formátu)
+  "EO 2" VARCHAR(100),
+  "EO 3" VARCHAR(100),
+  
+  -- Výstupní doporučení
+  "Prawtein" VARCHAR(100),
+  "TČM wan" VARCHAR(100),          -- ✅ Nyní zahrnuto v Fázi 1
+  
+  -- Dodatečná doporučení
+  "Aloe" VARCHAR(50),              -- Může být "Aloe", "ano", nebo prázdné
+  "Merkaba" VARCHAR(50),           -- Může být "ano" nebo prázdné
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Důležité poznámky:**
+- Sloupce jsou pojmenovány s mezerami (`"EO 1"`, `"EO 2"`, apod.) kvůli importu z Excelu
+- Sloupec `aktivni` **neexistuje** v aktuálním schématu (odstraněn během debug fáze)
+- `"Aloe"` a `"Merkaba"` jsou textové hodnoty (ne boolean), kontrolujeme na neprázdný string
+
+**Příklad dat:**
+```sql
+INSERT INTO leceni (
+  nazev, "Problém",
+  "EO 1", "EO 2", "EO 3",
+  "Prawtein", "TČM wan",
+  "Aloe", "Merkaba"
+) VALUES (
+  'Kombinace proti stresu',
+  'Bolest hlavy – ze stresu',
+  'NOHEPA', 'ANTIS', 'CALMING',
+  'Reishi', '063 - Klidné dřevo',
+  'Aloe', 'ano'
+);
+```
+
+### SQL Funkce: match_product_combinations_with_problems
+
+**Soubor:** `SQL_COPY_PASTE.sql`
+
+```sql
+CREATE OR REPLACE FUNCTION match_product_combinations_with_problems(
+  problems TEXT[]
+)
+RETURNS TABLE (
+  matched_product_code TEXT,
+  matched_category TEXT,
+  matched_product_name TEXT,
+  matched_product_url TEXT,
+  matched_thumbnail TEXT,
+  aloe_recommended TEXT,
+  merkaba_recommended TEXT,
+  combination_name TEXT,
+  matched_problem TEXT
+)
+```
+
+**Proces:**
+1. Filtruje záznamy v `leceni` podle `"Problém"` (case-insensitive)
+2. Extrahuje `"Prawtein"` a `"TČM wan"`
+3. Joinuje s `product_feed_2` pro získání metadata (název, URL, thumbnail, kategorie)
+4. Vrací napárované produkty s Aloe/Merkaba flags jako text ("ano" nebo prázdné)
+
+## Datové toky
+
+### Flow: User dotaz → Léčebná tabulka
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. User Action                                               │
+│    User zadá: "Bolí mě hlava ze stresu"                     │
+│    Component: SanaChat.tsx (input)                           │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Routing Check                                             │
+│    if (chatbotId === 'eo_smesi')                            │
+│    → Spustit EO Směsi workflow                              │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Problem Classification (GPT)                              │
+│    Service: eoSmesiWorkflowService.ts                       │
+│    → processEoSmesiQuery()                                  │
+│    → classifyProblemFromUserMessage()                       │
+│    Output: ["Bolest hlavy – ze stresu"]                    │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Database Query (Leceni)                                  │
+│    Service: productPairingService.ts                        │
+│    → matchProductCombinationsWithProblems()                 │
+│    SQL: match_product_combinations_with_problems()          │
+│    Input: ["Bolest hlavy – ze stresu"]                     │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Extract Medicine Table                                   │
+│    Service: eoSmesiWorkflowService.ts                       │
+│    → extractMedicineTable()                                 │
+│    Output: MedicineTable {                                  │
+│      eo1: "NOHEPA",                                         │
+│      eo2: "ANTIS",                                          │
+│      prawtein: "Reishi",                                    │
+│      aloe: true,                                            │
+│      merkaba: true,                                         │
+│      problemName: "Bolest hlavy – ze stresu"               │
+│    }                                                         │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4A. Database Query (Prawtein + TCM)                         │
+│    Service: productPairingService.ts                        │
+│    → matchProductCombinationsWithProblems()                 │
+│    SQL: match_product_combinations_with_problems()          │
+│    Input: ["Bolest hlavy – ze stresu"]                     │
+│    Output: Prawtein, TCM produkty s metadaty               │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4B. Database Query (EO Směsi)                              │
+│    Service: eoSmesiWorkflowService.ts                       │
+│    → getEOProductsForProblem()                              │
+│    Table: leceni → product_feed_2                           │
+│    Sloupce: "EO 1", "EO 2", "EO 3"                         │
+│    Output: EO produkty (NOHEPA, ANTIS, CALMING)            │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Merge Products                                            │
+│    Service: eoSmesiWorkflowService.ts                       │
+│    → extractMedicineTable()                                 │
+│    Output: MedicineTable {                                  │
+│      products: [                                            │
+│        { code: "NOHEPA", category: "Esenciální oleje" },  │
+│        { code: "ANTIS", category: "Esenciální oleje" },   │
+│        { code: "CALMING", category: "Esenciální oleje" }, │
+│        { code: "Reishi", category: "Prawtein" }           │
+│      ],                                                     │
+│      prawtein: "Reishi",                                    │
+│      aloe: true,                                            │
+│      merkaba: true,                                         │
+│      problemName: "Bolest hlavy – ze stresu"               │
+│    }                                                         │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 6. UI Display                                                │
+│    Component: SanaChat.tsx (existující rendering)           │
+│    Block: "Související produkty BEWIT"                      │
+│    - Modrý callout box                                      │
+│    - Product pills kategorizované podle typu                │
+│    - Badge: Aloe (pokud aloe: true)                         │
+│    - Badge: Merkaba (pokud merkaba: true)                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Závislosti
+
+### Externí služby
+**Žádné** - Fáze 1 nepoužívá N8N webhook (přidáno v Fázi 2)
+
+### Interní služby
+1. **problemClassificationService.ts** - GPT-4 klasifikace
+2. **productPairingService.ts** - SQL dotazy na leceni
+3. **Supabase Edge Function** - `openrouter-proxy` (pro GPT volání)
+
+### Databázové závislosti
+1. **Tabulka:** `leceni` - hlavní zdroj dat
+2. **Tabulka:** `product_feed_2` - metadata produktů
+3. **SQL funkce:** `match_product_combinations_with_problems`
+
+### NPM balíčky
+- Žádné nové balíčky
+- Používá existující: React, TypeScript, Supabase client
+
+## Bezpečnost
+
+### Permissions
+- Tabulka `leceni` má RLS policies:
+  ```sql
+  -- Čtení pro authenticated a anon users
+  CREATE POLICY "Allow read access to authenticated users"
+  ON leceni FOR SELECT TO authenticated USING (true);
+  
+  CREATE POLICY "Allow read access to anonymous users"
+  ON leceni FOR SELECT TO anon USING (true);
+  ```
+
+### Data validation
+- Problem classification filtruje pouze známé problémy z `leceni`
+- SQL funkce validuje problémy proti existujícím záznamům
+- Žádné user input nejde přímo do SQL (parametrizované queries)
+
+## Testování & Monitoring
+
+### Test Fáze 1
+
+1. **Test klasifikace problému:**
+   ```javascript
+   // V EO Směsi chatu zadej:
+   "Bolí mě hlava ze stresu"
+   
+   // Očekávaný výsledek v console:
+   "✅ Načteno 292 kategorií problémů z Supabase"
+   "🔍 Problémy: ['Bolest hlavy – ze stresu']"
+   ```
+
+2. **Test zobrazení produktů:**
+   - Ověř, že se zobrazí modrý callout "Související produkty BEWIT"
+   - Ověř product pills s kategorizací:
+     * **Esenciální oleje:** NOHEPA, ANTIS, CALMING
+     * **Prawtein:** Reishi
+     * **TČM:** 063 - Klidné dřevo (pokud existuje)
+   - Ověř badge "Aloe" (pokud aloe: true)
+   - Ověř badge "Merkaba" (pokud merkaba: true)
+
+3. **Test nenalezené kombinace:**
+   ```javascript
+   // Zadej neexistující problém:
+   "Něco co není v tabulce leceni"
+   
+   // Očekávaný výsledek:
+   "Nenašel jsem vhodnou kombinaci produktů pro váš dotaz."
+   ```
+
+4. **Test EO produktů z tabulky leceni:**
+   - Ověř, že se načítají produkty ze sloupců "EO 1", "EO 2", "EO 3"
+   - Ověř, že se obohacují metadaty z product_feed_2
+   - Ověř, že jsou správně kategorizovány jako "Esenciální oleje"
+
+### Console logs
+
+**Minimální logy (pouze kritické výstupy):**
+
+```javascript
+// Service (productPairingService.ts)
+console.log('✅ Načteno 292 kategorií problémů z Supabase');
+console.log('🔗 Párování kombinací produktů POUZE podle problému...');
+console.log('🔍 Problémy: [\'Bolest hlavy – ze stresu\']');
+
+// Service (eoSmesiWorkflowService.ts)
+// Žádné logy během normálního běhu
+// (Pouze error logy při selhání)
+```
+
+### Monitoring metriky
+
+1. **Úspěšnost klasifikace:** % úspěšně klasifikovaných problémů
+2. **Nalezené kombinace:** % dotazů s nalezenou kombinací
+3. **Performance:** Průměrný čas zpracování dotazu
+4. **User engagement:** % kliknutí na tlačítko "Dozvědět více" (po Fázi 2)
+
+## Obnova při selhání
+
+### Scénář 1: GPT klasifikace selhala
+**Řešení:**
+- Zobrazí se fallback zpráva: "Při zpracování došlo k chybě"
+- User může zkusit znovu nebo přeformulovat dotaz
+
+### Scénář 2: Kombinace nenalezena v leceni
+**Řešení:**
+- Zobrazí se informativní zpráva
+- Navrhne přeformulovat dotaz na konkrétní zdravotní problém
+
+### Scénář 3: SQL funkce selhala
+**Řešení:**
+- Catch block zachytí chybu
+- Zobrazí se error message
+- Log se zapíše do console pro debugging
+
+## Známá omezení
+
+1. **TCM produkty nyní zahrnuty** (změna oproti původnímu zadání)
+   - Sloupec `"TČM wan"` v `leceni` se nyní zpracovává
+   - Zobrazují se: EO 1, EO 2, EO 3, Prawtein, TČM, Aloe, Merkaba
+
+2. **Tlačítko "Dozvědět více" zatím není implementováno** (Fáze 1)
+   - UI neobsahuje speciální tlačítko
+   - N8N webhook bude přidán v Fázi 2 jako samostatné tlačítko
+
+3. **Pouze pro chatbot `eo_smesi`**
+   - Workflow se spouští pouze pokud `chatbotId === 'eo_smesi'`
+   - Ostatní chatboty nejsou ovlivněny
+
+4. **Sloupec `aktivni` neexistuje v tabulce leceni**
+   - Během debug fáze zjištěno, že tento sloupec chybí
+   - Všechny queries byly upraveny bez tohoto filtru
+
+## Roadmap - Fáze 2
+
+**Plánované funkce:**
+1. ⏳ Implementace tlačítka "Chci se o produktech dozvědět více" v UI
+2. ⏳ N8N webhook volání při kliknutí na tlačítko
+3. ⏳ Payload s extrahovanými produkty pro N8N embeddings
+4. ⏳ Detailní doporučení produktů na základě N8N embeddings
+5. ⏳ Zobrazení rozšířených produktových doporučení v chatu
+
+**Technická specifikace Fáze 2:**
+- Webhook URL: Bude poskytnut v další fázi
+- Payload formát: JSON s `products`, `problem`, `sessionId`
+- Response handling: Zpracování doporučení z N8N
+
+## Related dokumentace
+
+- `eoSmesiWorkflowService.ts` - Service implementace
+- `MedicineTableCallout.tsx` - UI komponenta
+- `SQL_COPY_PASTE.sql` - SQL funkce pro párování
+- `problemClassificationService.ts` - Problem classifier
+- `productPairingService.ts` - Product pairing
+
+---
+
+**Status:** ✅ Fáze 1 dokončena a testována  
+**Poslední aktualizace:** 2026-02-20  
+**Vlastník:** AI Assistant (Cursor)  
+**Schváleno:** ✅ Ano (Fáze 1)
 

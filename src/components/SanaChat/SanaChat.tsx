@@ -41,6 +41,10 @@ import { openBewitProductLink } from '../../services/productLinkService';
 // 🔗 Problem Classification & Pairing Service - párování produktů s kombinacemi
 import { classifyProblemFromUserMessage } from '../../services/problemClassificationService';
 import { matchProductCombinationsWithProblems } from '../../services/productPairingService';
+// 🌿 EO Směsi Workflow Service - zpracování EO Směsi dotazů
+import { processEoSmesiQuery } from '../../services/eoSmesiWorkflowService';
+// 🔍 Problem Selection Form - formulář pro výběr problému (EO Směsi Chat)
+import { ProblemSelectionForm } from './ProblemSelectionForm';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -125,7 +129,12 @@ interface ChatMessage {
     tcmWans: string[];
     aloe: boolean;
     merkaba: boolean;
+    aloeUrl?: string;    // 🆕 URL pro Aloe produkt (textový odkaz)
+    merkabaUrl?: string; // 🆕 URL pro Merkaba produkt (textový odkaz)
   };
+  // 🔍 Problem Selection Form (pro EO Směsi Chat - mezikrok)
+  requiresProblemSelection?: boolean;  // Flag: zobrazit formulář pro výběr problému?
+  uncertainProblems?: string[];        // Seznam problémů k výběru
 }
 
 // Rozhraní pro metadata filtrace
@@ -707,6 +716,7 @@ const TypingIndicator: React.FC = () => (
 const Message: React.FC<{ 
     message: ChatMessage; 
     onSilentPrompt: (prompt: string) => void; 
+    onProblemSelect?: (problem: string) => void;  // 🔍 Callback pro výběr problému (EO Směsi)
     chatbotSettings?: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;
@@ -729,7 +739,7 @@ const Message: React.FC<{
     recommendedProducts?: RecommendedProduct[];  // Produkty extrahované z historie
     chatHistory?: Array<{ id: string; role: string; text: string; }>;  // Historie konverzace
     metadata?: { categories: string[]; labels: string[]; publication_types: string[]; };  // Metadata
-}> = ({ message, onSilentPrompt, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] } }) => {
+}> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] } }) => {
     const isUser = message.role === 'user';
     const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi a Wany.Chat Local používají markdown
     
@@ -990,13 +1000,13 @@ const Message: React.FC<{
                     }
                     
                     // 🆕 VLOŽENÍ SEKCE "Související produkty BEWIT"
-                    
+
                     const useGroupedView = (chatbotSettings as any)?.group_products_by_category === true;
                     // 🔧 FIX: Zobraz produkty i když group_products_by_category není zapnuto
                     const productsToShow = enrichedProducts.length > 0 && !productsLoading
                         ? enrichedProducts
                         : null;
-                    
+
                     // Vždy stejný design: modrý box + ProductPills. Při group_products_by_category seskupíme podle kategorií.
                     if (productsToShow && productsToShow.length > 0) {
                         const byCategory = productsToShow.reduce<Record<string, typeof productsToShow>>((acc, p) => {
@@ -1376,6 +1386,97 @@ const Message: React.FC<{
                         <div className="prose prose-sm max-w-none text-inherit prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-h4:text-base prose-h5:text-sm prose-h6:text-xs prose-p:my-2 prose-strong:font-bold prose-a:text-bewit-blue hover:prose-a:underline prose-img:block prose-img:max-w-full prose-img:h-auto prose-img:rounded-lg prose-img:mt-3 prose-img:mb-2 prose-img:shadow-md prose-img:object-cover" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
                     )}
                     
+                    {/* 🔍 EO SMĚSI: Formulář pro výběr problému (mezikrok) */}
+                    {!isUser && message.requiresProblemSelection && message.uncertainProblems && message.uncertainProblems.length > 0 && onProblemSelect && (
+                        <ProblemSelectionForm
+                            problems={message.uncertainProblems}
+                            onSelect={onProblemSelect}
+                        />
+                    )}
+                    
+                    {/* 🌿 EO SMĚSI: Související produkty BEWIT (pokud nejsou product markery v textu) */}
+                    {!isUser && usesMarkdown && !message.text?.includes('<<<PRODUCT:') && enrichedProducts.length > 0 && (
+                        <div className="mt-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
+                            <h4 className="text-sm font-semibold text-bewit-blue mb-3 flex items-center gap-2">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="9" cy="21" r="1"></circle>
+                                    <circle cx="20" cy="21" r="1"></circle>
+                                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                                </svg>
+                                Související produkty BEWIT
+                            </h4>
+                            <div className="flex flex-col gap-4">
+                                {(() => {
+                                    // 🔧 FILTRUJ TČM produkty (pouze pro EO Směsi chat)
+                                    const filteredProducts = chatbotId === 'eo_smesi' 
+                                        ? enrichedProducts.filter(p => !p.category?.includes('TČM') && !p.category?.includes('Tradiční čínská medicína'))
+                                        : enrichedProducts;
+                                    
+                                    const byCategory = filteredProducts.reduce<Record<string, typeof filteredProducts>>((acc, p) => {
+                                        const cat = p.category?.trim() || 'Ostatní';
+                                        if (!acc[cat]) acc[cat] = [];
+                                        acc[cat].push(p);
+                                        return acc;
+                                    }, {});
+                                    
+                                    const categories = Object.keys(byCategory).sort((catA, catB) => {
+                                        const priorityA = getCategoryPriority(catA);
+                                        const priorityB = getCategoryPriority(catB);
+                                        return priorityA - priorityB;
+                                    });
+                                    
+                                    return categories.map((cat) => (
+                                        <div key={cat}>
+                                            <p className="text-xs font-medium text-gray-600 mb-2">{cat}</p>
+                                            <div className="flex flex-col gap-2">
+                                                {byCategory[cat].map((product, index) => (
+                                                    <ProductPill
+                                                        key={`${cat}-${index}`}
+                                                        productName={product.product_name}
+                                                        pinyinName={product.description || product.product_name}
+                                                        url={product.url || ''}
+                                                        token={token}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                            
+                            {/* Aloe/Merkaba textové odkazy */}
+                            {chatbotSettings?.enable_product_pairing && message.pairingInfo && (message.pairingInfo.aloe || message.pairingInfo.merkaba) && (
+                                <div className="mt-4 pt-4 border-t border-blue-200">
+                                    <p className="text-xs font-medium text-gray-600 mb-2">Doplňkové doporučení:</p>
+                                    <div className="flex flex-wrap gap-3 text-sm">
+                                        {message.pairingInfo.aloe && message.pairingInfo.aloeUrl && (
+                                            <a 
+                                                href={message.pairingInfo.aloeUrl} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                                            >
+                                                <span className="text-green-600">✅</span>
+                                                <span>Aloe Vera gel</span>
+                                            </a>
+                                        )}
+                                        {message.pairingInfo.merkaba && message.pairingInfo.merkabaUrl && (
+                                            <a 
+                                                href={message.pairingInfo.merkabaUrl} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1.5 text-purple-600 hover:text-purple-800 hover:underline transition-colors"
+                                            >
+                                                <span className="text-green-600">✅</span>
+                                                <span>Merkaba</span>
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     {/* Produktová doporučení - zobrazí se pokud jsou zapnutá v nastavení chatbotu */}
                     {!isUser && message.productRecommendations && message.productRecommendations.length > 0 && 
                      chatbotSettings?.product_recommendations && (
@@ -1403,7 +1504,8 @@ const Message: React.FC<{
                     
                     {/* 🆕 Žlutý callout NEBO manuální funnel tlačítko - zobrazí se když zpráva má flag hasCallout = true */}
                     {!isUser && message.hasCallout && (
-                        chatbotSettings?.enable_manual_funnel ? (
+                        <>
+                        {chatbotSettings?.enable_manual_funnel ? (
                             /* 🆕 Manuální funnel spouštěč - tlačítko místo calloutu */
                             <ManualFunnelButton
                                 recommendedProducts={recommendedProducts}
@@ -1425,8 +1527,31 @@ const Message: React.FC<{
                                         </span>
                                     </p>
                                 </div>
+                                
+                                {/* 🆕 Aloe/Merkaba doporučení na spodku calloutu */}
+                                {chatbotSettings?.enable_product_pairing && message.pairingInfo && (message.pairingInfo.aloe || message.pairingInfo.merkaba) && (
+                                    <div className="mt-3 pt-3 border-t border-amber-200">
+                                        <p className="text-xs font-medium text-amber-700 mb-2">Doplňkové doporučení:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {message.pairingInfo.aloe && (
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                                                    <span className="text-base">💧</span>
+                                                    <span>Aloe doporučeno</span>
+                                                </div>
+                                            )}
+                                            {message.pairingInfo.merkaba && (
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                                                    <span className="text-base">✨</span>
+                                                    <span>Merkaba doporučeno</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )
+                        }
+                        </>
                     )}
                     
                     {/* Standardní zdroje uvnitř bubble (pro ostatní chatboty) */}
@@ -1467,6 +1592,7 @@ const ChatWindow: React.FC<{
     messages: ChatMessage[]; 
     isLoading: boolean; 
     onSilentPrompt: (prompt: string) => void;
+    onProblemSelect?: (problem: string) => void;  // 🔍 Callback pro výběr problému
     shouldAutoScroll?: boolean;
     chatbotSettings?: {
         product_recommendations: boolean;
@@ -1488,7 +1614,7 @@ const ChatWindow: React.FC<{
     selectedCategories?: string[];  // 🆕 Pro manuální funnel metadata
     selectedLabels?: string[];      // 🆕 Pro manuální funnel metadata
     selectedPublicationTypes?: string[];  // 🆕 Pro manuální funnel metadata
-}> = ({ messages, isLoading, onSilentPrompt, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [] }) => {
+}> = ({ messages, isLoading, onSilentPrompt, onProblemSelect, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [] }) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -1589,6 +1715,7 @@ const ChatWindow: React.FC<{
                             key={msg.id} 
                             message={msg} 
                             onSilentPrompt={onSilentPrompt} 
+                            onProblemSelect={onProblemSelect}
                             chatbotSettings={chatbotSettings}
                             sessionId={sessionId}
                             token={token}
@@ -1807,6 +1934,73 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         }
     }, [chatbotSettings.product_recommendations]);
 
+    // 🔍 Callback pro výběr problému z formuláře (EO Směsi Chat)
+    const handleProblemSelection = useCallback(async (selectedProblem: string) => {
+        setIsLoading(true);
+        
+        try {
+            const eoSmesiResult = await processEoSmesiQuery(selectedProblem, sessionId);
+            
+            if (eoSmesiResult.shouldShowTable && eoSmesiResult.medicineTable) {
+                const matchedProducts = eoSmesiResult.medicineTable.products.map(p => ({
+                    productName: p.name,
+                    pinyinName: '',
+                    productUrl: p.url || '',
+                    product_code: p.code,
+                    category: p.category
+                }));
+                
+                const botMessage: ChatMessage = {
+                    id: Date.now().toString(),
+                    role: 'bot',
+                    text: `Našel jsem vhodnou kombinaci produktů pro: ${selectedProblem}`,
+                    matchedProducts: matchedProducts,
+                    pairingInfo: {
+                        prawteins: eoSmesiResult.medicineTable.prawtein ? [eoSmesiResult.medicineTable.prawtein] : [],
+                        tcmWans: [],
+                        aloe: eoSmesiResult.medicineTable.aloe,
+                        merkaba: eoSmesiResult.medicineTable.merkaba,
+                        aloeUrl: eoSmesiResult.medicineTable.aloeUrl || undefined,
+                        merkabaUrl: eoSmesiResult.medicineTable.merkabaUrl || undefined
+                    }
+                };
+                
+                setMessages(prev => [...prev, botMessage]);
+                
+                if (currentUser?.id || externalUserInfo?.external_user_id) {
+                    const userId = currentUser?.id || externalUserInfo?.external_user_id!;
+                    await saveChatPairToHistory(
+                        sessionId,
+                        userId,
+                        chatbotId || 'eo_smesi',
+                        selectedProblem,
+                        botMessage.text,
+                        { categories: selectedCategories, labels: selectedLabels, publication_types: selectedPublicationTypes }
+                    );
+                }
+            } else {
+                const botMessage: ChatMessage = {
+                    id: Date.now().toString(),
+                    role: 'bot',
+                    text: `Pro váš výběr jsem bohužel nenašel odpovídající kombinaci v naší databázi.`
+                };
+                setMessages(prev => [...prev, botMessage]);
+            }
+        } catch (error) {
+            console.error('Chyba při zpracování výběru problému:', error);
+            
+            const errorMessage: ChatMessage = {
+                id: Date.now().toString(),
+                role: 'bot',
+                text: 'Omlouvám se, při zpracování vašeho výběru došlo k chybě. Zkuste to prosím znovu.'
+            };
+            
+            setMessages(prev => [...prev, errorMessage]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [currentUser, externalUserInfo, chatbotId, sessionId, selectedCategories, selectedLabels, selectedPublicationTypes]);
+
     const handleSendMessage = useCallback(async (text: string) => {
         console.log('🚀 [PRVNÍ handleSendMessage] ZAVOLÁNA, text:', text.substring(0, 50));
         
@@ -1905,6 +2099,108 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             
             const instruction = languageInstructions[selectedLanguage];
             const promptForBackend = `${text.trim()} ${instruction}`;
+            
+            // ═══════════════════════════════════════════════════════════════
+            // 🌿 EO SMĚSI CHAT WORKFLOW - ZPRACOVÁNÍ VIA eoSmesiWorkflowService
+            // ═══════════════════════════════════════════════════════════════
+            if (chatbotId === 'eo_smesi') {
+                try {
+                    const eoSmesiResult = await processEoSmesiQuery(text.trim(), sessionId);
+                    
+                    // 🔍 SITUACE A: Agent si NENÍ jistý → zobrazíme formulář pro výběr
+                    if (eoSmesiResult.problemClassification.requiresUserSelection && 
+                        eoSmesiResult.problemClassification.uncertainProblems &&
+                        eoSmesiResult.problemClassification.uncertainProblems.length > 0) {
+                        
+                        const botMessage: ChatMessage = {
+                            id: Date.now().toString(),
+                            role: 'bot',
+                            text: `Nalezl jsem více možných příčin. Prosím vyberte tu, která nejlépe odpovídá vašemu stavu:`,
+                            requiresProblemSelection: true,
+                            uncertainProblems: eoSmesiResult.problemClassification.uncertainProblems
+                        };
+                        
+                        setMessages(prev => [...prev, botMessage]);
+                        setIsLoading(false);
+                        return;
+                    }
+                    
+                    // 🟢 SITUACE B: Agent JE si jistý → zobrazíme callout s produkty (existující flow)
+                    if (eoSmesiResult.shouldShowTable && eoSmesiResult.medicineTable) {
+                        // Připravíme matchedProducts ve formátu, který používá existující "Související produkty BEWIT" rendering
+                        const matchedProducts = eoSmesiResult.medicineTable.products.map(p => ({
+                            productName: p.name,
+                            pinyinName: '', // EO Směsi nemají pinyin
+                            productUrl: p.url || '',
+                            product_code: p.code,  // ✅ snake_case pro enrichFunnelProductsFromDatabase
+                            category: p.category
+                        }));
+                        
+                        const botMessage: ChatMessage = {
+                            id: Date.now().toString(),
+                            role: 'bot',
+                            text: `Našel jsem vhodnou kombinaci produktů pro váš problém.`,
+                            matchedProducts: matchedProducts,
+                            pairingInfo: {
+                                prawteins: eoSmesiResult.medicineTable.prawtein ? [eoSmesiResult.medicineTable.prawtein] : [],
+                                tcmWans: [],
+                                aloe: eoSmesiResult.medicineTable.aloe,
+                                merkaba: eoSmesiResult.medicineTable.merkaba,
+                                aloeUrl: eoSmesiResult.medicineTable.aloeUrl || undefined,
+                                merkabaUrl: eoSmesiResult.medicineTable.merkabaUrl || undefined
+                            }
+                        };
+                        
+                        setMessages(prev => [...prev, botMessage]);
+                        
+                        if (currentUser?.id || externalUserInfo?.external_user_id) {
+                            const userId = currentUser?.id || externalUserInfo?.external_user_id!;
+                            await saveChatPairToHistory(
+                                userId,
+                                chatbotId,
+                                text.trim(),
+                                botMessage.text,
+                                currentMetadataForHistory
+                            );
+                        }
+                    } else {
+                        const botMessage: ChatMessage = {
+                            id: Date.now().toString(),
+                            role: 'bot',
+                            text: `Pro váš dotaz jsem bohužel nenašel odpovídající kombinaci v naší databázi léčebných receptur. Můžete zkusit přeformulovat dotaz nebo se zeptat na konkrétní zdravotní problém.`
+                        };
+                        
+                        setMessages(prev => [...prev, botMessage]);
+                        
+                        if (currentUser?.id || externalUserInfo?.external_user_id) {
+                            const userId = currentUser?.id || externalUserInfo?.external_user_id!;
+                            await saveChatPairToHistory(
+                                userId,
+                                chatbotId,
+                                text.trim(),
+                                botMessage.text,
+                                currentMetadataForHistory
+                            );
+                        }
+                    }
+                    
+                    setIsLoading(false);
+                    return;
+                    
+                } catch (error) {
+                    console.error('❌ EO Směsi chyba:', error);
+                    
+                    const errorMessage: ChatMessage = {
+                        id: Date.now().toString(),
+                        role: 'bot',
+                        text: `Omlouvám se, při zpracování vašeho dotazu došlo k chybě. Zkuste to prosím znovu.`
+                    };
+                    
+                    setMessages(prev => [...prev, errorMessage]);
+                    setIsLoading(false);
+                    return;
+                }
+            }
             
             // ═══════════════════════════════════════════════════════════════
             // 🔀 INTENT ROUTING PRO WANY CHAT (vany_chat) - MUSÍ BÝT PRVNÍ!
@@ -2417,7 +2713,7 @@ Symptomy zákazníka: ${symptomsList}
                     productRecommendations: undefined,
                     matchedProducts: webhookResult.matchedProducts || [],
                     hasCallout: shouldShowCallout,
-                    pairingInfo: pairingInfo || undefined  // 🔗 Přidáno párování
+                    pairingInfo: pairingInfo || undefined
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
@@ -2661,6 +2957,7 @@ Symptomy zákazníka: ${symptomsList}
                         messages={messages} 
                         isLoading={isLoading} 
                         onSilentPrompt={handleSilentPrompt} 
+                        onProblemSelect={handleProblemSelection}
                         shouldAutoScroll={autoScroll} 
                         chatbotSettings={chatbotSettings}
                         sessionId={sessionId}
@@ -2987,7 +3284,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     productRecommendations: undefined,
                     matchedProducts: webhookResult.matchedProducts || [],
                     hasCallout: shouldShowCallout,
-                    pairingInfo: pairingInfo || undefined  // 🔗 Přidáno párování
+                    pairingInfo: pairingInfo || undefined
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
