@@ -105,13 +105,10 @@ async function extractMedicineTable(
     return null;
   }
   
-  const allProducts = products.map(p => ({
-    code: p.matched_product_code || p.product_code,
-    name: p.product_name,
-    category: p.category,
-    url: p.url,
-    thumbnail: p.thumbnail
-  }));
+  // Pro EO Směsi chat NEPOUŽÍVÁME produkty ze SQL RPC (matched_product_name jsou undefined).
+  // EO a Prawtein produkty se načítají přímo z tabulky leceni v getEOProductsForProblem/getPrawteinProductsForProblem.
+  // SQL RPC slouží pouze pro detekci aloe/merkaba flagů a jejich URL.
+  const allProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
   
   // URL pro Aloe a Merkaba (nezobrazují se jako product pills, pouze jako textové odkazy)
   let aloeUrl: string | null = null;
@@ -148,14 +145,14 @@ async function extractMedicineTable(
   const medicineTable: MedicineTable = {
     eo1: null,
     eo2: null,
-    prawtein: products.find(p => p.category === 'Prawtein' || p.category?.includes('PRAWTEIN'))?.product_name || null,
+    prawtein: null,  // Prawtein se načítá v getPrawteinProductsForProblem()
     aloe,
     merkaba,
     aloeUrl,
     merkabaUrl,
     problemName,
     combinationName,
-    products: allProducts
+    products: allProducts  // Zatím prázdné nebo jen ze SQL - doplní se v processEoSmesiQuery
   };
   
   return medicineTable;
@@ -164,6 +161,90 @@ async function extractMedicineTable(
 // ============================================================================
 // HLAVNÍ FUNKCE
 // ============================================================================
+
+/**
+ * Sdílená logika: načte produkty z leceni + aloe/merkaba z SQL RPC pro daný problém.
+ * Používá se jak v processEoSmesiQuery, tak v processEoSmesiQueryWithKnownProblem.
+ */
+async function buildMedicineTableForProblem(problemName: string): Promise<{
+  medicineTable: MedicineTable | null;
+  pairingResults: PairingRecommendations;
+}> {
+  const pairingResults = await matchProductCombinationsWithProblems([problemName]);
+
+  const [eoProducts, prawteinProducts] = await Promise.all([
+    getEOProductsForProblem(problemName),
+    getPrawteinProductsForProblem(problemName)
+  ]);
+
+  const hasAnyProducts = eoProducts.length > 0 || prawteinProducts.length > 0 || pairingResults.products.length > 0;
+
+  if (!hasAnyProducts) {
+    return { medicineTable: null, pairingResults };
+  }
+
+  let medicineTable: MedicineTable;
+
+  if (pairingResults.products.length > 0) {
+    medicineTable = (await extractMedicineTable(pairingResults, problemName))!;
+  } else {
+    medicineTable = {
+      eo1: null,
+      eo2: null,
+      prawtein: null,
+      aloe: false,
+      merkaba: false,
+      aloeUrl: null,
+      merkabaUrl: null,
+      problemName,
+      combinationName: 'Kombinace produktů',
+      products: []
+    };
+  }
+
+  medicineTable.products = [...eoProducts, ...prawteinProducts];
+  if (eoProducts[0]) medicineTable.eo1 = eoProducts[0].name;
+  if (eoProducts[1]) medicineTable.eo2 = eoProducts[1].name;
+  if (prawteinProducts[0]) medicineTable.prawtein = prawteinProducts[0].name;
+
+  return { medicineTable, pairingResults };
+}
+
+/**
+ * Přímé zpracování ZNÁMÉHO problému (vybraného uživatelem z dotazníku).
+ * Přeskočí LLM klasifikaci - problém je již znám.
+ */
+export async function processEoSmesiQueryWithKnownProblem(
+  problemName: string
+): Promise<EoSmesiResult> {
+  try {
+    const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problemName);
+    const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
+
+    return {
+      success: true,
+      problemClassification: {
+        success: true,
+        problems: [problemName]
+      },
+      medicineTable,
+      shouldShowTable,
+      debugInfo: {
+        problemsFound: [problemName],
+        pairingResults
+      }
+    };
+  } catch (error) {
+    console.error('❌ EO Směsi chyba (known problem):', error);
+    return {
+      success: false,
+      problemClassification: { success: false, problems: [], error: String(error) },
+      medicineTable: null,
+      shouldShowTable: false,
+      error: error instanceof Error ? error.message : 'Neznámá chyba'
+    };
+  }
+}
 
 /**
  * Zpracuje dotaz uživatele v EO Směsi chatu
@@ -207,33 +288,9 @@ export async function processEoSmesiQuery(
       };
     }
     
-    // KROK 2: PÁROVÁNÍ PRODUKTŮ
-    const pairingResults = await matchProductCombinationsWithProblems(problems);
-    
-    // KROK 3: EXTRAKCE DO MEDICINE TABLE (async!)
-    const medicineTable = await extractMedicineTable(
-      pairingResults,
-      problems[0]
-    );
-    
-    // KROK 4: NAČTENÍ EO PRODUKTŮ (eo_1, eo_2) z tabulky leceni
-    if (medicineTable) {
-      const eoProducts = await getEOProductsForProblem(problems[0]);
-      
-      if (eoProducts.length > 0) {
-        // Přidáme EO produkty do seznamu
-        medicineTable.products = [
-          ...eoProducts,
-          ...medicineTable.products
-        ];
-        
-        // Nastavíme názvy pro eo1 a eo2
-        if (eoProducts[0]) medicineTable.eo1 = eoProducts[0].name;
-        if (eoProducts[1]) medicineTable.eo2 = eoProducts[1].name;
-      }
-    }
-    
-    const shouldShowTable = medicineTable !== null;
+    // KROK 2-5: Sestavení medicine table pro nalezené problémy
+    const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problems[0]);
+    const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
     
     return {
       success: true,
@@ -266,6 +323,120 @@ export async function processEoSmesiQuery(
 // ============================================================================
 // HELPER: Načtení EO produktů z tabulky leceni
 // ============================================================================
+
+/**
+ * Načte Prawtein produkty pro daný problém z tabulky leceni
+ * Stejná logika jako u EO - načte názvy a napáruje podle kategorie
+ * 
+ * @param problemName - Název problému
+ * @returns Pole product info pro Prawtein produkty
+ */
+export async function getPrawteinProductsForProblem(
+  problemName: string
+): Promise<Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }>> {
+  try {
+    const { data: leceniData, error: leceniError } = await supabase
+      .from('leceni')
+      .select('"Prawtein"')
+      .eq('Problém', problemName)
+      .limit(1);
+    
+    if (leceniError) {
+      console.error('❌ Chyba při načítání Prawtein produktů z leceni:', leceniError);
+      return [];
+    }
+    
+    if (!leceniData || leceniData.length === 0) {
+      return [];
+    }
+    
+    const record = leceniData[0];
+    const prawteinRaw = record['Prawtein'];
+    
+    if (!prawteinRaw || prawteinRaw.trim() === '') {
+      return [];
+    }
+    
+    // Extrahuj Prawtein názvy a rozděl je podle čárky (pokud je více v jedné buňce)
+    const prawteinNames: string[] = [];
+    
+    if (prawteinRaw.includes(',')) {
+      // Rozdělíme podle čárky a přidáme každý název zvlášť
+      prawteinRaw.split(',').forEach((part: string) => {
+        const trimmed = part.trim();
+        if (trimmed) prawteinNames.push(trimmed);
+      });
+    } else {
+      prawteinNames.push(prawteinRaw.trim());
+    }
+    
+    if (prawteinNames.length === 0) {
+      return [];
+    }
+    
+    console.log('🔍 Prawtein názvy k vyhledání:', prawteinNames);
+    
+    const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
+    
+    for (const prawteinName of prawteinNames) {
+      try {
+        // ✅ KLÍČOVÉ: Hledáme POUZE v kategorii "Prawtein"
+        // Nejdřív zkusíme s prefixem "PRAWTEIN " (většina produktů má tento formát)
+        let product = null;
+        let error = null;
+        
+        // Pokus 1: S prefixem "PRAWTEIN "
+        const result1 = await supabase
+          .from('product_feed_2')
+          .select('product_code, product_name, category, url, thumbnail')
+          .ilike('product_name', `%PRAWTEIN ${prawteinName}%`)
+          .eq('category', 'PRAWTEIN® – superpotravinové směsi')  // ✅ Správná kategorie!
+          .limit(1)
+          .single();
+        
+        if (!result1.error && result1.data) {
+          product = result1.data;
+        } else {
+          // Pokus 2: Bez prefixu (fallback)
+          const result2 = await supabase
+            .from('product_feed_2')
+            .select('product_code, product_name, category, url, thumbnail')
+            .ilike('product_name', `%${prawteinName}%`)
+            .eq('category', 'PRAWTEIN® – superpotravinové směsi')  // ✅ Správná kategorie!
+            .limit(1)
+            .single();
+          
+          if (!result2.error && result2.data) {
+            product = result2.data;
+          } else {
+            error = result2.error;
+          }
+        }
+        
+        if (product) {
+          console.log(`✅ Prawtein produkt přidán: ${product.product_name} (${product.category})`);
+          enrichedProducts.push({
+            code: product.product_code,
+            name: product.product_name,
+            category: product.category,
+            url: product.url,
+            thumbnail: product.thumbnail
+          });
+        } else {
+          console.warn(`⚠️ Produkt "${prawteinName}" nebyl nalezen v kategorii Prawtein`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ Nepodařilo se najít Prawtein produkt: ${prawteinName}`, err);
+      }
+    }
+    
+    return enrichedProducts;
+    
+  } catch (error) {
+    console.error('❌ Chyba při načítání Prawtein produktů:', error);
+    return [];
+  }
+}
 
 /**
  * Načte EO produkty (eo_1, eo_2, eo_3) pro daný problém z tabulky leceni

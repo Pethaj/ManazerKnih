@@ -101,10 +101,11 @@ ${problemsList}
 
 **PRAVIDLA KLASIFIKACE:**
 
-**SITUACE A: JASNÝ/KONKRÉTNÍ PROBLÉM**
-- Uživatel zmíní PŘÍČINU (ze stresu, po sportování, chronická, nervová, atd.)
-- Uživatel zmíní ČASOVÉ určení (už několik měsíců, opakovaně, chronicky)
-- Uživatel je KONKRÉTNÍ
+**SITUACE A: JEDNOZNAČNĚ IDENTIFIKOVANÝ PROBLÉM**
+Použij "certain" POUZE pokud uživatel zmíní:
+- PŘÍČINU (ze stresu, po sportování, chronická, nervová, atd.) A tato příčina jednoznačně určuje JEDINOU kategorii
+- Uživatelova zpráva přesně odpovídá JEDINÉ kategorii – žádná jiná kategorie není relevantní
+- V dostupných kategoriích existuje POUZE JEDNA možná shoda
 
 → Vrať JSON ve formátu:
 {
@@ -112,54 +113,50 @@ ${problemsList}
   "uncertain": []
 }
 
-**SITUACE B: VÁGNÍ/OBECNÝ PROBLÉM**
-- Uživatel použije POUZE obecný termín ("bolí mě hlava", "bolí koleno")
-- BEZ uvedení příčiny, časového určení, nebo dalších detailů
+**SITUACE B: NEJEDNOZNAČNÝ / OBECNÝ PROBLÉM (VÝCHOZÍ STAV)**
+Použij "uncertain" pokud:
+- Uživatel použije obecný termín bez dostatečného upřesnění
+- Pro daný problém existuje v dostupných kategoriích VÍCE MOŽNOSTÍ (různé podtypy, příčiny, závažnosti)
+- Nelze s jistotou určit JEDINOU správnou kategorii
 
 → Vrať JSON ve formátu:
 {
   "certain": [],
   "uncertain": ["kategorie1", "kategorie2", "kategorie3"]
 }
-(Max 5 nejrelevantnějších kategorií)
+(Max 5 nejrelevantnějších kategorií, seřazených od nejpravděpodobnější)
+
+**KRITICKÉ PRAVIDLO:** Pokud existuje více než 1 relevantní kategorie → VŽDY použij "uncertain". Nikdy nedávej více položek do "certain" – "certain" může mít maximálně 1 položku.
 
 **PŘÍKLADY:**
 
 Input: "Bolí mě hlava už několik měsíců vždy večer"
-Output: {
-  "certain": ["Bolest hlavy – chronická"],
-  "uncertain": []
-}
-
-Input: "Bolí mě hlava"
-Output: {
-  "certain": [],
-  "uncertain": ["Bolest hlavy – akutní", "Bolest hlavy – ze stresu", "Bolest hlavy – nervová"]
-}
+Output: {"certain": ["Bolest hlavy – chronická"], "uncertain": []}
 
 Input: "Bolí mě hlava ze stresu"
-Output: {
-  "certain": ["Bolest hlavy – ze stresu"],
-  "uncertain": []
-}
+Output: {"certain": ["Bolest hlavy – ze stresu"], "uncertain": []}
+
+Input: "Bolí mě hlava"
+Output: {"certain": [], "uncertain": ["Bolest hlavy – akutní", "Bolest hlavy – ze stresu", "Bolest hlavy – nervová"]}
+
+Input: "trápí mě žlučník"
+Output: {"certain": [], "uncertain": ["Žlučník - kolika", "Žlučník - zánět (cholecystitida)", "Žlučník - žlučové kameny"]}
+
+Input: "mám žlučníkové kameny"
+Output: {"certain": ["Žlučník - žlučové kameny"], "uncertain": []}
 
 Input: "Mám bolavé koleno"
-Output: {
-  "certain": [],
-  "uncertain": ["Bolest kloubů – akutní", "Bolest kloubů – chronická"]
-}
+Output: {"certain": [], "uncertain": ["Klouby – akutní bolest", "Klouby – chronické", "Klouby – degenerativní"]}
 
 Input: "Jak se máš?"
-Output: {
-  "certain": [],
-  "uncertain": []
-}
+Output: {"certain": [], "uncertain": []}
 
 **KRITICKÉ PRAVIDLO PRO VÝSTUP:**
 - Vrať VÝHRADNĚ validní JSON objekt - žádný text před ani za
 - NEPIŠ vysvětlení, komentáře, zdůvodnění
 - NEPOUŽÍVEJ markdown code blocks
 - POUZE čistý JSON: {"certain": [...], "uncertain": [...]}
+- "certain" může obsahovat MAXIMÁLNĚ 1 položku
 - ŽÁDNÝ další text - POUZE JSON objekt`;
 }
 
@@ -257,6 +254,14 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
         const invalidCertain = certain.filter(p => !normalizedMap.has(normalizeString(p)));
         const invalidUncertain = uncertain.filter(p => !normalizedMap.has(normalizeString(p)));
         
+        // 🛡️ OCHRANA: certain může mít maximálně 1 položku (pravidlo promptu)
+        // Pokud agent vrátí více, přesuneme vše do uncertain a zobrazíme dotazník
+        if (problems.length > 1) {
+          console.warn(`⚠️ Agent vrátil ${problems.length} certain problémů (max 1) → přesunuji do uncertain`);
+          uncertainProblems = [...problems, ...uncertainProblems];
+          problems = [];
+        }
+
         if (problems.length > 0) {
           console.log('✅ Úspěšně zmapovány certain problémy:', problems);
         }

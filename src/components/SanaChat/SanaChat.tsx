@@ -42,7 +42,7 @@ import { openBewitProductLink } from '../../services/productLinkService';
 import { classifyProblemFromUserMessage } from '../../services/problemClassificationService';
 import { matchProductCombinationsWithProblems } from '../../services/productPairingService';
 // 🌿 EO Směsi Workflow Service - zpracování EO Směsi dotazů
-import { processEoSmesiQuery } from '../../services/eoSmesiWorkflowService';
+import { processEoSmesiQuery, processEoSmesiQueryWithKnownProblem } from '../../services/eoSmesiWorkflowService';
 // 🔍 Problem Selection Form - formulář pro výběr problému (EO Směsi Chat)
 import { ProblemSelectionForm } from './ProblemSelectionForm';
 
@@ -1939,7 +1939,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         setIsLoading(true);
         
         try {
-            const eoSmesiResult = await processEoSmesiQuery(selectedProblem, sessionId);
+            const eoSmesiResult = await processEoSmesiQueryWithKnownProblem(selectedProblem);
             
             if (eoSmesiResult.shouldShowTable && eoSmesiResult.medicineTable) {
                 const matchedProducts = eoSmesiResult.medicineTable.products.map(p => ({
@@ -2107,17 +2107,51 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 try {
                     const eoSmesiResult = await processEoSmesiQuery(text.trim(), sessionId);
                     
-                    // 🔍 SITUACE A: Agent si NENÍ jistý → zobrazíme formulář pro výběr
+                    // 🔍 SITUACE A: Agent si NENÍ jistý → dotazník nebo přímé zpracování
                     if (eoSmesiResult.problemClassification.requiresUserSelection && 
                         eoSmesiResult.problemClassification.uncertainProblems &&
                         eoSmesiResult.problemClassification.uncertainProblems.length > 0) {
                         
+                        const uncertainProblems = eoSmesiResult.problemClassification.uncertainProblems;
+                        
+                        // Pokud je jen 1 možnost, přeskočíme dotazník a zpracujeme přímo
+                        if (uncertainProblems.length === 1) {
+                            const directResult = await processEoSmesiQueryWithKnownProblem(uncertainProblems[0]);
+                            if (directResult.shouldShowTable && directResult.medicineTable) {
+                                const matchedProducts = directResult.medicineTable.products.map(p => ({
+                                    productName: p.name,
+                                    pinyinName: '',
+                                    productUrl: p.url || '',
+                                    product_code: p.code,
+                                    category: p.category
+                                }));
+                                const botMessage: ChatMessage = {
+                                    id: Date.now().toString(),
+                                    role: 'bot',
+                                    text: `Našel jsem vhodnou kombinaci produktů pro: ${uncertainProblems[0]}`,
+                                    matchedProducts,
+                                    pairingInfo: {
+                                        prawteins: directResult.medicineTable.prawtein ? [directResult.medicineTable.prawtein] : [],
+                                        tcmWans: [],
+                                        aloe: directResult.medicineTable.aloe,
+                                        merkaba: directResult.medicineTable.merkaba,
+                                        aloeUrl: directResult.medicineTable.aloeUrl || undefined,
+                                        merkabaUrl: directResult.medicineTable.merkabaUrl || undefined
+                                    }
+                                };
+                                setMessages(prev => [...prev, botMessage]);
+                                setIsLoading(false);
+                                return;
+                            }
+                        }
+                        
+                        // Více možností → zobrazíme formulář pro výběr
                         const botMessage: ChatMessage = {
                             id: Date.now().toString(),
                             role: 'bot',
                             text: `Nalezl jsem více možných příčin. Prosím vyberte tu, která nejlépe odpovídá vašemu stavu:`,
                             requiresProblemSelection: true,
-                            uncertainProblems: eoSmesiResult.problemClassification.uncertainProblems
+                            uncertainProblems
                         };
                         
                         setMessages(prev => [...prev, botMessage]);
