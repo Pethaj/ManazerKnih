@@ -31,6 +31,18 @@ export interface ProblemClassificationResult {
 // ============================================================================
 
 /**
+ * Normalizuje string pro porovnání - nahrazuje různé typy pomlček a čárky běžnými znaky
+ */
+function normalizeString(str: string): string {
+  return str
+    .replace(/[\u2013\u2014\u2212]/g, '-')  // en dash, em dash, minus → hyphen
+    .replace(/[\u2018\u2019]/g, "'")        // smart quotes → apostrophe
+    .replace(/\s+/g, ' ')                   // multiple spaces → single space
+    .trim()
+    .toUpperCase();
+}
+
+/**
  * Načte VŠECHNY unikátní problémy z tabulky leceni v Supabase
  * Toto je dynamické - kategorie se nemají hardcodovat v promptu!
  */
@@ -227,11 +239,30 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
         const uncertain = Array.isArray(parsed.uncertain) ? parsed.uncertain : [];
         
         // 🛡️ VALIDACE: Zkontroluj, že všechny problémy jsou v availableProblems
-        problems = certain.filter(p => availableProblems.includes(p));
-        uncertainProblems = uncertain.filter(p => availableProblems.includes(p));
+        // Použij normalizovanou mapu pro tolerantní porovnání
+        const normalizedMap = new Map<string, string>();
+        availableProblems.forEach(p => {
+          normalizedMap.set(normalizeString(p), p);
+        });
         
-        const invalidCertain = certain.filter(p => !availableProblems.includes(p));
-        const invalidUncertain = uncertain.filter(p => !availableProblems.includes(p));
+        // Mapuj LLM odpovědi na originální názvy z DB
+        problems = certain
+          .map(p => normalizedMap.get(normalizeString(p)))
+          .filter((p): p is string => p !== undefined);
+          
+        uncertainProblems = uncertain
+          .map(p => normalizedMap.get(normalizeString(p)))
+          .filter((p): p is string => p !== undefined);
+        
+        const invalidCertain = certain.filter(p => !normalizedMap.has(normalizeString(p)));
+        const invalidUncertain = uncertain.filter(p => !normalizedMap.has(normalizeString(p)));
+        
+        if (problems.length > 0) {
+          console.log('✅ Úspěšně zmapovány certain problémy:', problems);
+        }
+        if (uncertainProblems.length > 0) {
+          console.log('✅ Úspěšně zmapovány uncertain problémy:', uncertainProblems);
+        }
         
         if (invalidCertain.length > 0) {
           console.warn('⚠️ LLM vrátilo neplatné certain problémy (ignoruji):', invalidCertain);

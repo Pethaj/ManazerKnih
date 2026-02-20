@@ -293,34 +293,58 @@ export async function getEOProductsForProblem(
     }
     
     const record = leceniData[0];
-    const eoNames = [record['EO 1'], record['EO 2']].filter(name => name && name.trim() !== '');
+    
+    // Extrahuj EO názvy a rozděl je podle čárky (pokud je více EO v jedné buňce)
+    const eoNamesRaw = [record['EO 1'], record['EO 2']].filter(name => name && name.trim() !== '');
+    const eoNames: string[] = [];
+    
+    // Rozděl každou buňku podle čárky (pro případy jako "BEST FRIEND, LEVANDULE")
+    eoNamesRaw.forEach(name => {
+      if (name.includes(',')) {
+        // Rozdělíme podle čárky a přidáme každý název zvlášť
+        name.split(',').forEach(part => {
+          const trimmed = part.trim();
+          if (trimmed) eoNames.push(trimmed);
+        });
+      } else {
+        eoNames.push(name.trim());
+      }
+    });
     
     if (eoNames.length === 0) {
       return [];
     }
     
+    console.log('🔍 EO názvy k vyhledání:', eoNames);
+    
     const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
     
     for (const eoName of eoNames) {
       try {
+        // ✅ KLÍČOVÉ: Hledáme POUZE v kategorii "Směsi esenciálních olejů"
+        // Protože stejný název může existovat ve více kategoriích (COLDET olej vs COLDET Plus tělový olej)
         const { data: product, error } = await supabase
           .from('product_feed_2')
           .select('product_code, product_name, category, url, thumbnail')
           .ilike('product_name', `%${eoName}%`)
+          .eq('category', 'Směsi esenciálních olejů')  // 🔑 Filtr přímo v dotazu!
           .limit(1)
           .single();
         
         if (!error && product) {
+          console.log(`✅ EO produkt přidán: ${product.product_name} (${product.category})`);
           enrichedProducts.push({
             code: product.product_code,
             name: product.product_name,
-            category: product.category || 'Směsi esenciálních olejů',
+            category: product.category,
             url: product.url,
             thumbnail: product.thumbnail
           });
+        } else {
+          console.warn(`⚠️ Produkt "${eoName}" nebyl nalezen ve "Směsi esenciálních olejů"`);
         }
       } catch (err) {
-        console.error(`Nepodařilo se najít EO produkt: ${eoName}`, err);
+        console.warn(`⚠️ Nepodařilo se najít EO produkt: ${eoName}`, err);
       }
     }
     

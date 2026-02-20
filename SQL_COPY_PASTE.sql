@@ -16,10 +16,10 @@ CREATE OR REPLACE FUNCTION match_product_combinations_with_problems(
 )
 RETURNS TABLE (
   matched_product_code TEXT,
-  category TEXT,
-  product_name TEXT,
-  url TEXT,
-  thumbnail TEXT,
+  matched_category TEXT,
+  matched_product_name TEXT,
+  matched_product_url TEXT,
+  matched_thumbnail TEXT,
   aloe_recommended TEXT,
   merkaba_recommended TEXT,
   combination_name TEXT,
@@ -75,10 +75,10 @@ BEGIN
   -- Obohatit o data z product_feed_2
   SELECT DISTINCT
     COALESCE(pf.product_code::TEXT, mp.product_code::TEXT) as matched_product_code,
-    COALESCE(pf.category, mp.category)::TEXT as category,
-    COALESCE(pf.product_name::TEXT, mp.product_code::TEXT) as product_name,
-    pf.url::TEXT,
-    pf.thumbnail::TEXT,
+    COALESCE(pf.category, mp.category)::TEXT as matched_category,
+    COALESCE(pf.product_name::TEXT, mp.product_code::TEXT) as matched_product_name,
+    pf.url::TEXT as matched_product_url,
+    pf.thumbnail::TEXT as matched_thumbnail,
     CASE 
       -- ✅ OPRAVA: Pokud je buňka vyplněná (NOT NULL a ne prázdný string), je to TRUE
       WHEN mp.aloe IS NOT NULL AND TRIM(mp.aloe) != '' THEN 'ano'::TEXT
