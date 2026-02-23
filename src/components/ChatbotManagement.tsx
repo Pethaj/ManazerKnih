@@ -722,8 +722,49 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                         Automaticky přidá doplňkové produkty (Prawtein, TČM, Aloe, Merkaba) na základě tabulky léčebných kombinací.
                                                     </div>
                                                 </div>
+
+                                                {/* 🔍 Vyhledávač produktů */}
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.enable_product_search === true}
+                                                            onChange={() => updateLocalSettings(chatbot.chatbot_id, {
+                                                                enable_product_search: !(chatbot.enable_product_search === true)
+                                                            })}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <circle cx="11" cy="11" r="8"></circle>
+                                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                                        </svg>
+                                                        Vyhledávač produktů (Feed Agent)
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Povolí přepínač mezi AI chatem a vyhledávačem produktů přímo v chatu. Uživatel si může sám zvolit režim.
+                                                    </div>
+                                                </div>
                                             </div>
                                             
+                                            {/* Vyhledávač produktů - badge */}
+                                            {chatbot.enable_product_search === true && (
+                                                <div style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
+                                                    fontSize: '11px',
+                                                    backgroundColor: '#EFF6FF',
+                                                    color: '#1D4ED8',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '12px',
+                                                    fontWeight: 500,
+                                                    marginBottom: '8px',
+                                                    border: '1px solid #BFDBFE'
+                                                }}>
+                                                    🔍 Vyhledávač produktů aktivní
+                                                </div>
+                                            )}
+
                                             {/* Filtrace kategorií - pouze pokud je povolena databáze knih */}
                                             <div style={styles.filterSection}>
                                                 <h4 style={styles.sectionSubtitle}>

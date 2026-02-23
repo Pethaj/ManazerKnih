@@ -36,6 +36,23 @@ const DatabaseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+const SearchIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+const BotIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="3" y="11" width="18" height="10" rx="2" />
+    <circle cx="12" cy="5" r="2" />
+    <path d="M12 7v4" />
+    <line x1="8" y1="16" x2="8" y2="16" strokeWidth="2" strokeLinecap="round" />
+    <line x1="16" y1="16" x2="16" y2="16" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
 // ============================================================================
 // PŘEDDEFINOVANÉ DOTAZY
 // ============================================================================
@@ -124,7 +141,68 @@ const TypingIndicator: React.FC = () => (
 // HLAVNÍ KOMPONENTA
 // ============================================================================
 
+// ============================================================================
+// TOGGLE KOMPONENTA
+// ============================================================================
+
+type ChatMode = 'ai' | 'search';
+
+interface ModeSwitchProps {
+  mode: ChatMode;
+  onChange: (mode: ChatMode) => void;
+}
+
+const ModeSwitch: React.FC<ModeSwitchProps> = ({ mode, onChange }) => (
+  <div className="inline-flex items-center bg-slate-100 rounded-full p-1 gap-0.5 shadow-inner flex-shrink-0">
+    <button
+      type="button"
+      onClick={() => onChange('ai')}
+      className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
+        mode === 'ai'
+          ? 'bg-white text-bewit-blue shadow-md ring-1 ring-slate-200/80'
+          : 'text-slate-400 hover:text-slate-600'
+      }`}
+    >
+      <BotIcon className="w-3.5 h-3.5" />
+      AI Chat
+    </button>
+    <button
+      type="button"
+      onClick={() => onChange('search')}
+      className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
+        mode === 'search'
+          ? 'bg-white text-bewit-blue shadow-md ring-1 ring-slate-200/80'
+          : 'text-slate-400 hover:text-slate-600'
+      }`}
+    >
+      <SearchIcon className="w-3.5 h-3.5" />
+      Vyhledávač
+    </button>
+  </div>
+);
+
+// ============================================================================
+// HLAVNÍ KOMPONENTA (SEARCH RESULT TYPE)
+// ============================================================================
+
+interface ProductSearchResult {
+  product_code: string;
+  product_name: string;
+  category?: string;
+  url?: string;
+  thumbnail?: string;
+}
+
+// ============================================================================
+// HLAVNÍ KOMPONENTA
+// ============================================================================
+
 const FeedAgentChat: React.FC = () => {
+  const [mode, setMode] = useState<ChatMode>('ai');
+  // Vyhledávač stav
+  const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [messages, setMessages] = useState<FeedAgentMessage[]>([
     {
       role: 'assistant',
@@ -308,25 +386,31 @@ const FeedAgentChat: React.FC = () => {
             </div>
             <div>
               <h1 className="text-lg font-bold leading-tight">Feed Agent</h1>
-              <p className="text-xs text-blue-200">Expert na BEWIT produktovou databázi</p>
+              <p className="text-xs text-blue-200">
+                {mode === 'ai' ? 'Expert na BEWIT produktovou databázi' : 'Vyhledávač produktů'}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-blue-200 hidden sm:block">Mistral Small · OpenRouter</span>
-            <button
-              onClick={handleClearChat}
-              className="flex items-center justify-center h-9 w-9 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
-              title="Vymazat konverzaci"
-            >
-              <TrashIcon className="w-5 h-5 text-white" />
-            </button>
+            <span className="text-xs text-blue-200 hidden sm:block">
+              {mode === 'ai' ? 'Mistral Small · OpenRouter' : 'product_feed_2'}
+            </span>
+            {mode === 'ai' && (
+              <button
+                onClick={handleClearChat}
+                className="flex items-center justify-center h-9 w-9 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
+                title="Vymazat konverzaci"
+              >
+                <TrashIcon className="w-5 h-5 text-white" />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* API Key upozornění */}
-      {apiKeyMissing && (
+      {apiKeyMissing && mode === 'ai' && (
         <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800">
           ⚠️ <strong>VITE_OPENROUTER_API_KEY</strong> není nastavena. Přidej ji do souboru <code>.env</code>
         </div>
@@ -337,13 +421,12 @@ const FeedAgentChat: React.FC = () => {
         {messages.map((msg, idx) => (
           <ChatMessage key={idx} message={msg} />
         ))}
-
         {isLoading && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Příklady dotazů */}
-      {messages.length === 1 && (
+      {/* Příklady dotazů (jen v AI módu) */}
+      {mode === 'ai' && messages.length === 1 && (
         <div className="px-4 pb-2">
           <p className="text-xs text-gray-500 mb-2 font-medium">Příklady dotazů:</p>
           <div className="flex flex-wrap gap-2">
@@ -363,78 +446,108 @@ const FeedAgentChat: React.FC = () => {
 
       {/* Input oblast */}
       <div className="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-3">
-        <div className="flex items-end gap-3 max-w-4xl mx-auto">
-          <div className="flex-1 relative">
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Napiš svůj dotaz... (Enter = odeslat, Shift+Enter = nový řádek)"
-              className="w-full resize-none rounded-2xl border border-gray-300 focus:border-bewit-blue focus:ring-2 focus:ring-bewit-blue/20 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 outline-none transition-all duration-200 min-h-[48px] max-h-[120px] leading-relaxed"
-              rows={1}
-              disabled={isLoading}
-            />
+        <div className="max-w-4xl mx-auto">
+          {/* Toggle NAD polem, zarovnaný vpravo */}
+          <div className="flex justify-end mb-2">
+            <ModeSwitch mode={mode} onChange={(m) => { setMode(m); setInputValue(''); setSearchResults([]); setSuggestions([]); setShowSuggestions(false); }} />
+          </div>
 
-            {/* Autocomplete dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
-              <div
-                ref={suggestionsRef}
-                className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50"
-              >
-                <div className="px-3 py-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                  <svg className="w-3 h-3 text-bewit-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <span className="text-xs text-gray-400 font-medium">Návrhy produktů</span>
-                </div>
-                {suggestions.map((product, idx) => (
-                  <button
-                    key={product.product_code}
-                    onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(product); }}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${
-                      idx === activeSuggestion ? 'bg-blue-50' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    {product.thumbnail ? (
-                      <img
-                        src={product.thumbnail}
-                        alt={product.product_name}
-                        className="w-8 h-8 rounded-lg object-contain flex-shrink-0 bg-gray-100"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex-shrink-0 flex items-center justify-center">
-                        <span className="text-xs text-gray-400">📦</span>
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{product.product_name}</p>
-                      <p className="text-xs text-gray-400 truncate">
-                        {product.category && <span>{product.category}</span>}
-                        {product.price && <span className="ml-2 font-medium text-bewit-blue">{product.price} {product.currency || 'CZK'}</span>}
-                        {product.availability !== undefined && (
-                          <span className="ml-2">{product.availability === 1 ? '✅' : '❌'}</span>
-                        )}
-                      </p>
+          <div className="relative">
+            {/* Naseptávač / výsledky vyhledávání — nad inputem */}
+            {mode === 'search' && (searchResults.length > 0 || isSearching) && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50 max-h-72 overflow-y-auto">
+                {isSearching ? (
+                  <div className="flex items-center justify-center py-5 gap-2 text-slate-400">
+                    {[0,1,2].map(i => (
+                      <div key={i} className="w-2 h-2 bg-bewit-blue rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                    <span className="text-sm ml-1">Hledám...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white">
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Produkty</span>
+                      <span className="text-xs text-slate-400">{searchResults.length} výsledků</span>
                     </div>
-                  </button>
-                ))}
+                    {searchResults.map((product) => (
+                      <a
+                        key={product.product_code}
+                        href={product.url || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors no-underline group border-b border-slate-50 last:border-0"
+                      >
+                        {product.thumbnail ? (
+                          <img src={product.thumbnail} alt={product.product_name} className="w-9 h-9 rounded-lg object-contain flex-shrink-0 bg-gray-50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <div className="w-9 h-9 rounded-lg bg-slate-100 flex-shrink-0 flex items-center justify-center text-sm">📦</div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate group-hover:text-bewit-blue transition-colors">{product.product_name}</p>
+                          {product.category && <p className="text-xs text-slate-400 truncate">{product.category}</p>}
+                        </div>
+                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-bewit-blue flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    ))}
+                  </>
+                )}
               </div>
             )}
+
+            <div className="flex items-end gap-2">
+              <div className="flex-1 relative">
+                <textarea
+                  ref={inputRef}
+                  value={inputValue}
+                  onChange={(e) => {
+                    if (mode !== 'search') {
+                      handleInputChange(e);
+                      return;
+                    }
+                    const val = e.target.value;
+                    setInputValue(val);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+                    if (val.trim().length < 2) { setSearchResults([]); setIsSearching(false); return; }
+                    setIsSearching(true);
+                    searchDebounce.current = setTimeout(async () => {
+                      try {
+                        const found = await searchProductsAutocomplete(val.trim(), 20);
+                        setSearchResults(found);
+                      } catch { setSearchResults([]); }
+                      finally { setIsSearching(false); }
+                    }, 300);
+                  }}
+                  onKeyDown={mode === 'search' ? undefined : handleKeyDown}
+                  placeholder={mode === 'search' ? 'Hledejte produkty...' : 'Napiš svůj dotaz... (Enter = odeslat)'}
+                  className={`w-full resize-none rounded-2xl border px-4 py-3 text-sm text-gray-800 placeholder-gray-400 outline-none transition-all duration-200 min-h-[48px] max-h-[120px] leading-relaxed ${
+                    mode === 'search'
+                      ? 'border-bewit-blue ring-2 ring-bewit-blue/15 bg-blue-50/30'
+                      : 'border-gray-300 focus:border-bewit-blue focus:ring-2 focus:ring-bewit-blue/20 bg-white'
+                  }`}
+                  rows={1}
+                  disabled={isLoading && mode !== 'search'}
+                />
+              </div>
+              {mode === 'ai' && (
+                <button
+                  onClick={() => handleSend()}
+                  disabled={!inputValue.trim() || isLoading}
+                  className="flex-shrink-0 w-12 h-12 rounded-full bg-bewit-blue text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 shadow-md"
+                  title="Odeslat"
+                >
+                  <SendIcon className="w-5 h-5" />
+                </button>
+              )}
+            </div>
           </div>
-          <button
-            onClick={() => handleSend()}
-            disabled={!inputValue.trim() || isLoading}
-            className="flex-shrink-0 w-12 h-12 rounded-full bg-bewit-blue text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 shadow-md"
-            title="Odeslat"
-          >
-            <SendIcon className="w-5 h-5" />
-          </button>
+          <p className="text-xs text-gray-400 text-center mt-2">
+            {mode === 'search' ? 'Vyhledávač produktů · BEWIT product_feed_2' : 'Feed Agent · Mistral Small via OpenRouter'}
+          </p>
         </div>
-        <p className="text-xs text-gray-400 text-center mt-2">
-          Feed Agent · BEWIT product_feed_2 · Mistral Small via OpenRouter
-        </p>
       </div>
     </div>
   );

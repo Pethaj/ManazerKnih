@@ -45,6 +45,8 @@ import { matchProductCombinationsWithProblems } from '../../services/productPair
 import { processEoSmesiQuery, processEoSmesiQueryWithKnownProblem } from '../../services/eoSmesiWorkflowService';
 // 🔍 Problem Selection Form - formulář pro výběr problému (EO Směsi Chat)
 import { ProblemSelectionForm } from './ProblemSelectionForm';
+// 🔍 Feed Agent - vyhledávač produktů
+import { searchProductsAutocomplete } from '../../feedAgent/feedAgentService';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -166,10 +168,13 @@ interface SanaChatProps {
     show_sources?: boolean;  // 🆕 Zobrazovat zdroje v odpovědích
     group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
     enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
+    enable_product_search?: boolean;   // 🔍 Vyhledávač produktů (Feed Agent toggle)
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
   onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
+  modeSwitch?: React.ReactNode;  // 🔍 Toggle UI - předaný zvenku
+  searchMode?: boolean;           // 🔍 Vyhledávací mód - přepnutí chování inputu
   externalUserInfo?: {  // 🆕 External user data z iframe embedu
     external_user_id?: string;
     first_name?: string;
@@ -1986,47 +1991,168 @@ const ChatWindow: React.FC<{
     );
 };
 
-const ChatInput: React.FC<{ onSendMessage: (text: string) => void; isLoading: boolean; }> = ({ onSendMessage, isLoading }) => {
+interface ProductSearchResult {
+    product_code: string;
+    product_name: string;
+    category?: string;
+    url?: string;
+    thumbnail?: string;
+}
+
+const ChatInput: React.FC<{
+    onSendMessage: (text: string) => void;
+    isLoading: boolean;
+    modeSwitch?: React.ReactNode;
+    searchMode?: boolean;
+}> = ({ onSendMessage, isLoading, modeSwitch, searchMode }) => {
     const [input, setInput] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    // Vyhledávač stav
+    const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (searchMode) return;
         if (input.trim() && !isLoading) {
             onSendMessage(input);
             setInput('');
         }
     };
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (searchMode) return;
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSubmit(e);
         }
     };
+
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
         }
     }, [input]);
+
+    // Při přepnutí módu vyčisti vstup a výsledky
+    useEffect(() => {
+        setInput('');
+        setSearchResults([]);
+    }, [searchMode]);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value;
+        setInput(val);
+        if (!searchMode) return;
+        if (searchDebounce.current) clearTimeout(searchDebounce.current);
+        if (val.trim().length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        setIsSearching(true);
+        searchDebounce.current = setTimeout(async () => {
+            try {
+                const found = await searchProductsAutocomplete(val.trim(), 20);
+                setSearchResults(found);
+            } catch {
+                setSearchResults([]);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+    };
+
+    const placeholder = searchMode ? 'Hledejte produkty...' : 'Jak vám mohu pomoci...';
+
     return (
-        <form onSubmit={handleSubmit} className="relative">
-            <div className="flex items-center bg-white border border-slate-300 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-bewit-blue transition-shadow duration-200 p-3">
-                <textarea 
-                    ref={textareaRef} 
-                    value={input} 
-                    onChange={(e) => setInput(e.target.value)} 
-                    onKeyDown={handleKeyDown} 
-                    placeholder="Jak vám mohu pomoci..." 
-                    className="w-full flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-bewit-dark placeholder-slate-400 leading-5" 
-                    rows={1} 
-                    style={{ maxHeight: '120px', minHeight: '40px' }} 
-                    disabled={isLoading} 
-                />
-                <button type="submit" disabled={isLoading || !input.trim()} className="ml-3 flex-shrink-0 w-10 h-10 rounded-lg bg-bewit-blue text-white flex items-center justify-center transition-colors duration-200 disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bewit-blue" aria-label="Odeslat zprávu">
-                    {isLoading ? (<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>) : (<SendIcon className="w-5 h-5" />)}
-                </button>
-            </div>
-        </form>
+        <div className="relative">
+            {/* Toggle NAD polem */}
+            {modeSwitch && (
+                <div className="flex justify-end mb-2">
+                    {modeSwitch}
+                </div>
+            )}
+
+            {/* Výsledky vyhledávání — nad inputem */}
+            {searchMode && (searchResults.length > 0 || isSearching) && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50 max-h-80 overflow-y-auto">
+                    {isSearching ? (
+                        <div className="flex items-center justify-center py-6 gap-2 text-slate-400">
+                            {[0,1,2].map(i => (
+                                <div key={i} className="w-2 h-2 bg-bewit-blue rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                            ))}
+                            <span className="text-sm ml-1">Hledám...</span>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
+                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Produkty</span>
+                                <span className="text-xs text-slate-400">{searchResults.length} výsledků</span>
+                            </div>
+                            {searchResults.map((product) => (
+                                <a
+                                    key={product.product_code}
+                                    href={product.url || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors no-underline group border-b border-slate-50 last:border-0"
+                                >
+                                    {product.thumbnail ? (
+                                        <img
+                                            src={product.thumbnail}
+                                            alt={product.product_name}
+                                            className="w-10 h-10 rounded-lg object-contain flex-shrink-0 bg-gray-50"
+                                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                        />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex-shrink-0 flex items-center justify-center text-base">📦</div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-slate-800 truncate group-hover:text-bewit-blue transition-colors">{product.product_name}</p>
+                                        {product.category && <p className="text-xs text-slate-400 truncate">{product.category}</p>}
+                                    </div>
+                                    <svg className="w-4 h-4 text-slate-300 group-hover:text-bewit-blue flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                </a>
+                            ))}
+                        </>
+                    )}
+                </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="relative">
+                <div className={`flex items-center bg-white border rounded-xl shadow-sm transition-all duration-200 p-3 ${
+                    searchMode
+                        ? 'border-bewit-blue ring-2 ring-bewit-blue/20'
+                        : 'border-slate-300 focus-within:ring-2 focus-within:ring-bewit-blue'
+                }`}>
+                    {searchMode && (
+                        <svg className="w-4 h-4 text-bewit-blue mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                    )}
+                    <textarea
+                        ref={textareaRef}
+                        value={input}
+                        onChange={handleInputChange}
+                        onKeyDown={handleKeyDown}
+                        placeholder={placeholder}
+                        className="w-full flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-bewit-dark placeholder-slate-400 leading-5"
+                        rows={1}
+                        style={{ maxHeight: '120px', minHeight: '40px' }}
+                        disabled={isLoading && !searchMode}
+                    />
+                    {!searchMode && (
+                        <button type="submit" disabled={isLoading || !input.trim()} className="ml-3 flex-shrink-0 w-10 h-10 rounded-lg bg-bewit-blue text-white flex items-center justify-center transition-colors duration-200 disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bewit-blue" aria-label="Odeslat zprávu">
+                            {isLoading ? (<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>) : (<SendIcon className="w-5 h-5" />)}
+                        </button>
+                    )}
+                </div>
+            </form>
+        </div>
     );
 };
 
@@ -2123,6 +2249,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
     onSwitchToUniversal,
+    modeSwitch,  // 🔍 Toggle UI
+    searchMode,  // 🔍 Vyhledávací mód
     externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -3256,7 +3384,7 @@ Symptomy zákazníka: ${symptomsList}
                      />
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
-                    <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+                    <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} modeSwitch={modeSwitch} searchMode={searchMode} />
                     {onSwitchToUniversal && (
                         <div className="mt-3 flex justify-end">
                             <button
@@ -3295,6 +3423,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
     onSwitchToUniversal,
+    modeSwitch,  // 🔍 Toggle UI
+    searchMode,  // 🔍 Vyhledávací mód
     externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
     // 🚨 EXTREME DIAGNOSTIKA #1 - SANACHAT WRAPPER
@@ -3868,7 +3998,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                              />
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
-                            <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+                            <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} modeSwitch={modeSwitch} searchMode={searchMode} />
                             {onSwitchToUniversal && (
                                 <div className="mt-3 flex justify-end">
                                     <button
@@ -3909,6 +4039,7 @@ interface FilteredSanaChatProps {
         group_products_by_category?: boolean;  // 🆕 Grupování produktů
         show_sources?: boolean;  // 🆕 Zobrazování zdrojů
         enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
+        enable_product_search?: boolean;   // 🔍 Vyhledávač produktů (Feed Agent toggle)
     };
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;
@@ -3936,6 +4067,62 @@ const UNIVERSAL_CHATBOT_SETTINGS = {
     summarize_history: false,
     show_sources: false,
 };
+
+// ============================================================================
+// VYHLEDÁVAČ PRODUKTŮ - inline komponenty pro FilteredSanaChat
+// ============================================================================
+
+type ChatMode = 'ai' | 'search';
+
+const SearchIconInline: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+);
+
+const BotIconInline: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <rect x="3" y="11" width="18" height="10" rx="2" />
+        <circle cx="12" cy="5" r="2" />
+        <path d="M12 7v4" />
+    </svg>
+);
+
+interface ModeSwitchProps {
+    mode: ChatMode;
+    onChange: (mode: ChatMode) => void;
+}
+
+const ModeSwitch: React.FC<ModeSwitchProps> = ({ mode, onChange }) => (
+    <div className="inline-flex items-center bg-slate-100 rounded-full p-1 gap-0.5 shadow-inner">
+        <button
+            type="button"
+            onClick={() => onChange('ai')}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
+                mode === 'ai'
+                    ? 'bg-white text-bewit-blue shadow-md ring-1 ring-slate-200/80'
+                    : 'text-slate-400 hover:text-slate-600'
+            }`}
+        >
+            <BotIconInline className="w-3.5 h-3.5" />
+            AI Chat
+        </button>
+        <button
+            type="button"
+            onClick={() => onChange('search')}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
+                mode === 'search'
+                    ? 'bg-white text-bewit-blue shadow-md ring-1 ring-slate-200/80'
+                    : 'text-slate-400 hover:text-slate-600'
+            }`}
+        >
+            <SearchIconInline className="w-3.5 h-3.5" />
+            Vyhledávač
+        </button>
+    </div>
+);
+
+// ============================================================================
 
 const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({ 
     currentUser,  // 🆕 Přihlášený uživatel
@@ -3969,6 +4156,8 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     const [settings, setSettings] = useState(chatbotSettings);
     // chatKey slouží pro force remount SanaChatContent (nový chat)
     const [chatKey, setChatKey] = useState(0);
+    // 🔍 Mód: AI chat nebo vyhledávač produktů
+    const [chatMode, setChatMode] = useState<ChatMode>('ai');
     // activeChatbotId umožňuje přepnutí chatbota (např. na Universal)
     const [activeChatbotId, setActiveChatbotId] = useState(chatbotId);
     // Flag: true = uživatel přepnul na Universal, ignoruj přepsání z parenta
@@ -4353,7 +4542,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                   ]}
                 />
                 
-                {/* Chat komponenta nebo ProductSync */}
+                {/* Chat komponenta nebo ProductSync nebo Vyhledávač */}
                 <div className="flex-1 bg-bewit-gray min-h-0">
                     {isProductSyncVisible ? (
                         <div className="w-full h-full flex-1 overflow-y-auto p-6">
@@ -4371,6 +4560,10 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                             externalUserInfo={externalUserInfo}
                             onClose={onClose}
                             onSwitchToUniversal={handleSwitchToUniversal}
+                            modeSwitch={settings?.enable_product_search ? (
+                                <ModeSwitch mode={chatMode} onChange={setChatMode} />
+                            ) : undefined}
+                            searchMode={settings?.enable_product_search ? chatMode === 'search' : false}
                         />
                     )}
                 </div>

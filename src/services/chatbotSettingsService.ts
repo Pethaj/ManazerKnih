@@ -40,6 +40,8 @@ export interface ChatbotSettings {
   show_sources?: boolean;  // Zobrazovat zdroje v odpovědích chatbota
   // 🆕 Párování kombinací produktů
   enable_product_pairing?: boolean;  // Automatické párování produktů podle tabulky leceni
+  // 🆕 Vyhledávač produktů (Feed Agent)
+  enable_product_search?: boolean;  // Povolení přepínání mezi AI chatem a vyhledávačem produktů
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -101,6 +103,8 @@ export interface CreateChatbotSettingsData {
   show_sources?: boolean;
   // 🆕 Párování kombinací produktů
   enable_product_pairing?: boolean;
+  // 🆕 Vyhledávač produktů (Feed Agent)
+  enable_product_search?: boolean;
 }
 
 // Interface pro aktualizaci chatbota
@@ -133,6 +137,8 @@ export interface UpdateChatbotSettingsData {
   show_sources?: boolean;
   // 🆕 Párování kombinací produktů
   enable_product_pairing?: boolean;
+  // 🆕 Vyhledávač produktů (Feed Agent)
+  enable_product_search?: boolean;
 }
 
 // Interface pro filtry chatbota
@@ -160,6 +166,8 @@ export interface ChatbotFilters {
   showSources: boolean;  // Zobrazovat zdroje v odpovědích
   // 🆕 Párování kombinací produktů
   enableProductPairing: boolean;  // Automatické párování produktů podle tabulky leceni
+  // 🆕 Vyhledávač produktů (Feed Agent)
+  enableProductSearch: boolean;  // Povolení přepínání mezi AI chatem a vyhledávačem produktů
 }
 
 export class ChatbotSettingsService {
@@ -505,6 +513,8 @@ export class ChatbotSettingsService {
         showSources: settings.show_sources !== false, // default true
         // 🔗 Párování kombinací produktů
         enableProductPairing: settings.enable_product_pairing === true, // default false
+        // 🔍 Vyhledávač produktů (Feed Agent)
+        enableProductSearch: settings.enable_product_search === true, // default false
       };
     } catch (error) {
       console.error('Chyba při načítání filtrů chatbota:', error);

@@ -189,6 +189,7 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
     show_sources: chatbotSettings?.show_sources ?? true,
     // 🆕 Párování kombinací produktů
     enable_product_pairing: chatbotSettings?.enable_product_pairing ?? false,
+    enable_product_search: chatbotSettings?.enable_product_search ?? false,
   });
 
   // 🆕 State pro denní limit zpráv
@@ -541,6 +542,21 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
                 <span className="text-xs text-gray-500">
                   Automaticky přidá doplňkové produkty (Prawtein, TČM, Aloe, Merkaba) na základě 
                   vybraných produktů podle tabulky léčebných kombinací.
+                </span>
+              </div>
+            </label>
+            <label className="flex items-start">
+              <input
+                type="checkbox"
+                checked={formData.enable_product_search}
+                onChange={(e) => setFormData(prev => ({ ...prev, enable_product_search: e.target.checked }))}
+                className="mr-2 mt-1"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700 font-medium">🔍 Vyhledávač produktů (Feed Agent)</span>
+                <span className="text-xs text-gray-500">
+                  Povolí přepínač mezi AI chatem a vyhledávačem produktů přímo v chatu.
+                  Uživatel si může sám zvolit, zda chce klást otázky AI agentovi nebo hledat produkty.
                 </span>
               </div>
             </label>
@@ -1046,6 +1062,16 @@ const ChatbotSettingsManager: React.FC = () => {
                     : 'bg-gray-100 text-gray-600'
                 }`}>
                   {chatbot.enable_product_pairing === true ? '🔗 Aktivní' : 'Vypnuto'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-gray-700">Vyhledávač produktů:</span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                  chatbot.enable_product_search === true
+                    ? 'bg-blue-100 text-blue-800' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {chatbot.enable_product_search === true ? '🔍 Aktivní' : 'Vypnuto'}
                 </span>
               </div>
             </div>
