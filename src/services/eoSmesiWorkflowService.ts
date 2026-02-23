@@ -115,15 +115,14 @@ async function extractMedicineTable(
   let merkabaUrl: string | null = null;
   
   if (aloe) {
-    const { data: aloeProduct, error } = await supabase
+    const { data: aloeData, error } = await supabase
       .from('product_feed_2')
       .select('product_code, product_name, category, url, thumbnail')
       .ilike('product_name', '%Aloe Vera gel%')
-      .limit(1)
-      .single();
+      .limit(1);
     
-    if (!error && aloeProduct) {
-      aloeUrl = aloeProduct.url;
+    if (!error && aloeData && aloeData.length > 0) {
+      aloeUrl = aloeData[0].url;
     }
   }
   
@@ -374,42 +373,64 @@ export async function getPrawteinProductsForProblem(
       return [];
     }
     
-    console.log('🔍 Prawtein názvy k vyhledání:', prawteinNames);
+    console.log('🔍 Prawtein názvy/kódy k vyhledání:', prawteinNames);
     
     const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
     
     for (const prawteinName of prawteinNames) {
       try {
-        // ✅ KLÍČOVÉ: Hledáme POUZE v kategorii "Prawtein"
-        // Nejdřív zkusíme s prefixem "PRAWTEIN " (většina produktů má tento formát)
         let product = null;
-        let error = null;
         
-        // Pokus 1: S prefixem "PRAWTEIN "
-        const result1 = await supabase
-          .from('product_feed_2')
-          .select('product_code, product_name, category, url, thumbnail')
-          .ilike('product_name', `%PRAWTEIN ${prawteinName}%`)
-          .eq('category', 'PRAWTEIN® – superpotravinové směsi')  // ✅ Správná kategorie!
-          .limit(1)
-          .single();
+        const isNumeric = /^\d+$/.test(prawteinName.trim());
         
-        if (!result1.error && result1.data) {
-          product = result1.data;
-        } else {
-          // Pokus 2: Bez prefixu (fallback)
-          const result2 = await supabase
+        if (isNumeric) {
+          // Hledáme přesně podle product_code
+          const result1 = await supabase
             .from('product_feed_2')
             .select('product_code, product_name, category, url, thumbnail')
-            .ilike('product_name', `%${prawteinName}%`)
-            .eq('category', 'PRAWTEIN® – superpotravinové směsi')  // ✅ Správná kategorie!
-            .limit(1)
-            .single();
+            .eq('product_code', prawteinName.trim())
+            .eq('category', 'PRAWTEIN® – superpotravinové směsi')
+            .limit(1);
           
-          if (!result2.error && result2.data) {
-            product = result2.data;
+          if (!result1.error && result1.data && result1.data.length > 0) {
+            product = result1.data[0];
+          }
+          
+          // Fallback: hledáme bez filtru kategorie
+          if (!product) {
+            const result2 = await supabase
+              .from('product_feed_2')
+              .select('product_code, product_name, category, url, thumbnail')
+              .eq('product_code', prawteinName.trim())
+              .limit(1);
+            
+            if (!result2.error && result2.data && result2.data.length > 0) {
+              product = result2.data[0];
+            }
+          }
+        } else {
+          // Textové hledání: Pokus 1 - S prefixem "PRAWTEIN "
+          const result1 = await supabase
+            .from('product_feed_2')
+            .select('product_code, product_name, category, url, thumbnail')
+            .ilike('product_name', `%PRAWTEIN ${prawteinName}%`)
+            .eq('category', 'PRAWTEIN® – superpotravinové směsi')
+            .limit(1);
+          
+          if (!result1.error && result1.data && result1.data.length > 0) {
+            product = result1.data[0];
           } else {
-            error = result2.error;
+            // Pokus 2: Bez prefixu (fallback)
+            const result2 = await supabase
+              .from('product_feed_2')
+              .select('product_code, product_name, category, url, thumbnail')
+              .ilike('product_name', `%${prawteinName}%`)
+              .eq('category', 'PRAWTEIN® – superpotravinové směsi')
+              .limit(1);
+            
+            if (!result2.error && result2.data && result2.data.length > 0) {
+              product = result2.data[0];
+            }
           }
         }
         
@@ -486,23 +507,57 @@ export async function getEOProductsForProblem(
       return [];
     }
     
-    console.log('🔍 EO názvy k vyhledání:', eoNames);
+    console.log('🔍 EO názvy/kódy k vyhledání:', eoNames);
     
     const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
     
     for (const eoName of eoNames) {
       try {
-        // ✅ KLÍČOVÉ: Hledáme POUZE v kategorii "Směsi esenciálních olejů"
-        // Protože stejný název může existovat ve více kategoriích (COLDET olej vs COLDET Plus tělový olej)
-        const { data: product, error } = await supabase
-          .from('product_feed_2')
-          .select('product_code, product_name, category, url, thumbnail')
-          .ilike('product_name', `%${eoName}%`)
-          .eq('category', 'Směsi esenciálních olejů')  // 🔑 Filtr přímo v dotazu!
-          .limit(1)
-          .single();
+        let product = null;
+
+        // Zkusíme nejprve přímé hledání podle product_code (pro číselné kódy jako "758", "2687")
+        const isNumeric = /^\d+$/.test(eoName.trim());
         
-        if (!error && product) {
+        if (isNumeric) {
+          // Hledáme přesně podle product_code
+          const result = await supabase
+            .from('product_feed_2')
+            .select('product_code, product_name, category, url, thumbnail')
+            .eq('product_code', eoName.trim())
+            .eq('category', 'Směsi esenciálních olejů')
+            .limit(1);
+          
+          if (!result.error && result.data && result.data.length > 0) {
+            product = result.data[0];
+          }
+          
+          // Fallback: hledáme bez filtru kategorie (pro případ jiné kategorie)
+          if (!product) {
+            const result2 = await supabase
+              .from('product_feed_2')
+              .select('product_code, product_name, category, url, thumbnail')
+              .eq('product_code', eoName.trim())
+              .limit(1);
+            
+            if (!result2.error && result2.data && result2.data.length > 0) {
+              product = result2.data[0];
+            }
+          }
+        } else {
+          // Textové hledání podle product_name pouze v kategorii EO směsi
+          const result = await supabase
+            .from('product_feed_2')
+            .select('product_code, product_name, category, url, thumbnail')
+            .ilike('product_name', `%${eoName}%`)
+            .eq('category', 'Směsi esenciálních olejů')
+            .limit(1);
+          
+          if (!result.error && result.data && result.data.length > 0) {
+            product = result.data[0];
+          }
+        }
+        
+        if (product) {
           console.log(`✅ EO produkt přidán: ${product.product_name} (${product.category})`);
           enrichedProducts.push({
             code: product.product_code,

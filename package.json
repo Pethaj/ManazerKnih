@@ -9,18 +9,21 @@
     "dev:serve": "vite preview",
     "dev:all": "concurrently \"npm run dev:watch\" \"npm run dev:serve\"",
     "build": "vite build && cp -r public/widgets dist/ && echo '✅ Widgets zkopírovány do dist/widgets/'",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "feed-agent": "npx tsx src/feedAgent/feedAgentCLI.ts",
+    "feed-agent:ask": "npx tsx src/feedAgent/feedAgentCLI.ts"
   },
   "dependencies": {
     "@google/genai": "0.14.0",
     "@langchain/community": "^0.3.54",
-    "@langchain/core": "^0.3.74",
+    "@langchain/core": "^0.3.80",
     "@langchain/openai": "^0.6.11",
     "@supabase/supabase-js": "^2.57.4",
     "@types/jszip": "^3.4.0",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^12.23.26",
     "jszip": "^3.10.1",
+    "langchain": "^1.2.25",
     "pdfjs-dist": "4.4.168",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -36,7 +39,9 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.1.4",
     "concurrently": "^9.2.1",
+    "dotenv": "^17.3.1",
     "shadcn": "^3.5.2",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

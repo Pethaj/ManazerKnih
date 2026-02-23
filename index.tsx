@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // Removed GoogleGenAI import - using direct fetch API calls instead
 // PDF.js je načten globálně z HTML (legacy build) - není třeba importovat
 import ChatWidget from './src/components/SanaChat/ChatWidget';
@@ -15,6 +16,8 @@ import { ProfileSettings } from './src/components/ProfileSettings';
 import { logout, User } from './src/services/customAuthService';
 // Import centrálního Supabase klienta
 import { supabase as supabaseClient, supabaseUrl, supabaseKey } from './src/lib/supabase';
+// Feed Agent
+import FeedAgentPage from './src/pages/FeedAgentPage';
 
 // PDF.js worker je již nastaven v index.html - neměníme ho zde
 
@@ -8426,14 +8429,48 @@ const styles: { [key: string]: React.CSSProperties } = {
 const root = createRoot(document.getElementById('root')!);
 root.render(
   <React.StrictMode>
-    <AuthGuard>
-      {(currentUser) => (
-        <>
-          <App currentUser={currentUser} />
-          <ChatWidget currentUser={currentUser} />
-        </>
-      )}
-    </AuthGuard>
+    <BrowserRouter>
+      <Routes>
+        {/* Feed Agent - samostatná testovací stránka */}
+        <Route path="/feed-agent" element={<FeedAgentPage />} />
+
+        {/* Reset hesla */}
+        <Route path="/reset-password" element={
+          <AuthGuard>
+            {(currentUser) => (
+              <>
+                <App currentUser={currentUser} />
+                <ChatWidget currentUser={currentUser} />
+              </>
+            )}
+          </AuthGuard>
+        } />
+
+        {/* Embed Wany Chat */}
+        <Route path="/embed/vany-chat" element={
+          <AuthGuard>
+            {(currentUser) => (
+              <>
+                <App currentUser={currentUser} />
+                <ChatWidget currentUser={currentUser} />
+              </>
+            )}
+          </AuthGuard>
+        } />
+
+        {/* Hlavní aplikace */}
+        <Route path="/*" element={
+          <AuthGuard>
+            {(currentUser) => (
+              <>
+                <App currentUser={currentUser} />
+                <ChatWidget currentUser={currentUser} />
+              </>
+            )}
+          </AuthGuard>
+        } />
+      </Routes>
+    </BrowserRouter>
   </React.StrictMode>
 );
 // Test function for new iLovePDF processing

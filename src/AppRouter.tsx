@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import EmbedVanyChat from './pages/EmbedVanyChat';
+import EmbedUniversalChat from './pages/EmbedUniversalChat';
+import FeedAgentPage from './pages/FeedAgentPage';
 
 // Import hlavní App komponenty z main.tsx
 // POZNÁMKA: Toto bude potřeba upravit podle skutečné struktury
@@ -24,6 +26,12 @@ export default function AppRouter({ MainApp }: AppRouterProps) {
                 
                 {/* Embed Wany Chat - pro vložení do iframe na webech klientů */}
                 <Route path="/embed/vany-chat" element={<EmbedVanyChat />} />
+
+                {/* Embed Universal Chat - univerzální chatbot pro klienty */}
+                <Route path="/embed/universal-chat" element={<EmbedUniversalChat />} />
+
+                {/* Feed Agent - testovací stránka pro produktového agenta */}
+                <Route path="/feed-agent" element={<FeedAgentPage />} />
                 
                 {/* Hlavní aplikace */}
                 <Route path="/" element={<MainApp />} />

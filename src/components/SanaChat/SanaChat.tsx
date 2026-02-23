@@ -135,6 +135,7 @@ interface ChatMessage {
   // 🔍 Problem Selection Form (pro EO Směsi Chat - mezikrok)
   requiresProblemSelection?: boolean;  // Flag: zobrazit formulář pro výběr problému?
   uncertainProblems?: string[];        // Seznam problémů k výběru
+  hideProductCallout?: boolean;        // Skryje "Související produkty BEWIT" callout (produkty jsou jen jako pills v textu)
 }
 
 // Rozhraní pro metadata filtrace
@@ -644,6 +645,155 @@ const SourcePill: React.FC<{ source: Source }> = ({ source }) => (
     </a>
 );
 
+// Tlačítko "Chci o produktech vědět víc" - pošle produkty do EO Směsi chatu a zobrazí odpověď v chatu
+const EoSmesiLearnMoreButton: React.FC<{
+    matchedProducts: any[];
+    sessionId?: string;
+    onAddMessage?: (message: ChatMessage) => void;
+}> = ({ matchedProducts, sessionId, onAddMessage }) => {
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [isDone, setIsDone] = React.useState(false);
+
+    const handleClick = async () => {
+        if (isLoading || isDone) return;
+        setIsLoading(true);
+        try {
+            const productNames = matchedProducts
+                .map((p: any) => p.product_name || p.productName)
+                .filter(Boolean)
+                .join(', ');
+            const chatInput = `najdi mi informace k těmto produktům: ${productNames}. Odpověz v češtině.`;
+
+            let userData = { id: '', email: '', firstName: '', lastName: '', role: '', tokenEshop: '' };
+            try {
+                const stored = localStorage.getItem('BEWIT_USER_DATA');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    userData = {
+                        id: String(parsed.id || ''),
+                        email: parsed.email || '',
+                        firstName: parsed.firstName || '',
+                        lastName: parsed.lastName || '',
+                        role: parsed.position || '',
+                        tokenEshop: parsed.tokenEshop || ''
+                    };
+                }
+            } catch (_e) {}
+
+            const EO_SMESI_WEBHOOK = 'https://n8n.srv980546.hstgr.cloud/webhook/20826009-b007-46b2-8d90-0c461113d263/chat';
+            const payload = {
+                sessionId: sessionId || '',
+                action: 'sendMessage',
+                chatInput,
+                chatHistory: [],
+                intent: 'chat',
+                metadata: {
+                    categories: ['CnC', 'EO_Smesi', 'Prawteiny', 'Wany'],
+                    publication_types: ['internal_bewit', 'public_clients', 'students']
+                },
+                user: userData
+            };
+
+            const response = await fetch(EO_SMESI_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            const botText: string = data.output || data.text || data.message || '';
+
+            if (onAddMessage && botText) {
+                // Extrahujeme matchedProducts z odpovědi webhooku (pokud jsou)
+                const webhookMatchedProducts: any[] = data.matchedProducts || [];
+
+                // Sloučíme produkty z calloutu s produkty z webhooku (bez duplicit)
+                const calloutProductCodes = new Set(
+                    matchedProducts.map((p: any) => p.product_code).filter(Boolean)
+                );
+                const mergedProducts = [
+                    ...matchedProducts,
+                    ...webhookMatchedProducts.filter(
+                        (p: any) => !calloutProductCodes.has(p.product_code)
+                    )
+                ];
+
+                // Injektujeme <<<PRODUCT:>>> markery za první řádek obsahující jméno produktu.
+                // N8N text: "## 2. PRAWTEIN Mig", "3. Best Friend Esenciální Olej" atd.
+                // DB jméno: "PRAWTEIN Mig", "Best friend esenciální olej" atd.
+                // Strategie: hledáme řádek kde se nachází VŠECHNA slova z DB názvu (case-insensitive, min. 3 znaky)
+                let enrichedText = botText;
+                for (const product of mergedProducts) {
+                    if (!product.product_name || !product.product_code || !product.url) continue;
+                    const marker = `\n<<<PRODUCT:${product.product_code}|||${product.url}|||${product.product_name}|||${product.pinyin_name || product.product_name}>>>`;
+                    
+                    // Všechna slova z názvu produktu (min. 3 znaky) jako lookahead podmínky
+                    const words = product.product_name
+                        .split(/\s+/)
+                        .filter((w: string) => w.length >= 3)
+                        .map((w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                    
+                    if (words.length === 0) continue;
+                    
+                    // Každé slovo musí být přítomno na řádku (lookahead, case-insensitive)
+                    const lookaheads = words.map((w: string) => `(?=[^\\n]*${w})`).join('');
+                    const headingRegex = new RegExp(`(^${lookaheads}[^\\n]*)$`, 'im');
+                    
+                    enrichedText = enrichedText.replace(headingRegex, `$1${marker}`);
+                }
+
+                const botMessage: ChatMessage = {
+                    id: `eo-smesi-${Date.now()}`,
+                    role: 'bot',
+                    text: `> *Informace z EO Směsi chatu*\n\n${enrichedText}`,
+                    sources: data.sources || [],
+                    matchedProducts: mergedProducts,
+                    hasCallout: false,
+                    hideProductCallout: true,
+                };
+                onAddMessage(botMessage);
+                setIsDone(true);
+            } else if (!botText) {
+                console.warn('EO Směsi webhook vrátil prázdnou odpověď');
+            }
+        } catch (err) {
+            console.error('EO Směsi webhook error:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="mt-4 pt-4 border-t border-blue-200">
+            <button
+                onClick={handleClick}
+                disabled={isLoading || isDone}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-bewit-blue text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
+            >
+                {isLoading ? (
+                    <>
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        <span>Hledám informace...</span>
+                    </>
+                ) : isDone ? (
+                    <>
+                        <span>✓</span>
+                        <span>Informace zobrazeny níže</span>
+                    </>
+                ) : (
+                    <>
+                        <span>🔍</span>
+                        <span>Chci o produktech vědět víc</span>
+                    </>
+                )}
+            </button>
+        </div>
+    );
+};
+
 // 🆕 Komponenta pro inline produktové tlačítko (ChatGPT style)
 const ProductPill: React.FC<{ 
     productName: string; 
@@ -739,7 +889,8 @@ const Message: React.FC<{
     recommendedProducts?: RecommendedProduct[];  // Produkty extrahované z historie
     chatHistory?: Array<{ id: string; role: string; text: string; }>;  // Historie konverzace
     metadata?: { categories: string[]; labels: string[]; publication_types: string[]; };  // Metadata
-}> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] } }) => {
+    onAddMessage?: (message: ChatMessage) => void;  // Callback pro přidání nové zprávy (EO Směsi "vědět víc")
+}> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] }, onAddMessage }) => {
     const isUser = message.role === 'user';
     const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi a Wany.Chat Local používají markdown
     
@@ -848,9 +999,10 @@ const Message: React.FC<{
         const loadEnrichedProducts = async () => {
             // Načíst pouze pokud:
             // 1. Je to bot zpráva
-            // 2. Jsou zapnuté inline product links
+            // 2. Jsou zapnuté inline product links NEBO je to EO Směsi chat (produkty se zobrazují jako pills vždy)
             // 3. Zpráva obsahuje matchedProducts
-            if (message.role !== 'bot' || !chatbotSettings?.inline_product_links || !message.matchedProducts) {
+            const isEoSmesiChat = chatbotId === 'eo_smesi';
+            if (message.role !== 'bot' || (!chatbotSettings?.inline_product_links && !isEoSmesiChat) || !message.matchedProducts) {
                 return;
             }
             
@@ -1209,13 +1361,14 @@ const Message: React.FC<{
             // Product button - parsujeme data z markeru
             const [, productCode, productUrl, productName, productPinyin] = match;
             segments.push(
-                <ProductPill
-                    key={`product-${segmentIndex}`}
-                    productName={productName}
-                    pinyinName={productPinyin}
-                    url={productUrl}
-                    token={token}
-                />
+                <div key={`product-${segmentIndex}`} className="my-1.5">
+                    <ProductPill
+                        productName={productName}
+                        pinyinName={productPinyin}
+                        url={productUrl}
+                        token={token}
+                    />
+                </div>
             );
             
             lastIndex = matchEnd;
@@ -1394,8 +1547,28 @@ const Message: React.FC<{
                         />
                     )}
                     
-                    {/* 🌿 EO SMĚSI: Související produkty BEWIT (pokud nejsou product markery v textu) */}
-                    {!isUser && usesMarkdown && !message.text?.includes('<<<PRODUCT:') && enrichedProducts.length > 0 && (
+                    {/* 🌿 EO SMĚSI: N8N odpověď "vědět víc" - produkty jako jednoduché pills bez callout boxu */}
+                    {!isUser && usesMarkdown && message.hideProductCallout && !message.text?.includes('<<<PRODUCT:') && enrichedProducts.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {(() => {
+                                const filteredProducts = chatbotId === 'eo_smesi'
+                                    ? enrichedProducts.filter(p => !p.category?.includes('TČM') && !p.category?.includes('Tradiční čínská medicína'))
+                                    : enrichedProducts;
+                                return filteredProducts.map((product, index) => (
+                                    <ProductPill
+                                        key={index}
+                                        productName={product.product_name}
+                                        pinyinName={product.description || product.product_name}
+                                        url={product.url || ''}
+                                        token={token}
+                                    />
+                                ));
+                            })()}
+                        </div>
+                    )}
+
+                    {/* 🌿 EO SMĚSI: Callout box "Související produkty BEWIT" - pouze pro první odpověď (bez hideProductCallout) */}
+                    {!isUser && usesMarkdown && !message.hideProductCallout && !message.text?.includes('<<<PRODUCT:') && enrichedProducts.length > 0 && (
                         <div className="mt-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
                             <h4 className="text-sm font-semibold text-bewit-blue mb-3 flex items-center gap-2">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1474,6 +1647,15 @@ const Message: React.FC<{
                                     </div>
                                 </div>
                             )}
+
+                            {/* Tlačítko "Chci o produktech vědět víc" - pouze pro EO Směsi chat a pouze pokud nejde o odpověď n8n */}
+                            {chatbotId === 'eo_smesi' && !message.hideProductCallout && (
+                                <EoSmesiLearnMoreButton
+                                    matchedProducts={enrichedProducts}
+                                    sessionId={sessionId}
+                                    onAddMessage={onAddMessage}
+                                />
+                            )}
                         </div>
                     )}
                     
@@ -1528,7 +1710,7 @@ const Message: React.FC<{
                                     </p>
                                 </div>
                                 
-                                {/* 🆕 Aloe/Merkaba doporučení na spodku calloutu */}
+                                {/* Aloe/Merkaba doporučení na spodku calloutu */}
                                 {chatbotSettings?.enable_product_pairing && message.pairingInfo && (message.pairingInfo.aloe || message.pairingInfo.merkaba) && (
                                     <div className="mt-3 pt-3 border-t border-amber-200">
                                         <p className="text-xs font-medium text-amber-700 mb-2">Doplňkové doporučení:</p>
@@ -1548,6 +1730,13 @@ const Message: React.FC<{
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Tlačítko "Chci o produktech vědět víc" - vždy zobrazeno pod calloutem */}
+                                <EoSmesiLearnMoreButton
+                                    matchedProducts={message.matchedProducts || []}
+                                    sessionId={sessionId}
+                                    onAddMessage={onAddMessage}
+                                />
                             </div>
                         )
                         }
@@ -1614,7 +1803,8 @@ const ChatWindow: React.FC<{
     selectedCategories?: string[];  // 🆕 Pro manuální funnel metadata
     selectedLabels?: string[];      // 🆕 Pro manuální funnel metadata
     selectedPublicationTypes?: string[];  // 🆕 Pro manuální funnel metadata
-}> = ({ messages, isLoading, onSilentPrompt, onProblemSelect, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [] }) => {
+    onAddMessage?: (message: ChatMessage) => void;  // Callback pro přidání zprávy z EO Směsi "vědět víc"
+}> = ({ messages, isLoading, onSilentPrompt, onProblemSelect, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [], onAddMessage }) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -1729,6 +1919,7 @@ const ChatWindow: React.FC<{
                                 labels: selectedLabels,
                                 publication_types: selectedPublicationTypes
                             }}
+                            onAddMessage={onAddMessage}
                         />
                     );
                 })}
@@ -2103,7 +2294,10 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             // ═══════════════════════════════════════════════════════════════
             // 🌿 EO SMĚSI CHAT WORKFLOW - ZPRACOVÁNÍ VIA eoSmesiWorkflowService
             // ═══════════════════════════════════════════════════════════════
-            if (chatbotId === 'eo_smesi') {
+            // Pokud v historii je již EO Směsi "Chci vědět víc" odpověď,
+            // přeskočíme EO Směsi flow a chatujeme přímo přes webhook (bez nového calloutu)
+            const hasEoSmesiLearnMoreResponse = messages.some(m => m.hideProductCallout === true);
+            if (chatbotId === 'eo_smesi' && !hasEoSmesiLearnMoreResponse) {
                 try {
                     const eoSmesiResult = await processEoSmesiQuery(text.trim(), sessionId);
                     
@@ -2734,8 +2928,9 @@ Symptomy zákazníka: ${symptomsList}
                     };
                 }
                 
-                // 🆕 Detekce calloutu - pokud máme více než 2 produkty, zobraz callout
-                const shouldShowCallout = (webhookResult.matchedProducts?.length || 0) > 2;
+                // Detekce calloutu - pokud máme více než 2 produkty, zobraz callout
+                // Ale pokud v historii je EO Směsi "Chci vědět víc" odpověď, callout se nezobrazí
+                const shouldShowCallout = !hasEoSmesiLearnMoreResponse && (webhookResult.matchedProducts?.length || 0) > 2;
                 
                 console.log(`🟡 Callout detekce: ${webhookResult.matchedProducts?.length || 0} produktů → callout = ${shouldShowCallout ? 'ANO' : 'NE'}`);
                 
@@ -2949,6 +3144,19 @@ Symptomy zákazníka: ${symptomsList}
         }
     }, [sessionId, messages, selectedLanguage, selectedCategories, selectedLabels, selectedPublicationTypes, summarizedHistory, chatbotSettings.summarize_history]);
 
+    const handleAddMessage = useCallback((message: ChatMessage) => {
+        setMessages(prev => [...prev, message]);
+        // Pokud je zapnutá sumarizace, přidáme EO Směsi odpověď do summarizedHistoryRef
+        if (chatbotSettings.summarize_history && message.role === 'bot' && message.text) {
+            createSimpleSummary('Chci o produktech vědět víc', message.text).then(summary => {
+                if (summary) {
+                    summarizedHistoryRef.current = [...summarizedHistoryRef.current, summary];
+                    setSummarizedHistory(prev => [...prev, summary]);
+                }
+            });
+        }
+    }, [chatbotSettings.summarize_history]);
+
     const handleNewChat = useCallback(() => {
         setMessages([]);
         setSummarizedHistory([]);  // 🆕 Vyčistíme i sumarizace
@@ -3000,6 +3208,7 @@ Symptomy zákazníka: ${symptomsList}
                         selectedCategories={selectedCategories}
                         selectedLabels={selectedLabels}
                         selectedPublicationTypes={selectedPublicationTypes}
+                        onAddMessage={handleAddMessage}
                      />
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
@@ -3046,6 +3255,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
     // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
     const summarizedHistoryRef = useRef<string[]>([]);
+
+    // Token z externalUserInfo pro prokliknutí produktů
+    const userToken = externalUserInfo?.token_eshop;
 
     useEffect(() => {
         setSessionId(generateSessionId());
@@ -3305,8 +3517,10 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     };
                 }
                 
-                // 🆕 Detekce calloutu - pokud máme více než 2 produkty, zobraz callout
-                const shouldShowCallout = (webhookResult.matchedProducts?.length || 0) > 2;
+                // Detekce calloutu - pokud máme více než 2 produkty, zobraz callout
+                // Ale pokud v historii je EO Směsi "Chci vědět víc" odpověď, callout se nezobrazí
+                const hasEoSmesiLearnMoreResponse = messages.some(m => m.hideProductCallout === true);
+                const shouldShowCallout = !hasEoSmesiLearnMoreResponse && (webhookResult.matchedProducts?.length || 0) > 2;
                 
                 console.log(`🟡 Callout detekce: ${webhookResult.matchedProducts?.length || 0} produktů → callout = ${shouldShowCallout ? 'ANO' : 'NE'}`);
                 
@@ -3504,6 +3718,19 @@ const SanaChat: React.FC<SanaChatProps> = ({
         }
     }, [sessionId, messages, selectedLanguage, selectedCategories, selectedLabels, selectedPublicationTypes, currentUser, summarizedHistory, settings.summarize_history]);
 
+    const handleAddMessage = useCallback((message: ChatMessage) => {
+        setMessages(prev => [...prev, message]);
+        // Pokud je zapnutá sumarizace, přidáme EO Směsi odpověď do summarizedHistoryRef
+        if (chatbotSettings.summarize_history && message.role === 'bot' && message.text) {
+            createSimpleSummary('Chci o produktech vědět víc', message.text).then(summary => {
+                if (summary) {
+                    summarizedHistoryRef.current = [...summarizedHistoryRef.current, summary];
+                    setSummarizedHistory(prev => [...prev, summary]);
+                }
+            });
+        }
+    }, [chatbotSettings.summarize_history]);
+
     const handleNewChat = useCallback(() => {
         setMessages([]);
         setSummarizedHistory([]);  // 🆕 Vyčistíme i sumarizace
@@ -3575,6 +3802,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                                 selectedCategories={selectedCategories}
                                 selectedLabels={selectedLabels}
                                 selectedPublicationTypes={selectedPublicationTypes}
+                                onAddMessage={handleAddMessage}
                              />
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">

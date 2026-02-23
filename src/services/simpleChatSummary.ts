@@ -31,7 +31,7 @@ export async function createSimpleSummary(
     const shortAnswer = cleanAnswer.substring(0, 5000);
 
     // Prompt pro sumarizaci
-    const userPrompt = `Vytvoř krátkou sumarizaci (max 150 slov) této konverzace. Zaměř se na hlavní body a důležité informace pro zákazníka.
+    const userPrompt = `Vytvoř krátkou sumarizaci (max 200 slov) této konverzace. Zaměř se na hlavní body a důležité informace pro zákazníka. DŮLEŽITÉ: Sumarizaci musíš vždy dokončit celou, nepřerušuj věty.
 
 OTÁZKA ZÁKAZNÍKA:
 ${shortQuestion}
@@ -39,7 +39,7 @@ ${shortQuestion}
 ODPOVĚĎ:
 ${shortAnswer}
 
-SUMARIZACE (max 150 slov):`;
+SUMARIZACE (max 200 slov):`;
 
 
     // Volání přes Supabase Edge Function
@@ -49,11 +49,11 @@ SUMARIZACE (max 150 slov):`;
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        systemPrompt: 'Jsi expert na sumarizaci konverzací. Vytváříš stručné a přesné sumarizace.',
+        systemPrompt: 'Jsi expert na sumarizaci konverzací. Vytváříš stručné a přesné sumarizace. Vždy dokončíš celou sumarizaci bez přerušení.',
         userPrompt: userPrompt,
         model: 'mistralai/mistral-7b-instruct',
         temperature: 0.3,
-        maxTokens: 300
+        maxTokens: 600
       })
     });
 
