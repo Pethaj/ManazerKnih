@@ -94,7 +94,8 @@ const EmbedUniversalChat = () => {
         if (error || !data) {
           setChatbotSettings({
             chatbot_id: 'universal_chat',
-            n8n_webhook_url: 'https://n8n.srv980546.hstgr.cloud/webhook/ca8f84c6-f3af-4a98-ae34-f8b1e031a481/chat',
+            webhook_url: 'https://n8n.srv980546.hstgr.cloud/webhook/ca8f84c6-f3af-4a98-ae34-f8b1e031a481/chat',
+            book_database: true,
             system_prompt: 'Jsi univerzální AI asistent. Pomáháš uživatelům s jejich dotazy.',
             name: 'Chatbot Universal',
             description: 'Univerzální AI chatbot'
@@ -109,7 +110,8 @@ const EmbedUniversalChat = () => {
       } catch (err) {
         setChatbotSettings({
           chatbot_id: 'universal_chat',
-          n8n_webhook_url: 'https://n8n.srv980546.hstgr.cloud/webhook/ca8f84c6-f3af-4a98-ae34-f8b1e031a481/chat',
+          webhook_url: 'https://n8n.srv980546.hstgr.cloud/webhook/ca8f84c6-f3af-4a98-ae34-f8b1e031a481/chat',
+          book_database: true,
           system_prompt: 'Jsi univerzální AI asistent. Pomáháš uživatelům s jejich dotazy.',
           name: 'Chatbot Universal',
           description: 'Univerzální AI chatbot'

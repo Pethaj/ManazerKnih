@@ -169,6 +169,7 @@ interface SanaChatProps {
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   onClose?: () => void;
+  onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
   externalUserInfo?: {  // 🆕 External user data z iframe embedu
     external_user_id?: string;
     first_name?: string;
@@ -650,7 +651,8 @@ const EoSmesiLearnMoreButton: React.FC<{
     matchedProducts: any[];
     sessionId?: string;
     onAddMessage?: (message: ChatMessage) => void;
-}> = ({ matchedProducts, sessionId, onAddMessage }) => {
+    onSwitchToUniversal?: () => void;
+}> = ({ matchedProducts, sessionId, onAddMessage, onSwitchToUniversal }) => {
     const [isLoading, setIsLoading] = React.useState(false);
     const [isDone, setIsDone] = React.useState(false);
 
@@ -718,29 +720,61 @@ const EoSmesiLearnMoreButton: React.FC<{
                     )
                 ];
 
-                // Injektujeme <<<PRODUCT:>>> markery za první řádek obsahující jméno produktu.
-                // N8N text: "## 2. PRAWTEIN Mig", "3. Best Friend Esenciální Olej" atd.
-                // DB jméno: "PRAWTEIN Mig", "Best friend esenciální olej" atd.
-                // Strategie: hledáme řádek kde se nachází VŠECHNA slova z DB názvu (case-insensitive, min. 3 znaky)
+                // Injektujeme <<<PRODUCT:>>> markery za nadpisy produktů v textu.
+                // N8N text může mít nadpisy: "### 1. Nopa Nr", "**Frankincense Quattuor**", "3. PRAWTEIN Mig" atd.
+                // N8N často zkracuje název (např. "Nopa Nr esenciální olej" → nadpis "1. Nopa Nr")
+                // Proto: hledáme POUZE v nadpisových řádcích a matchujeme nejdistinktivnější slova produktu.
+                // Logika: nadpis musí obsahovat aspoň 1 slovo z DB názvu (min. 4 znaky), které není obecné.
+                // Obecná slova která ignorujeme: "olej", "esenciální", "směs", "směsi", "plus"
+                const GENERIC_WORDS = new Set(['olej', 'esencialni', 'smesi', 'smes', 'plus', 'esenciální']);
+
                 let enrichedText = botText;
-                for (const product of mergedProducts) {
-                    if (!product.product_name || !product.product_code || !product.url) continue;
-                    const marker = `\n<<<PRODUCT:${product.product_code}|||${product.url}|||${product.product_name}|||${product.pinyin_name || product.product_name}>>>`;
-                    
-                    // Všechna slova z názvu produktu (min. 3 znaky) jako lookahead podmínky
-                    const words = product.product_name
-                        .split(/\s+/)
-                        .filter((w: string) => w.length >= 3)
-                        .map((w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-                    
-                    if (words.length === 0) continue;
-                    
-                    // Každé slovo musí být přítomno na řádku (lookahead, case-insensitive)
-                    const lookaheads = words.map((w: string) => `(?=[^\\n]*${w})`).join('');
-                    const headingRegex = new RegExp(`(^${lookaheads}[^\\n]*)$`, 'im');
-                    
-                    enrichedText = enrichedText.replace(headingRegex, `$1${marker}`);
+                const lines = enrichedText.split('\n');
+                const resultLines: string[] = [];
+                const usedProductCodes = new Set<string>(); // každý produkt max jednou
+
+                for (const line of lines) {
+                    // Detekujeme zda jde o nadpisový řádek
+                    const isHeading = /^#{1,4}\s/.test(line)         // ## Nadpis
+                        || /^\*\*[^*]+\*\*\s*$/.test(line.trim())   // **Nadpis**
+                        || /^\d+\.\s+\S/.test(line);                 // 1. Nadpis
+
+                    resultLines.push(line);
+
+                    if (!isHeading) continue;
+
+                    const lineLower = line.toLowerCase();
+
+                    // Pro každý produkt zkontrolujeme zda jeho distinktivní slova jsou v nadpisu
+                    for (const product of mergedProducts) {
+                        if (!product.product_name || !product.product_code || !product.url) continue;
+                        if (usedProductCodes.has(product.product_code)) continue;
+
+                        // Distinktivní slova: vše >= 4 znaky, co není obecné
+                        const distinctWords = product.product_name
+                            .split(/\s+/)
+                            .filter((w: string) => {
+                                const wl = w.toLowerCase().replace(/[^a-záčďéěíňóřšťůúýž]/g, '');
+                                return wl.length >= 4 && !GENERIC_WORDS.has(wl);
+                            });
+
+                        if (distinctWords.length === 0) continue;
+
+                        // Nadpis musí obsahovat VŠECHNA distinktivní slova
+                        const allDistinctPresent = distinctWords.every((w: string) =>
+                            lineLower.includes(w.toLowerCase())
+                        );
+
+                        if (allDistinctPresent) {
+                            const marker = `<<<PRODUCT:${product.product_code}|||${product.url}|||${product.product_name}|||${product.pinyin_name || product.product_name}>>>`;
+                            resultLines.push(marker);
+                            usedProductCodes.add(product.product_code);
+                            break;
+                        }
+                    }
                 }
+
+                enrichedText = resultLines.join('\n');
 
                 const botMessage: ChatMessage = {
                     id: `eo-smesi-${Date.now()}`,
@@ -764,7 +798,7 @@ const EoSmesiLearnMoreButton: React.FC<{
     };
 
     return (
-        <div className="mt-4 pt-4 border-t border-blue-200">
+        <div className="mt-4 pt-4 border-t border-blue-200 flex flex-wrap gap-2">
             <button
                 onClick={handleClick}
                 disabled={isLoading || isDone}
@@ -790,6 +824,15 @@ const EoSmesiLearnMoreButton: React.FC<{
                     </>
                 )}
             </button>
+            {onSwitchToUniversal && (
+                <button
+                    onClick={onSwitchToUniversal}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all duration-200"
+                >
+                    <span>🧑‍💼</span>
+                    <span>Poradce</span>
+                </button>
+            )}
         </div>
     );
 };
@@ -890,9 +933,10 @@ const Message: React.FC<{
     chatHistory?: Array<{ id: string; role: string; text: string; }>;  // Historie konverzace
     metadata?: { categories: string[]; labels: string[]; publication_types: string[]; };  // Metadata
     onAddMessage?: (message: ChatMessage) => void;  // Callback pro přidání nové zprávy (EO Směsi "vědět víc")
-}> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] }, onAddMessage }) => {
+    onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
+}> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] }, onAddMessage, onSwitchToUniversal }) => {
     const isUser = message.role === 'user';
-    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi a Wany.Chat Local používají markdown
+    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local' || chatbotId === 'universal_chat';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi, Wany.Chat Local a Universal Chat používají markdown
     
     // 🆕 State pro obohacené produkty (obsahují category pro seskupení v ProductPills)
     const [enrichedProducts, setEnrichedProducts] = useState<RecommendedProduct[]>([]);
@@ -1105,7 +1149,8 @@ const Message: React.FC<{
                 const textSegment = text.substring(lastIndex, matchStart);
                 
                 // 🆕 Pokud máme produkty a ještě jsme je nevložili, zkontroluj, jestli jsme za prvním odstavcem
-                if (!productsSectionInserted && allProducts.length > 0 && insertProductsSectionAt > 0 && lastIndex <= insertProductsSectionAt && matchStart > insertProductsSectionAt) {
+                // Pro n8n "vědět víc" odpovědi (hideProductCallout) sekci produktů NEZOBRAZUJEME - pills jsou přímo v textu
+                if (!productsSectionInserted && allProducts.length > 0 && !message.hideProductCallout && insertProductsSectionAt > 0 && lastIndex <= insertProductsSectionAt && matchStart > insertProductsSectionAt) {
                     // Rozdělíme text na dvě části: před a po konci prvního odstavce
                     const beforeSection = textSegment.substring(0, insertProductsSectionAt - lastIndex);
                     const afterSection = textSegment.substring(insertProductsSectionAt - lastIndex);
@@ -1654,6 +1699,7 @@ const Message: React.FC<{
                                     matchedProducts={enrichedProducts}
                                     sessionId={sessionId}
                                     onAddMessage={onAddMessage}
+                                    onSwitchToUniversal={onSwitchToUniversal}
                                 />
                             )}
                         </div>
@@ -1736,6 +1782,7 @@ const Message: React.FC<{
                                     matchedProducts={message.matchedProducts || []}
                                     sessionId={sessionId}
                                     onAddMessage={onAddMessage}
+                                    onSwitchToUniversal={onSwitchToUniversal}
                                 />
                             </div>
                         )
@@ -1804,7 +1851,8 @@ const ChatWindow: React.FC<{
     selectedLabels?: string[];      // 🆕 Pro manuální funnel metadata
     selectedPublicationTypes?: string[];  // 🆕 Pro manuální funnel metadata
     onAddMessage?: (message: ChatMessage) => void;  // Callback pro přidání zprávy z EO Směsi "vědět víc"
-}> = ({ messages, isLoading, onSilentPrompt, onProblemSelect, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [], onAddMessage }) => {
+    onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
+}> = ({ messages, isLoading, onSilentPrompt, onProblemSelect, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [], onAddMessage, onSwitchToUniversal }) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -1920,6 +1968,7 @@ const ChatWindow: React.FC<{
                                 publication_types: selectedPublicationTypes
                             }}
                             onAddMessage={onAddMessage}
+                            onSwitchToUniversal={onSwitchToUniversal}
                         />
                     );
                 })}
@@ -2085,6 +2134,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
+    onSwitchToUniversal,
     externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -2946,6 +2996,7 @@ Symptomy zákazníka: ${symptomsList}
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
+                setShowNewChatPopup(true);
                 
                 // 💾 Uložíme PAR otázka-odpověď do historie
                 saveChatPairToHistory(
@@ -2968,13 +3019,14 @@ Symptomy zákazníka: ${symptomsList}
                 if (chatbotSettings.summarize_history) {
                     createSimpleSummary(text.trim(), webhookResult.text).then(summary => {
                         if (summary) {
-                            // Aktualizuj REF (okamžitě dostupné)
-                            summarizedHistoryRef.current = [...summarizedHistoryRef.current, summary];
+                            // Aktualizuj REF (okamžitě dostupné) - max 2 nejnovější sumarizace
+                            const updatedRef = [...summarizedHistoryRef.current, summary];
+                            summarizedHistoryRef.current = updatedRef.slice(-2);
                             
-                            // Aktualizuj STATE (pro React rendering)
+                            // Aktualizuj STATE (pro React rendering) - max 2 nejnovější
                             setSummarizedHistory(prev => {
                                 const newHistory = [...prev, summary];
-                                return newHistory;
+                                return newHistory.slice(-2);
                             });
                         }
                     }).catch(err => {
@@ -3124,12 +3176,12 @@ Symptomy zákazníka: ${symptomsList}
             };
             setMessages(prev => [...prev, botMessage]);
             
-            // 🔥 SUMARIZACE - pokud je zapnutá v nastavení
+            // 🔥 SUMARIZACE - pokud je zapnutá v nastavení - max 2 nejnovější
             if (chatbotSettings.summarize_history) {
                 const summary = await createSimpleSummary(text.trim(), botText);
                 if (summary) {
                     setSummarizedHistory(prev => {
-                        const newHistory = [...prev, summary];
+                        const newHistory = [...prev, summary].slice(-2);
                         console.log('📊 Celkem sumarizací:', newHistory.length);
                         return newHistory;
                     });
@@ -3146,12 +3198,13 @@ Symptomy zákazníka: ${symptomsList}
 
     const handleAddMessage = useCallback((message: ChatMessage) => {
         setMessages(prev => [...prev, message]);
-        // Pokud je zapnutá sumarizace, přidáme EO Směsi odpověď do summarizedHistoryRef
+        // Pokud je zapnutá sumarizace, přidáme EO Směsi odpověď do summarizedHistoryRef - max 2 nejnovější
         if (chatbotSettings.summarize_history && message.role === 'bot' && message.text) {
             createSimpleSummary('Chci o produktech vědět víc', message.text).then(summary => {
                 if (summary) {
-                    summarizedHistoryRef.current = [...summarizedHistoryRef.current, summary];
-                    setSummarizedHistory(prev => [...prev, summary]);
+                    const updatedRef = [...summarizedHistoryRef.current, summary];
+                    summarizedHistoryRef.current = updatedRef.slice(-2);
+                    setSummarizedHistory(prev => [...prev, summary].slice(-2));
                 }
             });
         }
@@ -3159,8 +3212,10 @@ Symptomy zákazníka: ${symptomsList}
 
     const handleNewChat = useCallback(() => {
         setMessages([]);
-        setSummarizedHistory([]);  // 🆕 Vyčistíme i sumarizace
+        setSummarizedHistory([]);
+        summarizedHistoryRef.current = [];
         setSessionId(generateSessionId());
+        setShowNewChatPopup(false);
         startNewChatOnAPI();
     }, []);
 
@@ -3209,12 +3264,15 @@ Symptomy zákazníka: ${symptomsList}
                         selectedLabels={selectedLabels}
                         selectedPublicationTypes={selectedPublicationTypes}
                         onAddMessage={handleAddMessage}
+                        onSwitchToUniversal={onSwitchToUniversal}
                      />
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
                     <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
                 </div>
             </main>
+
+            {/* Popup: Doporučení nového chatu - dočasně znefunkčněno */}
         </div>
     );
 };
@@ -3237,6 +3295,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
+    onSwitchToUniversal,
     externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
     // 🚨 EXTREME DIAGNOSTIKA #1 - SANACHAT WRAPPER
@@ -3537,17 +3596,18 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 
                 setMessages(prev => [...prev, botMessage]);
                 
-                // 🔥 OKAMŽITĚ vytvoříme sumarizaci AKTUÁLNÍ Q&A páru (na pozadí)
+                // 🔥 OKAMŽITĚ vytvoříme sumarizaci AKTUÁLNÍ Q&A páru (na pozadí) - max 2 nejnovější
                 if (settings.summarize_history) {
                     createSimpleSummary(text.trim(), webhookResult.text).then(summary => {
                         if (summary) {
-                            // Aktualizuj REF (okamžitě dostupné)
-                            summarizedHistoryRef.current = [...summarizedHistoryRef.current, summary];
+                            // Aktualizuj REF (okamžitě dostupné) - max 2 nejnovější
+                            const updatedRef = [...summarizedHistoryRef.current, summary];
+                            summarizedHistoryRef.current = updatedRef.slice(-2);
                             
-                            // Aktualizuj STATE (pro React rendering)
+                            // Aktualizuj STATE (pro React rendering) - max 2 nejnovější
                             setSummarizedHistory(prev => {
                                 const newHistory = [...prev, summary];
-                                return newHistory;
+                                return newHistory.slice(-2);
                             });
                         }
                     }).catch(err => {
@@ -3698,12 +3758,12 @@ const SanaChat: React.FC<SanaChatProps> = ({
             };
             setMessages(prev => [...prev, botMessage]);
             
-            // 🔥 SUMARIZACE - pokud je zapnutá v nastavení
+            // 🔥 SUMARIZACE - pokud je zapnutá v nastavení - max 2 nejnovější
             if (settings.summarize_history) {
                 const summary = await createSimpleSummary(text.trim(), botText);
                 if (summary) {
                     setSummarizedHistory(prev => {
-                        const newHistory = [...prev, summary];
+                        const newHistory = [...prev, summary].slice(-2);
                         console.log('📊 Celkem sumarizací:', newHistory.length);
                         return newHistory;
                     });
@@ -3720,12 +3780,13 @@ const SanaChat: React.FC<SanaChatProps> = ({
 
     const handleAddMessage = useCallback((message: ChatMessage) => {
         setMessages(prev => [...prev, message]);
-        // Pokud je zapnutá sumarizace, přidáme EO Směsi odpověď do summarizedHistoryRef
+        // Pokud je zapnutá sumarizace, přidáme EO Směsi odpověď do summarizedHistoryRef - max 2 nejnovější
         if (chatbotSettings.summarize_history && message.role === 'bot' && message.text) {
             createSimpleSummary('Chci o produktech vědět víc', message.text).then(summary => {
                 if (summary) {
-                    summarizedHistoryRef.current = [...summarizedHistoryRef.current, summary];
-                    setSummarizedHistory(prev => [...prev, summary]);
+                    const updatedRef = [...summarizedHistoryRef.current, summary];
+                    summarizedHistoryRef.current = updatedRef.slice(-2);
+                    setSummarizedHistory(prev => [...prev, summary].slice(-2));
                 }
             });
         }
@@ -3734,6 +3795,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
     const handleNewChat = useCallback(() => {
         setMessages([]);
         setSummarizedHistory([]);  // 🆕 Vyčistíme i sumarizace
+        summarizedHistoryRef.current = [];
         setSessionId(generateSessionId());
         startNewChatOnAPI();
     }, []);
@@ -3803,6 +3865,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                                 selectedLabels={selectedLabels}
                                 selectedPublicationTypes={selectedPublicationTypes}
                                 onAddMessage={handleAddMessage}
+                                onSwitchToUniversal={onSwitchToUniversal}
                              />
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
@@ -3850,6 +3913,20 @@ interface FilteredSanaChatProps {
     };
 }
 
+const UNIVERSAL_CHATBOT_SETTINGS = {
+    product_recommendations: false,
+    product_button_recommendations: false,
+    inline_product_links: false,
+    book_database: true,
+    use_feed_1: false,
+    use_feed_2: false,
+    webhook_url: 'https://n8n.srv980546.hstgr.cloud/webhook/ca8f84c6-f3af-4a98-ae34-f8b1e031a481/chat',
+    enable_product_router: false,
+    enable_manual_funnel: false,
+    summarize_history: false,
+    show_sources: false,
+};
+
 const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({ 
     currentUser,  // 🆕 Přihlášený uživatel
     chatbotSettings = { 
@@ -3880,16 +3957,33 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     
     // Uložíme nastavení do state pro správný scope v useCallback
     const [settings, setSettings] = useState(chatbotSettings);
+    // chatKey slouží pro force remount SanaChatContent (nový chat)
+    const [chatKey, setChatKey] = useState(0);
+    // activeChatbotId umožňuje přepnutí chatbota (např. na Universal)
+    const [activeChatbotId, setActiveChatbotId] = useState(chatbotId);
+    // Flag: true = uživatel přepnul na Universal, ignoruj přepsání z parenta
+    const isSwitchedToUniversal = useRef(false);
+
+    // Přepnutí na Universal chatbot - nový chat s Universal nastavením
+    const handleSwitchToUniversal = useCallback(() => {
+        isSwitchedToUniversal.current = true;
+        setSettings(UNIVERSAL_CHATBOT_SETTINGS);
+        setActiveChatbotId('universal_chat');
+        setChatKey(k => k + 1);
+    }, []);
     
     // 🔥 KRITICKÉ: Aktualizujeme settings když se chatbotSettings změní
     // Tento useEffect zajišťuje, že změny z databáze se VŽDY promítnou do chatu
+    // ALE ignorujeme přepsání pokud uživatel přepnul na Universal (isSwitchedToUniversal)
     useEffect(() => {
+        if (isSwitchedToUniversal.current) return;
         console.log('🔄 FilteredSanaChat: Aktualizuji nastavení', {
             chatbotId,
             old_settings: settings,
             new_settings: chatbotSettings
         });
         setSettings(chatbotSettings);
+        setActiveChatbotId(chatbotId);
     }, [chatbotSettings, chatbotId]);
     
     // Dostupné filtry - načtou se z databáze
@@ -4257,14 +4351,16 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                         </div>
                     ) : (
                         <SanaChatContent 
+                            key={chatKey}
                             currentUser={currentUser}
                             selectedCategories={selectedCategories}
                             selectedLabels={selectedLabels}
                             selectedPublicationTypes={selectedPublicationTypes}
                             chatbotSettings={settings}
-                            chatbotId={chatbotId}
+                            chatbotId={activeChatbotId}
                             externalUserInfo={externalUserInfo}
                             onClose={onClose}
+                            onSwitchToUniversal={handleSwitchToUniversal}
                         />
                     )}
                 </div>
