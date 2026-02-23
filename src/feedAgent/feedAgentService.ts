@@ -22,7 +22,10 @@ import {
   matchProductsByName,
   getProductByCode,
   getDatabaseStats,
+  searchProductsAutocomplete,
 } from './feedAgentTools';
+
+export { searchProductsAutocomplete };
 
 // ============================================================================
 // INTERFACES
@@ -226,6 +229,27 @@ const TOOLS = [
         properties: {}
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'suggest_products',
+      description: 'Doporučovač produktů - rychlé autocomplete vyhledávání pomocí trigram podobnosti (pg_trgm). Použij když uživatel napíše část názvu produktu a chce okamžité návrhy. Funguje i pro překlepy, zkrácené názvy a podobné výrazy (např. "nohe" najde "NOHEPA", "levand" najde "Levandule pravá"). Vrátí až 8 nejpodobnějších produktů.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Část názvu produktu nebo přibližný název, např. "nohe", "levand", "bergam"'
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximální počet návrhů (výchozí: 8)'
+          }
+        },
+        required: ['query']
+      }
+    }
   }
 ];
 
@@ -388,6 +412,15 @@ async function executeTool(toolName: string, toolArgs: any): Promise<string> {
         return `Celkem produktů: ${d.celkem_produktu} | Kategorií: ${d.celkem_kategorii}\n\nTop 10 kategorií:\n` +
           d.kategorie.slice(0, 10).map((c: any) =>
             `• ${c.category}: ${c.total} produktů (${c.available} dostupných)`
+          ).join('\n');
+      }
+
+      case 'suggest_products': {
+        const suggestions = await searchProductsAutocomplete(toolArgs.query, toolArgs.limit || 8);
+        if (suggestions.length === 0) return `Žádné návrhy pro "${toolArgs.query}".`;
+        return `Návrhy produktů pro "${toolArgs.query}" (${suggestions.length}):\n\n` +
+          suggestions.map(p =>
+            `• **${p.product_name}** (${p.product_code})${p.category ? ` | ${p.category}` : ''}${p.price ? ` | ${p.price} ${p.currency || 'CZK'}` : ''}${p.availability === 1 ? ' | ✅' : ' | ❌'}`
           ).join('\n');
       }
 

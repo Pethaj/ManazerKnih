@@ -8,7 +8,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { processFeedAgentMessage, FeedAgentMessage } from '../../feedAgent/feedAgentService';
+import { processFeedAgentMessage, FeedAgentMessage, searchProductsAutocomplete } from '../../feedAgent/feedAgentService';
+import type { AutocompleteProduct } from '../../feedAgent/feedAgentTools';
 
 // ============================================================================
 // IKONY
@@ -135,8 +136,15 @@ const FeedAgentChat: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<AutocompleteProduct[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const autocompleteDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Scroll na nejnovější zprávu
   const scrollToBottom = useCallback(() => {
@@ -147,10 +155,47 @@ const FeedAgentChat: React.FC = () => {
     scrollToBottom();
   }, [messages, isLoading, scrollToBottom]);
 
+  // Autocomplete: spustí dotaz s debounce 200ms
+  const fetchSuggestions = useCallback((query: string) => {
+    if (autocompleteDebounce.current) clearTimeout(autocompleteDebounce.current);
+    if (query.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    autocompleteDebounce.current = setTimeout(async () => {
+      const results = await searchProductsAutocomplete(query.trim(), 8);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+      setActiveSuggestion(-1);
+    }, 200);
+  }, []);
+
+  // Klik mimo dropdown → zavři
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Výběr návrhu ze seznamu
+  const handleSelectSuggestion = useCallback((product: AutocompleteProduct) => {
+    setInputValue(product.product_name);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveSuggestion(-1);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
+
   // Odeslání zprávy
   const handleSend = useCallback(async (messageText?: string) => {
     const text = messageText || inputValue.trim();
     if (!text || isLoading) return;
+    setShowSuggestions(false);
 
     const userMessage: FeedAgentMessage = {
       role: 'user',
@@ -196,13 +241,34 @@ const FeedAgentChat: React.FC = () => {
     }
   }, [inputValue, isLoading, messages]);
 
-  // Enter pro odeslání (Shift+Enter = nový řádek)
+  // Enter pro odeslání, šipky pro navigaci v dropdownu
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveSuggestion(prev => (prev + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveSuggestion(prev => (prev <= 0 ? suggestions.length - 1 : prev - 1));
+        return;
+      }
+      if (e.key === 'Enter' && activeSuggestion >= 0) {
+        e.preventDefault();
+        handleSelectSuggestion(suggestions[activeSuggestion]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowSuggestions(false);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  }, [handleSend]);
+  }, [handleSend, showSuggestions, suggestions, activeSuggestion, handleSelectSuggestion]);
 
   // Vymazání konverzace
   const handleClearChat = useCallback(() => {
@@ -215,12 +281,21 @@ const FeedAgentChat: React.FC = () => {
     ]);
   }, []);
 
-  // Auto-resize textarea
+  // Auto-resize textarea + spuštění autocomplete
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value);
+    const val = e.target.value;
+    setInputValue(val);
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-  }, []);
+    // Autocomplete pouze pro poslední "slovo" nebo celý jednořádkový vstup
+    const lastWord = val.split(/\s+/).pop() ?? '';
+    if (val.trim().length >= 2 && !val.includes('\n')) {
+      fetchSuggestions(lastWord.length >= 2 ? lastWord : val.trim());
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [fetchSuggestions]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -300,6 +375,53 @@ const FeedAgentChat: React.FC = () => {
               rows={1}
               disabled={isLoading}
             />
+
+            {/* Autocomplete dropdown */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div
+                ref={suggestionsRef}
+                className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50"
+              >
+                <div className="px-3 py-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                  <svg className="w-3 h-3 text-bewit-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <span className="text-xs text-gray-400 font-medium">Návrhy produktů</span>
+                </div>
+                {suggestions.map((product, idx) => (
+                  <button
+                    key={product.product_code}
+                    onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(product); }}
+                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${
+                      idx === activeSuggestion ? 'bg-blue-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    {product.thumbnail ? (
+                      <img
+                        src={product.thumbnail}
+                        alt={product.product_name}
+                        className="w-8 h-8 rounded-lg object-contain flex-shrink-0 bg-gray-100"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                        <span className="text-xs text-gray-400">📦</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{product.product_name}</p>
+                      <p className="text-xs text-gray-400 truncate">
+                        {product.category && <span>{product.category}</span>}
+                        {product.price && <span className="ml-2 font-medium text-bewit-blue">{product.price} {product.currency || 'CZK'}</span>}
+                        {product.availability !== undefined && (
+                          <span className="ml-2">{product.availability === 1 ? '✅' : '❌'}</span>
+                        )}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <button
             onClick={() => handleSend()}

@@ -651,8 +651,7 @@ const EoSmesiLearnMoreButton: React.FC<{
     matchedProducts: any[];
     sessionId?: string;
     onAddMessage?: (message: ChatMessage) => void;
-    onSwitchToUniversal?: () => void;
-}> = ({ matchedProducts, sessionId, onAddMessage, onSwitchToUniversal }) => {
+}> = ({ matchedProducts, sessionId, onAddMessage }) => {
     const [isLoading, setIsLoading] = React.useState(false);
     const [isDone, setIsDone] = React.useState(false);
 
@@ -824,15 +823,6 @@ const EoSmesiLearnMoreButton: React.FC<{
                     </>
                 )}
             </button>
-            {onSwitchToUniversal && (
-                <button
-                    onClick={onSwitchToUniversal}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all duration-200"
-                >
-                    <span>🧑‍💼</span>
-                    <span>Poradce</span>
-                </button>
-            )}
         </div>
     );
 };
@@ -1699,7 +1689,6 @@ const Message: React.FC<{
                                     matchedProducts={enrichedProducts}
                                     sessionId={sessionId}
                                     onAddMessage={onAddMessage}
-                                    onSwitchToUniversal={onSwitchToUniversal}
                                 />
                             )}
                         </div>
@@ -1782,7 +1771,6 @@ const Message: React.FC<{
                                     matchedProducts={message.matchedProducts || []}
                                     sessionId={sessionId}
                                     onAddMessage={onAddMessage}
-                                    onSwitchToUniversal={onSwitchToUniversal}
                                 />
                             </div>
                         )
@@ -3269,6 +3257,17 @@ Symptomy zákazníka: ${symptomsList}
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
                     <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+                    {onSwitchToUniversal && (
+                        <div className="mt-3 flex justify-end">
+                            <button
+                                onClick={onSwitchToUniversal}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all duration-200"
+                            >
+                                <span>🧑‍💼</span>
+                                <span>Obecný poradce</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </main>
 
@@ -3870,6 +3869,17 @@ const SanaChat: React.FC<SanaChatProps> = ({
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
                             <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+                            {onSwitchToUniversal && (
+                                <div className="mt-3 flex justify-end">
+                                    <button
+                                        onClick={onSwitchToUniversal}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all duration-200"
+                                    >
+                                        <span>🧑‍💼</span>
+                                        <span>Obecný poradce</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </>
                 )}

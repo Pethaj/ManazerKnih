@@ -556,6 +556,76 @@ function getOilType(category: string | null | undefined): string {
   return category;
 }
 
+// ============================================================================
+// AUTOCOMPLETE - PŘÍMÝ SQL DOTAZ (bez agenta, ~50-150ms)
+// ============================================================================
+
+export interface AutocompleteProduct {
+  product_code: string;
+  product_name: string;
+  category?: string;
+  price?: number;
+  currency?: string;
+  thumbnail?: string;
+  url?: string;
+  availability?: number;
+  similarity: number;
+}
+
+/**
+ * Autocomplete vyhledávání produktů pomocí pg_trgm (trigram similarity).
+ *
+ * Volá Supabase RPC funkci `autocomplete_products` - jde přímo na DB,
+ * NEZAPOJUJE agenta ani Edge Function → latence ~50-150ms.
+ *
+ * Použití: při psaní do inputu (debounce 200ms), ne přes agenta.
+ *
+ * Vyžaduje spuštění `add_trgm_index_for_autocomplete.sql` v Supabase.
+ */
+export async function searchProductsAutocomplete(
+  query: string,
+  limit: number = 8
+): Promise<AutocompleteProduct[]> {
+  if (!query || query.trim().length < 2) return [];
+
+  try {
+    const { data, error } = await supabase.rpc('autocomplete_products', {
+      search_query: query.trim(),
+      max_results: limit,
+    });
+
+    if (error) {
+      console.warn('Autocomplete RPC chyba:', error.message);
+      // Fallback: jednoduchý ilike dotaz
+      return searchProductsAutocompleteFallback(query, limit);
+    }
+
+    return (data as AutocompleteProduct[]) ?? [];
+  } catch {
+    return searchProductsAutocompleteFallback(query, limit);
+  }
+}
+
+/**
+ * Fallback autocomplete - čistý ilike dotaz bez pg_trgm.
+ * Používá se pokud RPC funkce ještě není nasazena v DB.
+ */
+async function searchProductsAutocompleteFallback(
+  query: string,
+  limit: number
+): Promise<AutocompleteProduct[]> {
+  const normalized = query.toLowerCase().trim();
+
+  const { data } = await supabase
+    .from('product_feed_2')
+    .select('product_code, product_name, category, price, currency, thumbnail, url, availability')
+    .or(`product_name.ilike.${normalized}%,product_name.ilike.% ${normalized}%,product_name.ilike.%${normalized}%`)
+    .order('sales_last_30_days', { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  return (data ?? []).map(p => ({ ...p, similarity: 0.5 }));
+}
+
 /**
  * TOOL: Statistiky databáze
  */
