@@ -174,6 +174,7 @@ interface SanaChatProps {
     enable_product_search?: boolean;   // 🔍 Vyhledávač produktů (Feed Agent toggle)
   };
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
+  originalChatbotId?: string;  // 🆕 Původní ID chatbota před přepnutím
   onClose?: () => void;
   onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
   modeSwitch?: React.ReactNode;  // 🔍 Toggle UI - předaný zvenku
@@ -208,17 +209,64 @@ const ExportPdfIcon: React.FC<IconProps> = (props) => (
     </svg>
 );
 
+const UserIcon: React.FC<IconProps> = (props) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+    </svg>
+);
+
+const FlaskIcon: React.FC<IconProps> = (props) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M9 3h6M10 9h4M10 3v6l-4 8a2.5 2.5 0 0 0 2 3.5h8a2.5 2.5 0 0 0 2-3.5l-4-8V3" />
+    </svg>
+);
+
+// --- TOGGLE BUTTON COMPONENT ---
+const AdvisorToggleButton: React.FC<{
+    chatbotId?: string;
+    onClick: () => void;
+}> = ({ chatbotId, onClick }) => {
+    const isUniversal = chatbotId === 'universal';
+    
+    return (
+        <div className="mt-3 flex justify-end">
+            <button
+                onClick={onClick}
+                className="group relative h-10 w-48 rounded-lg border border-bewit-blue text-bewit-blue bg-transparent hover:bg-bewit-blue/5 transition-all duration-300 overflow-hidden shadow-sm hover:shadow-md"
+            >
+                {/* Přední strana: Obecný poradce */}
+                <div 
+                    className={`absolute inset-0 flex items-center justify-center gap-2 transition-all duration-500 ease-in-out ${
+                        isUniversal 
+                            ? '-translate-y-full opacity-0' 
+                            : 'translate-y-0 opacity-100'
+                    }`}
+                >
+                    <UserIcon className="w-4 h-4" />
+                    <span className="text-sm font-semibold">Obecný poradce</span>
+                </div>
+                
+                {/* Zadní strana: Poradce na potíže */}
+                <div 
+                    className={`absolute inset-0 flex items-center justify-center gap-2 transition-all duration-500 ease-in-out ${
+                        isUniversal 
+                            ? 'translate-y-0 opacity-100' 
+                            : 'translate-y-full opacity-0'
+                    }`}
+                >
+                    <FlaskIcon className="w-4 h-4" />
+                    <span className="text-sm font-semibold">Poradce na potíže</span>
+                </div>
+            </button>
+        </div>
+    );
+};
+
 const SendIcon: React.FC<IconProps> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
         <line x1="22" y1="2" x2="11" y2="13" />
         <polygon points="22 2 15 22 11 13 2 9 22 2" />
-    </svg>
-);
-
-const UserIcon: React.FC<IconProps> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
     </svg>
 );
 
@@ -276,6 +324,31 @@ const FilterIcon: React.FC<IconProps> = (props) => (
 // --- CHAT SERVICE (from services/chatService.ts) ---
 // Default webhook URL (fallback pro starší chatboty bez nastaveného webhook_url)
 const DEFAULT_N8N_WEBHOOK_URL = 'https://n8n.srv980546.hstgr.cloud/webhook/97dc857e-352b-47b4-91cb-bc134afc764c/chat';
+
+// N8N někdy vrací globální disclaimer na začátku odpovědi – nechceme ho zobrazovat v UI.
+const stripN8nDisclaimerPrefix = (text: string): string => {
+    const trimmed = text.trimStart();
+    if (!/^Upozornění\s*:/i.test(trimmed)) return text;
+
+    // Odfiltruj jen ten konkrétní standardní blok, ne libovolné "Upozornění" v běžném obsahu.
+    const looksLikeStandardDisclaimer =
+        /Tento nástroj slouží výhradně k vzdělávacím/i.test(trimmed) &&
+        /nenahrazuje odborné lékařské doporučení/i.test(trimmed);
+
+    if (!looksLikeStandardDisclaimer) return text;
+
+    let out = trimmed.replace(
+        /^Upozornění\s*:\s*[\s\S]*?může obsahovat nepřesnosti\.?\s*(\r?\n){2,}/i,
+        ''
+    );
+
+    // Fallback: pokud se neshodl konec věty, odřízni první blok po dvojitém odřádkování.
+    if (out === trimmed) {
+        out = trimmed.replace(/^Upozornění\s*:\s*[\s\S]*?(\r?\n){2,}/i, '');
+    }
+
+    return out.trimStart();
+};
 
 // Stará trigger funkce odstraněna - používáme createSimpleSummary
 
@@ -491,6 +564,9 @@ const sendMessageToAPI = async (
             // Odstraň vše od "### Zdroje:" až do konce
             finalBotText = finalBotText.replace(/###\s*Zdroje:[\s\S]*$/i, '').trim();
         }
+
+        // 🧹 Odstraň standardní disclaimer prefix, pokud ho N8N přidá do odpovědi
+        finalBotText = stripN8nDisclaimerPrefix(finalBotText);
         
         console.log('🔧 Zpracovaný text:', finalBotText.substring(0, 500) + '...');
         
@@ -2120,7 +2196,8 @@ const ChatInput: React.FC<{
     isLoading: boolean;
     modeSwitch?: React.ReactNode;
     searchMode?: boolean;
-}> = ({ onSendMessage, isLoading, modeSwitch, searchMode }) => {
+    chatbotId?: string;
+}> = ({ onSendMessage, isLoading, modeSwitch, searchMode, chatbotId }) => {
     const [input, setInput] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     // Vyhledávač stav
@@ -2180,7 +2257,11 @@ const ChatInput: React.FC<{
         }, 300);
     };
 
-    const placeholder = searchMode ? 'Hledejte produkty...' : 'Jak vám mohu pomoci...';
+    const placeholder = searchMode
+        ? 'Hledejte produkty...'
+        : chatbotId === 'universal'
+            ? 'Máte dotaz na TČM? Které oleje provoní váš domov? Napište, co vás zajímá...'
+            : 'Trápí vás bolest hlavy? Poruchy spánku? Nevolnost? Napište váš problém...';
 
     return (
         <div className="relative">
@@ -2363,12 +2444,14 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         allowed_product_categories: []  // 🆕 Defaultně všechny kategorie povoleny
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
+    originalChatbotId, // 🆕 Původní ID chatbota před přepnutím
     onClose,
     onSwitchToUniversal,
     modeSwitch,  // 🔍 Toggle UI
     searchMode,  // 🔍 Vyhledávací mód
     externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
+    console.log('📦 SanaChatContent RENDER. chatbotId:', chatbotId, 'originalChatbotId:', originalChatbotId);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [sessionId, setSessionId] = useState<string>('');
@@ -2382,7 +2465,6 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
     // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
     const summarizedHistoryRef = useRef<string[]>([]);
-    const [showNewChatPopup, setShowNewChatPopup] = useState<boolean>(false);
 
     useEffect(() => {
         setSessionId(generateSessionId());
@@ -3234,7 +3316,6 @@ Symptomy zákazníka: ${symptomsList}
                 };
                 
                 setMessages(prev => [...prev, botMessage]);
-                setShowNewChatPopup(true);
                 
                 // 💾 Uložíme PAR otázka-odpověď do historie
                 saveChatPairToHistory(
@@ -3453,7 +3534,6 @@ Symptomy zákazníka: ${symptomsList}
         setSummarizedHistory([]);
         summarizedHistoryRef.current = [];
         setSessionId(generateSessionId());
-        setShowNewChatPopup(false);
         startNewChatOnAPI();
     }, []);
 
@@ -3506,18 +3586,7 @@ Symptomy zákazníka: ${symptomsList}
                      />
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
-                    <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} modeSwitch={modeSwitch} searchMode={searchMode} />
-                    {onSwitchToUniversal && (
-                        <div className="mt-3 flex justify-end">
-                            <button
-                                onClick={onSwitchToUniversal}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all duration-200"
-                            >
-                                <span>🧑‍💼</span>
-                                <span>Obecný poradce</span>
-                            </button>
-                        </div>
-                    )}
+                    <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} modeSwitch={modeSwitch} searchMode={searchMode} chatbotId={chatbotId} />
                 </div>
             </main>
 
@@ -3543,6 +3612,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
         summarize_history: false       // 🆕 Defaultně vypnutá sumarizace
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
+    originalChatbotId, // 🆕 Původní ID chatbota před přepnutím
     onClose,
     onSwitchToUniversal,
     modeSwitch,  // 🔍 Toggle UI
@@ -3565,7 +3635,6 @@ const SanaChat: React.FC<SanaChatProps> = ({
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
     // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
     const summarizedHistoryRef = useRef<string[]>([]);
-    const [showNewChatPopup, setShowNewChatPopup] = useState<boolean>(false);
 
     // Token z externalUserInfo pro prokliknutí produktů
     const userToken = externalUserInfo?.token_eshop;
@@ -4121,17 +4190,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
                              />
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
-                            <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} modeSwitch={modeSwitch} searchMode={searchMode} />
+                            <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} modeSwitch={modeSwitch} searchMode={searchMode} chatbotId={chatbotId} />
                             {onSwitchToUniversal && (
-                                <div className="mt-3 flex justify-end">
-                                    <button
-                                        onClick={onSwitchToUniversal}
-                                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all duration-200"
-                                    >
-                                        <span>🧑‍💼</span>
-                                        <span>Obecný poradce</span>
-                                    </button>
-                                </div>
+                                <AdvisorToggleButton chatbotId={chatbotId} onClick={onSwitchToUniversal} />
                             )}
                         </div>
                     </>
@@ -4195,7 +4256,7 @@ const UNIVERSAL_CHATBOT_SETTINGS = {
 // VYHLEDÁVAČ PRODUKTŮ - inline komponenty pro FilteredSanaChat
 // ============================================================================
 
-type ChatMode = 'ai' | 'search';
+type TripleMode = 'problem' | 'search' | 'universal';
 
 const SearchIconInline: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -4203,37 +4264,42 @@ const SearchIconInline: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     </svg>
 );
 
-const BotIconInline: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <rect x="3" y="11" width="18" height="10" rx="2" />
-        <circle cx="12" cy="5" r="2" />
-        <path d="M12 7v4" />
+const FlaskIconInline: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M9 3h6M10 9h4M10 3v6l-4 8a2.5 2.5 0 0 0 2 3.5h8a2.5 2.5 0 0 0 2-3.5l-4-8V3" />
     </svg>
 );
 
-interface ModeSwitchProps {
-    mode: ChatMode;
-    onChange: (mode: ChatMode) => void;
+const UserIconInline: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+    </svg>
+);
+
+interface TripleModeSwitchProps {
+    mode: TripleMode;
+    onChange: (mode: TripleMode) => void;
 }
 
-const ModeSwitch: React.FC<ModeSwitchProps> = ({ mode, onChange }) => (
+const TripleModeSwitch: React.FC<TripleModeSwitchProps> = ({ mode, onChange }) => (
     <div className="inline-flex items-center bg-slate-100 rounded-full p-1 gap-0.5 shadow-inner">
         <button
             type="button"
-            onClick={() => onChange('ai')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
-                mode === 'ai'
+            onClick={() => onChange('problem')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
+                mode === 'problem'
                     ? 'bg-white text-bewit-blue shadow-md ring-1 ring-slate-200/80'
                     : 'text-slate-400 hover:text-slate-600'
             }`}
         >
-            <BotIconInline className="w-3.5 h-3.5" />
-            AI Chat
+            <FlaskIconInline className="w-3.5 h-3.5" />
+            Poradce na potíže
         </button>
         <button
             type="button"
             onClick={() => onChange('search')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
                 mode === 'search'
                     ? 'bg-white text-bewit-blue shadow-md ring-1 ring-slate-200/80'
                     : 'text-slate-400 hover:text-slate-600'
@@ -4241,6 +4307,18 @@ const ModeSwitch: React.FC<ModeSwitchProps> = ({ mode, onChange }) => (
         >
             <SearchIconInline className="w-3.5 h-3.5" />
             Vyhledávač
+        </button>
+        <button
+            type="button"
+            onClick={() => onChange('universal')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
+                mode === 'universal'
+                    ? 'bg-white text-bewit-blue shadow-md ring-1 ring-slate-200/80'
+                    : 'text-slate-400 hover:text-slate-600'
+            }`}
+        >
+            <UserIconInline className="w-3.5 h-3.5" />
+            Obecný poradce
         </button>
     </div>
 );
@@ -4279,57 +4357,98 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     const [settings, setSettings] = useState(chatbotSettings);
     // chatKey slouží pro force remount SanaChatContent (nový chat)
     const [chatKey, setChatKey] = useState(0);
-    // 🔍 Mód: AI chat nebo vyhledávač produktů
-    const [chatMode, setChatMode] = useState<ChatMode>('ai');
+    // 🔍 Trojitý mód: poradce na potíže / vyhledávač / obecný poradce
+    const [tripleMode, setTripleMode] = useState<TripleMode>('problem');
     // activeChatbotId umožňuje přepnutí chatbota (např. na Universal)
     const [activeChatbotId, setActiveChatbotId] = useState(chatbotId);
     // Flag: true = uživatel přepnul na Universal, ignoruj přepsání z parenta
     const isSwitchedToUniversal = useRef(false);
 
-    // Přepnutí na Universal chatbot - načte nastavení z databáze
+    // Přepnutí na Universal chatbot nebo zpět na původní (podle aktuálního stavu)
     const handleSwitchToUniversal = useCallback(async () => {
-        isSwitchedToUniversal.current = true;
-        try {
-            const universalSettings = await ChatbotSettingsService.getChatbotSettings('universal');
-            if (universalSettings) {
-                setSettings({
-                    product_recommendations: universalSettings.product_recommendations,
-                    product_button_recommendations: universalSettings.product_button_recommendations,
-                    inline_product_links: universalSettings.inline_product_links ?? false,
-                    book_database: universalSettings.book_database,
-                    use_feed_1: universalSettings.use_feed_1 ?? false,
-                    use_feed_2: universalSettings.use_feed_2 ?? false,
-                    webhook_url: universalSettings.webhook_url,
-                    enable_product_router: universalSettings.enable_product_router ?? false,
-                    enable_manual_funnel: universalSettings.enable_manual_funnel ?? false,
-                    summarize_history: universalSettings.summarize_history ?? false,
-                    show_sources: universalSettings.show_sources ?? false,
-                    allowed_product_categories: universalSettings.allowed_product_categories ?? [],
-                    enable_product_pairing: universalSettings.enable_product_pairing ?? false,
-                });
-            } else {
+        console.log('🔄 handleSwitchToUniversal start. Current active:', activeChatbotId);
+        
+        if (activeChatbotId === 'universal') {
+            console.log('🔄 Switching back to original:', chatbotId);
+            isSwitchedToUniversal.current = false;
+            setSettings(chatbotSettings);
+            setActiveChatbotId(chatbotId);
+            setChatKey(k => k + 1);
+        } else {
+            console.log('🔄 Switching to universal...');
+            isSwitchedToUniversal.current = true;
+            
+            // 🚀 UI FLIP OKAMŽITĚ (pro lepší UX)
+            setActiveChatbotId('universal');
+            setChatKey(k => k + 1);
+            
+            try {
+                // Rychlá kontrola jestli 'universal' existuje, abychom se vyhnuli 406 chybě z .single()
+                const { data: universalExists, error: checkError } = await supabaseClient
+                    .from('chatbot_settings')
+                    .select('chatbot_id')
+                    .eq('chatbot_id', 'universal')
+                    .maybeSingle();
+
+                if (checkError) {
+                    console.warn('⚠️ Error checking universal settings existence:', checkError);
+                }
+
+                if (universalExists) {
+                    console.log('📥 Found universal settings in DB, loading details...');
+                    const universalSettings = await ChatbotSettingsService.getChatbotSettings('universal');
+                    if (universalSettings) {
+                        setSettings({
+                            product_recommendations: universalSettings.product_recommendations,
+                            product_button_recommendations: universalSettings.product_button_recommendations,
+                            inline_product_links: universalSettings.inline_product_links ?? false,
+                            book_database: universalSettings.book_database,
+                            use_feed_1: universalSettings.use_feed_1 ?? false,
+                            use_feed_2: universalSettings.use_feed_2 ?? false,
+                            webhook_url: universalSettings.webhook_url,
+                            enable_product_router: universalSettings.enable_product_router ?? false,
+                            enable_manual_funnel: universalSettings.enable_manual_funnel ?? false,
+                            summarize_history: universalSettings.summarize_history ?? false,
+                            show_sources: universalSettings.show_sources ?? false,
+                            allowed_product_categories: universalSettings.allowed_product_categories ?? [],
+                            enable_product_pairing: universalSettings.enable_product_pairing ?? false,
+                            allowed_labels: [] // V embedu schováváme štítky i pro universal
+                        });
+                        console.log('✅ Universal settings loaded and applied');
+                    } else {
+                        console.log('⚠️ getChatbotSettings returned null, using fallback');
+                        setSettings(UNIVERSAL_CHATBOT_SETTINGS);
+                    }
+                } else {
+                    console.log('⚠️ Universal settings not found in DB, using static fallback');
+                    setSettings(UNIVERSAL_CHATBOT_SETTINGS);
+                }
+            } catch (err) {
+                console.error('❌ Error in handleSwitchToUniversal catch block:', err);
                 setSettings(UNIVERSAL_CHATBOT_SETTINGS);
             }
-        } catch {
-            setSettings(UNIVERSAL_CHATBOT_SETTINGS);
+            console.log('🏁 handleSwitchToUniversal finished');
         }
-        setActiveChatbotId('universal');
-        setChatKey(k => k + 1);
-    }, []);
+    }, [activeChatbotId, chatbotSettings, chatbotId]);
+
+    // Handler pro TripleModeSwitch - přepíná mód a synchronizuje chatbota
+    const handleTripleModeChange = useCallback(async (newMode: TripleMode) => {
+        setTripleMode(newMode);
+        if (newMode === 'universal' && activeChatbotId !== 'universal') {
+            await handleSwitchToUniversal();
+        } else if (newMode !== 'universal' && activeChatbotId === 'universal') {
+            await handleSwitchToUniversal();
+        }
+    }, [activeChatbotId, handleSwitchToUniversal]);
     
     // 🔥 KRITICKÉ: Aktualizujeme settings když se chatbotSettings změní
     // Tento useEffect zajišťuje, že změny z databáze se VŽDY promítnou do chatu
-    // ALE ignorujeme přepsání pokud uživatel přepnul na Universal (isSwitchedToUniversal)
+    // ALE ignorujeme přepsání pokud uživatel přepnul na Universal (activeChatbotId === 'universal')
     useEffect(() => {
-        if (isSwitchedToUniversal.current) return;
-        console.log('🔄 FilteredSanaChat: Aktualizuji nastavení', {
-            chatbotId,
-            old_settings: settings,
-            new_settings: chatbotSettings
-        });
+        if (activeChatbotId === 'universal') return; // Uživatel přepnul, neresetuj
         setSettings(chatbotSettings);
         setActiveChatbotId(chatbotId);
-    }, [chatbotSettings, chatbotId]);
+    }, [chatbotSettings, chatbotId]); // eslint-disable-line react-hooks/exhaustive-deps
     
     // Dostupné filtry - načtou se z databáze
     const [availableCategories, setAvailableCategories] = useState<string[]>([]);
@@ -4703,13 +4822,14 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                             selectedPublicationTypes={selectedPublicationTypes}
                             chatbotSettings={settings}
                             chatbotId={activeChatbotId}
+                            originalChatbotId={chatbotId}
                             externalUserInfo={externalUserInfo}
                             onClose={onClose}
-                            onSwitchToUniversal={handleSwitchToUniversal}
-                            modeSwitch={settings?.enable_product_search ? (
-                                <ModeSwitch mode={chatMode} onChange={setChatMode} />
-                            ) : undefined}
-                            searchMode={settings?.enable_product_search ? chatMode === 'search' : false}
+                            onSwitchToUniversal={undefined}
+                            modeSwitch={
+                                <TripleModeSwitch mode={tripleMode} onChange={handleTripleModeChange} />
+                            }
+                            searchMode={tripleMode === 'search'}
                         />
                     )}
                 </div>

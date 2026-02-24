@@ -79,7 +79,6 @@ import { supabase } from '../lib/supabase';
 const EmbedEOSmesi = () => {
   const [chatbotSettings, setChatbotSettings] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [userContext, setUserContext] = useState<{
     id?: string;
     email?: string;
@@ -245,33 +244,6 @@ const EmbedEOSmesi = () => {
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
-      {/* Disclaimer popup */}
-      {showDisclaimer && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 flex flex-col gap-5">
-            <div className="flex items-center gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/>
-                  <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-              </div>
-              <h2 className="text-lg font-bold text-gray-900">Upozornění</h2>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Tento nástroj slouží výhradně k vzdělávacím a orientačním účelům a nenahrazuje odborné lékařské doporučení ani individuální posouzení. V případě obtíží se vždy obraťte na kvalifikovaného odborníka. Chatbot je v testovací verzi a může obsahovat nepřesnosti.
-            </p>
-            <button
-              onClick={() => setShowDisclaimer(false)}
-              className="w-full py-3 bg-bewit-blue text-white font-semibold rounded-xl hover:bg-blue-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bewit-blue"
-            >
-              Rozumím
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* 
         Modální wrapper - stejný jako v ChatWidget.tsx 
         Ale místo fixed inset-0 používáme celou obrazovku (w-full h-screen)
