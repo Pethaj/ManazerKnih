@@ -132,6 +132,7 @@ interface ChatMessage {
     prawteins: string[];
     tcmWans: string[];
     aloe: boolean;
+    aloeProductName?: string;  // Konkrétní název Aloe produktu (např. "Aloe Vera Immunity")
     merkaba: boolean;
     aloeUrl?: string;    // 🆕 URL pro Aloe produkt (textový odkaz)
     merkabaUrl?: string; // 🆕 URL pro Merkaba produkt (textový odkaz)
@@ -816,6 +817,9 @@ const EoSmesiLearnMoreButton: React.FC<{
                 const resultLines: string[] = [];
                 const usedProductCodes = new Set<string>(); // každý produkt max jednou
 
+                console.log('🔍 [LearnMore] Injekce markerů - produkty:', mergedProducts.map((p: any) => ({ name: p.product_name, code: p.product_code, hasUrl: !!p.url })));
+                console.log('🔍 [LearnMore] N8N text (prvních 500 znaků):', botText.substring(0, 500));
+
                 for (const line of lines) {
                     // Detekujeme zda jde o nadpisový řádek
                     const isHeading = /^#{1,4}\s/.test(line)         // ## Nadpis
@@ -825,6 +829,8 @@ const EoSmesiLearnMoreButton: React.FC<{
                     resultLines.push(line);
 
                     if (!isHeading) continue;
+
+                    console.log('🔍 [LearnMore] Nadpis detekován:', line);
 
                     const lineLower = line.toLowerCase();
 
@@ -852,11 +858,13 @@ const EoSmesiLearnMoreButton: React.FC<{
                             const marker = `<<<PRODUCT:${product.product_code}|||${product.url}|||${product.product_name}|||${product.pinyin_name || product.product_name}>>>`;
                             resultLines.push(marker);
                             usedProductCodes.add(product.product_code);
+                            console.log('✅ [LearnMore] Marker injektován pro:', product.product_name, 'v řádku:', line);
                             break;
                         }
                     }
                 }
 
+                console.log('🔍 [LearnMore] Injektováno markerů:', usedProductCodes.size, 'z', mergedProducts.length);
                 enrichedText = resultLines.join('\n');
 
                 const botMessage: ChatMessage = {
@@ -1840,12 +1848,12 @@ const Message: React.FC<{
                                             message.pairingInfo.aloeUrl ? (
                                                 <a href={message.pairingInfo.aloeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm hover:bg-green-100 transition-colors">
                                                     <span className="text-base leading-none">✅</span>
-                                                    <span>Aloe Vera gel</span>
+                                                    <span>{message.pairingInfo.aloeProductName || 'Aloe Vera gel'}</span>
                                                 </a>
                                             ) : (
                                                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm">
                                                     <span className="text-base leading-none">✅</span>
-                                                    <span>Aloe Vera gel</span>
+                                                    <span>{message.pairingInfo.aloeProductName || 'Aloe Vera gel'}</span>
                                                 </div>
                                             )
                                         )}
@@ -1937,12 +1945,12 @@ const Message: React.FC<{
                                                 message.pairingInfo.aloeUrl ? (
                                                     <a href={message.pairingInfo.aloeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium hover:bg-green-200 transition-colors">
                                                         <span className="text-base">💧</span>
-                                                        <span>Aloe doporučeno</span>
+                                                        <span>{message.pairingInfo.aloeProductName || 'Aloe Vera gel'}</span>
                                                     </a>
                                                 ) : (
                                                     <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                                                         <span className="text-base">💧</span>
-                                                        <span>Aloe doporučeno</span>
+                                                        <span>{message.pairingInfo.aloeProductName || 'Aloe Vera gel'}</span>
                                                     </div>
                                                 )
                                             )}
@@ -2520,6 +2528,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         prawteins: eoSmesiResult.medicineTable.prawtein ? [eoSmesiResult.medicineTable.prawtein] : [],
                         tcmWans: [],
                         aloe: eoSmesiResult.medicineTable.aloe,
+                        aloeProductName: eoSmesiResult.medicineTable.aloeProductName || undefined,
                         merkaba: eoSmesiResult.medicineTable.merkaba,
                         aloeUrl: eoSmesiResult.medicineTable.aloeUrl || undefined,
                         merkabaUrl: eoSmesiResult.medicineTable.merkabaUrl || undefined
@@ -2698,6 +2707,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                         prawteins: directResult.medicineTable.prawtein ? [directResult.medicineTable.prawtein] : [],
                                         tcmWans: [],
                                         aloe: directResult.medicineTable.aloe,
+                                        aloeProductName: directResult.medicineTable.aloeProductName || undefined,
                                         merkaba: directResult.medicineTable.merkaba,
                                         aloeUrl: directResult.medicineTable.aloeUrl || undefined,
                                         merkabaUrl: directResult.medicineTable.merkabaUrl || undefined
@@ -2743,6 +2753,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                 prawteins: eoSmesiResult.medicineTable.prawtein ? [eoSmesiResult.medicineTable.prawtein] : [],
                                 tcmWans: [],
                                 aloe: eoSmesiResult.medicineTable.aloe,
+                                aloeProductName: eoSmesiResult.medicineTable.aloeProductName || undefined,
                                 merkaba: eoSmesiResult.medicineTable.merkaba,
                                 aloeUrl: eoSmesiResult.medicineTable.aloeUrl || undefined,
                                 merkabaUrl: eoSmesiResult.medicineTable.merkabaUrl || undefined
@@ -3229,6 +3240,21 @@ Symptomy zákazníka: ${symptomsList}
                         if (classificationResult.success) {
                             classifiedProblems = classificationResult.problems;
                             console.log(`✅ Klasifikované problémy:`, classifiedProblems);
+
+                            // 🔀 DETEKCE VÍCE PROBLÉMŮ: Uživatel zmínil více problémů najednou
+                            if (classificationResult.multipleProblems && classificationResult.allMentionedProblems && classificationResult.allMentionedProblems.length > 0) {
+                                const firstProblem = classificationResult.allMentionedProblems[0];
+                                console.log('⚠️ Detekováno více problémů, zpracovávám pouze první:', firstProblem);
+                                const multiProblemMessage: ChatMessage = {
+                                    id: (Date.now() + 1).toString(),
+                                    role: 'bot',
+                                    text: `Pojďme se nejprve zaměřit na jeden problém a následně vyřešíme druhý. Souhlasíte?\n\nZačneme s: **${firstProblem}**`,
+                                    sources: [],
+                                    matchedProducts: [],
+                                    hasCallout: false
+                                };
+                                setMessages(prev => [...prev, multiProblemMessage]);
+                            }
                         }
                     } catch (classificationError) {
                         console.error('❌ Chyba při klasifikaci problému:', classificationError);
@@ -3809,11 +3835,28 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     
                     try {
                         const problemResult = await classifyProblemFromUserMessage(text.trim());
-                        if (problemResult.success && problemResult.problems.length > 0) {
-                            classifiedProblems = problemResult.problems;
-                            console.log('✅ [VĚTEV 2] Klasifikované problémy:', classifiedProblems);
-                        } else {
-                            console.log('ℹ️ [VĚTEV 2] Žádné problémy nenalezeny');
+                        if (problemResult.success) {
+                            // 🔀 DETEKCE VÍCE PROBLÉMŮ – zkontroluj PŘED přiřazením classifiedProblems
+                            if (problemResult.multipleProblems && problemResult.allMentionedProblems && problemResult.allMentionedProblems.length > 0) {
+                                const firstProblem = problemResult.allMentionedProblems[0];
+                                console.log('⚠️ [VĚTEV 2] Detekováno více problémů, zpracovávám pouze první:', firstProblem);
+                                const multiProblemMessage: ChatMessage = {
+                                    id: (Date.now() + 1).toString(),
+                                    role: 'bot',
+                                    text: `Pojďme se nejprve zaměřit na jeden problém a následně vyřešíme druhý. Souhlasíte?\n\nZačneme s: **${firstProblem}**`,
+                                    sources: [],
+                                    matchedProducts: [],
+                                    hasCallout: false
+                                };
+                                setMessages(prev => [...prev, multiProblemMessage]);
+                            }
+
+                            if (problemResult.problems.length > 0) {
+                                classifiedProblems = problemResult.problems;
+                                console.log('✅ [VĚTEV 2] Klasifikované problémy:', classifiedProblems);
+                            } else {
+                                console.log('ℹ️ [VĚTEV 2] Žádné certain problémy (uncertain nebo nic)');
+                            }
                         }
                     } catch (classificationError) {
                         console.error('❌ [VĚTEV 2] Chyba při klasifikaci problému:', classificationError);

@@ -21,6 +21,7 @@ RETURNS TABLE (
   matched_product_url TEXT,
   matched_thumbnail TEXT,
   aloe_recommended TEXT,
+  aloe_product TEXT,
   merkaba_recommended TEXT,
   combination_name TEXT,
   matched_problem TEXT
@@ -84,6 +85,8 @@ BEGIN
       WHEN mp.aloe IS NOT NULL AND TRIM(mp.aloe) != '' THEN 'ano'::TEXT
       ELSE 'ne'::TEXT
     END as aloe_recommended,
+    -- Konkrétní název/kód Aloe produktu z tabulky leceni (např. "Aloe Vera Immunity")
+    NULLIF(TRIM(mp.aloe), '')::TEXT as aloe_product,
     CASE 
       -- ✅ OPRAVA: Pokud je buňka vyplněná (NOT NULL a ne prázdný string), je to TRUE
       WHEN mp.merkaba IS NOT NULL AND TRIM(mp.merkaba) != '' THEN 'ano'::TEXT

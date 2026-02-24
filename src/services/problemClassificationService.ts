@@ -20,8 +20,10 @@ const EDGE_FUNCTION_URL = 'openrouter-proxy';
 export interface ProblemClassificationResult {
   success: boolean;
   problems: string[]; // Seznam klasifikovaných problémů
-  uncertainProblems?: string[]; // 🆕 Pokud si agent není jistý - nabídne výběr
-  requiresUserSelection?: boolean; // 🆕 Zobrazit formulář?
+  uncertainProblems?: string[]; // Pokud si agent není jistý - nabídne výběr
+  requiresUserSelection?: boolean; // Zobrazit formulář?
+  multipleProblems?: boolean; // Uživatel zmínil více problémů najednou
+  allMentionedProblems?: string[]; // Všechny zmíněné problémy v pořadí zmínění (raw text)
   rawResponse?: string;
   error?: string;
 }
@@ -94,69 +96,72 @@ function generateSystemPrompt(availableProblems: string[]): string {
   
   return `Jsi lékařský expert specializující se na symptomy a zdravotní problémy.
 
-Tvým úkolem je KLASIFIKOVAT zdravotní problém z textu uživatele podle těchto dostupných kategorií:
+Tvým úkolem je KLASIFIKOVAT zdravotní problém z textu uživatele podle dostupných kategorií.
+
+**KROK 1 – DETEKUJ, KOLIK PROBLÉMŮ UŽIVATEL ZMÍNIL:**
+
+Pokud uživatel zmíní více zdravotních problémů najednou (spojené "a", "také", "zároveň", "navíc", "plus", čárkou apod.):
+- Nastav "multiple_problems": true
+- Do "all_mentioned" uveď všechny zmíněné problémy jako stručný raw text v pořadí, v jakém je uživatel zmínil
+- "certain" a "uncertain" vyplň POUZE pro PRVNÍ zmíněný problém – ostatní ignoruj
+
+Pokud uživatel zmínil jen jeden problém:
+- Nastav "multiple_problems": false
+- "all_mentioned": []
+- "certain" a "uncertain" vyplň normálně
+
+**KROK 2 – KLASIFIKUJ (pouze pro první zmíněný problém):**
 
 **DOSTUPNÉ KATEGORIE PROBLÉMŮ:**
 ${problemsList}
 
-**PRAVIDLA KLASIFIKACE:**
-
 **SITUACE A: JEDNOZNAČNĚ IDENTIFIKOVANÝ PROBLÉM**
-Použij "certain" POUZE pokud uživatel zmíní:
-- PŘÍČINU (ze stresu, po sportování, chronická, nervová, atd.) A tato příčina jednoznačně určuje JEDINOU kategorii
-- Uživatelova zpráva přesně odpovídá JEDINÉ kategorii – žádná jiná kategorie není relevantní
+Použij "certain" POUZE pokud:
+- Uživatel zmíní PŘÍČINU (ze stresu, po sportování, chronická, nervová, atd.) A tato příčina jednoznačně určuje JEDINOU kategorii
+- Uživatelova zpráva přesně odpovídá JEDINÉ kategorii – žádná jiná není relevantní
 - V dostupných kategoriích existuje POUZE JEDNA možná shoda
 
-→ Vrať JSON ve formátu:
-{
-  "certain": ["přesný název kategorie"],
-  "uncertain": []
-}
+→ {"certain": ["přesný název kategorie"], "uncertain": [], "multiple_problems": ..., "all_mentioned": [...]}
 
 **SITUACE B: NEJEDNOZNAČNÝ / OBECNÝ PROBLÉM (VÝCHOZÍ STAV)**
 Použij "uncertain" pokud:
 - Uživatel použije obecný termín bez dostatečného upřesnění
-- Pro daný problém existuje v dostupných kategoriích VÍCE MOŽNOSTÍ (různé podtypy, příčiny, závažnosti)
+- Pro daný problém existuje více možných kategorií (různé podtypy, příčiny, závažnosti)
 - Nelze s jistotou určit JEDINOU správnou kategorii
 
-→ Vrať JSON ve formátu:
-{
-  "certain": [],
-  "uncertain": ["kategorie1", "kategorie2", "kategorie3"]
-}
+→ {"certain": [], "uncertain": ["kategorie1", "kategorie2", "kategorie3"], "multiple_problems": ..., "all_mentioned": [...]}
 (Max 5 nejrelevantnějších kategorií, seřazených od nejpravděpodobnější)
 
-**KRITICKÉ PRAVIDLO:** Pokud existuje více než 1 relevantní kategorie → VŽDY použij "uncertain". Nikdy nedávej více položek do "certain" – "certain" může mít maximálně 1 položku.
+**KRITICKÉ PRAVIDLO:** "certain" může mít MAXIMÁLNĚ 1 položku. Více položek → vše do "uncertain".
 
 **PŘÍKLADY:**
 
-Input: "Bolí mě hlava už několik měsíců vždy večer"
-Output: {"certain": ["Bolest hlavy – chronická"], "uncertain": []}
+Input: "mám bolest kolenou a bolí mě hlava"
+Output: {"certain": [], "uncertain": ["Klouby – akutní bolest", "Klouby – chronické", "Klouby – degenerativní"], "multiple_problems": true, "all_mentioned": ["bolest kolenou", "bolest hlavy"]}
+
+Input: "mám ucpaný nos a bolí mě hlava"
+Output: {"certain": [], "uncertain": ["Nachlazení (rýma, viróza)", "Zánět nosohltanu (rinofaryngitida)"], "multiple_problems": true, "all_mentioned": ["ucpaný nos", "bolest hlavy"]}
+
+Input: "trápí mě záda a také žlučník"
+Output: {"certain": [], "uncertain": ["Záda – akutní blokáda", "Záda – chronická bolest", "Záda – přetížení / sezení"], "multiple_problems": true, "all_mentioned": ["záda", "žlučník"]}
 
 Input: "Bolí mě hlava ze stresu"
-Output: {"certain": ["Bolest hlavy – ze stresu"], "uncertain": []}
+Output: {"certain": ["Bolest hlavy – ze stresu"], "uncertain": [], "multiple_problems": false, "all_mentioned": []}
 
 Input: "Bolí mě hlava"
-Output: {"certain": [], "uncertain": ["Bolest hlavy – akutní", "Bolest hlavy – ze stresu", "Bolest hlavy – nervová"]}
-
-Input: "trápí mě žlučník"
-Output: {"certain": [], "uncertain": ["Žlučník - kolika", "Žlučník - zánět (cholecystitida)", "Žlučník - žlučové kameny"]}
+Output: {"certain": [], "uncertain": ["Bolest hlavy – akutní", "Bolest hlavy – ze stresu", "Bolest hlavy – nervová"], "multiple_problems": false, "all_mentioned": []}
 
 Input: "mám žlučníkové kameny"
-Output: {"certain": ["Žlučník - žlučové kameny"], "uncertain": []}
-
-Input: "Mám bolavé koleno"
-Output: {"certain": [], "uncertain": ["Klouby – akutní bolest", "Klouby – chronické", "Klouby – degenerativní"]}
+Output: {"certain": ["Žlučník - žlučové kameny"], "uncertain": [], "multiple_problems": false, "all_mentioned": []}
 
 Input: "Jak se máš?"
-Output: {"certain": [], "uncertain": []}
+Output: {"certain": [], "uncertain": [], "multiple_problems": false, "all_mentioned": []}
 
 **KRITICKÉ PRAVIDLO PRO VÝSTUP:**
 - Vrať VÝHRADNĚ validní JSON objekt - žádný text před ani za
 - NEPIŠ vysvětlení, komentáře, zdůvodnění
 - NEPOUŽÍVEJ markdown code blocks
-- POUZE čistý JSON: {"certain": [...], "uncertain": [...]}
-- "certain" může obsahovat MAXIMÁLNĚ 1 položku
+- POUZE čistý JSON: {"certain": [...], "uncertain": [...], "multiple_problems": false, "all_mentioned": [...]}
 - ŽÁDNÝ další text - POUZE JSON objekt`;
 }
 
@@ -217,6 +222,8 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
     // Parsuj JSON response
     let problems: string[] = [];
     let uncertainProblems: string[] = [];
+    let multipleProblems = false;
+    let allMentionedProblems: string[] = [];
     
     try {
       const responseText = data.response || '';
@@ -230,10 +237,12 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
       
       const parsed = JSON.parse(jsonText);
       
-      // Nový formát: { "certain": [...], "uncertain": [...] }
+      // Formát: { "certain": [...], "uncertain": [...], "multiple_problems": bool, "all_mentioned": [...] }
       if (parsed && typeof parsed === 'object') {
         const certain = Array.isArray(parsed.certain) ? parsed.certain : [];
         const uncertain = Array.isArray(parsed.uncertain) ? parsed.uncertain : [];
+        multipleProblems = parsed.multiple_problems === true;
+        allMentionedProblems = Array.isArray(parsed.all_mentioned) ? parsed.all_mentioned : [];
         
         // 🛡️ VALIDACE: Zkontroluj, že všechny problémy jsou v availableProblems
         // Použij normalizovanou mapu pro tolerantní porovnání
@@ -262,6 +271,9 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
           problems = [];
         }
 
+        if (multipleProblems) {
+          console.log('⚠️ Detekováno více problémů najednou:', allMentionedProblems);
+        }
         if (problems.length > 0) {
           console.log('✅ Úspěšně zmapovány certain problémy:', problems);
         }
@@ -294,6 +306,8 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
       problems: problems,
       uncertainProblems: uncertainProblems,
       requiresUserSelection: requiresUserSelection,
+      multipleProblems: multipleProblems,
+      allMentionedProblems: allMentionedProblems,
       rawResponse: data.response
     };
     
@@ -304,6 +318,8 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
       problems: [],
       uncertainProblems: [],
       requiresUserSelection: false,
+      multipleProblems: false,
+      allMentionedProblems: [],
       error: error instanceof Error ? error.message : String(error)
     };
   }

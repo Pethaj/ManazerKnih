@@ -35,6 +35,7 @@ export interface MedicineTable {
   eo2: string | null;      // Esenciální olej 2 (product_name)
   prawtein: string | null; // Prawtein product (product_name)
   aloe: boolean;           // Doporučit Aloe?
+  aloeProductName: string | null;  // Konkrétní název Aloe produktu (např. "Aloe Vera Immunity")
   merkaba: boolean;        // Doporučit Merkaba?
   aloeUrl: string | null;  // 🆕 URL pro Aloe produkt (pokud je doporučen)
   merkabaUrl: string | null; // 🆕 URL pro Merkaba produkt (pokud je doporučen)
@@ -99,7 +100,7 @@ async function extractMedicineTable(
   pairingResults: PairingRecommendations,
   problemName: string
 ): Promise<MedicineTable | null> {
-  const { products, aloe, merkaba } = pairingResults;
+  const { products, aloe, aloeProduct, merkaba } = pairingResults;
   
   if (products.length === 0) {
     return null;
@@ -112,17 +113,29 @@ async function extractMedicineTable(
   
   // URL pro Aloe a Merkaba (nezobrazují se jako product pills, pouze jako textové odkazy)
   let aloeUrl: string | null = null;
+  let aloeProductName: string | null = aloeProduct || null;
   let merkabaUrl: string | null = null;
   
   if (aloe) {
+    // Použijeme konkrétní název Aloe produktu z tabulky leceni (např. "Aloe Vera Immunity")
+    // Pokud je hodnota příliš obecná (jen "Aloe"), hledáme standardní "Aloe Vera gel"
+    const isSpecificAloe = aloeProduct && aloeProduct.toLowerCase() !== 'aloe' && aloeProduct.length > 5;
+    const aloeSearchTerm = isSpecificAloe ? `%${aloeProduct}%` : '%Aloe Vera gel%';
+    console.log('💧 Hledám Aloe produkt:', aloeSearchTerm, '(aloeProduct z leceni:', aloeProduct, ')');
+    
     const { data: aloeData, error } = await supabase
       .from('product_feed_2')
       .select('product_code, product_name, category, url, thumbnail')
-      .ilike('product_name', '%Aloe Vera gel%')
+      .ilike('product_name', aloeSearchTerm)
       .limit(1);
     
     if (!error && aloeData && aloeData.length > 0) {
       aloeUrl = aloeData[0].url;
+      // Zobrazovaný název:
+      // - specifický (např. "Aloe vera Immunity") → hodnota z leceni
+      // - obecný ("Aloe") → vždy "Aloe Vera"
+      aloeProductName = (isSpecificAloe && aloeProduct) ? aloeProduct : 'Aloe Vera';
+      console.log('✅ Nalezen Aloe produkt:', aloeData[0].product_name, '→ zobrazí se jako:', aloeProductName);
     }
   }
   
@@ -146,6 +159,7 @@ async function extractMedicineTable(
     eo2: null,
     prawtein: null,  // Prawtein se načítá v getPrawteinProductsForProblem()
     aloe,
+    aloeProductName,
     merkaba,
     aloeUrl,
     merkabaUrl,

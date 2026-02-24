@@ -26,6 +26,7 @@ export interface PairedProduct {
   matched_product_url: string | null;
   matched_thumbnail: string | null;
   aloe_recommended: string;  // TEXT: "ano" nebo "ne" nebo null
+  aloe_product: string | null;  // Konkrétní název/kód Aloe produktu z leceni (např. "Aloe Vera Immunity")
   merkaba_recommended: string;  // TEXT: "ano" nebo "ne" nebo null
   combination_name: string;
 }
@@ -37,6 +38,7 @@ export interface PairedProduct {
 export interface PairingRecommendations {
   products: PairedProduct[];
   aloe: boolean;
+  aloeProduct: string | null;  // Konkrétní název/kód Aloe produktu (z leceni."Aloe")
   merkaba: boolean;
 }
 
@@ -55,7 +57,7 @@ export async function matchProductCombinationsWithProblems(
   // Validace vstupu
   if (!problems || problems.length === 0) {
     console.log('🔗 Párování: Žádné problémy k napárování');
-    return { products: [], aloe: false, merkaba: false };
+    return { products: [], aloe: false, aloeProduct: null, merkaba: false };
   }
 
   console.log('🔗 Párování kombinací produktů POUZE podle problému...');
@@ -75,7 +77,7 @@ export async function matchProductCombinationsWithProblems(
 
     if (!data || data.length === 0) {
       console.log('ℹ️ Žádné napárované produkty nenalezeny pro problémy:', problems);
-      return { products: [], aloe: false, merkaba: false };
+      return { products: [], aloe: false, aloeProduct: null, merkaba: false };
     }
 
     // Typovaný výsledek
@@ -83,10 +85,13 @@ export async function matchProductCombinationsWithProblems(
 
     // Agreguj Aloe/Merkaba doporučení
     const aloe = pairedProducts.some(p => p.aloe_recommended?.toLowerCase() === 'ano');
+    const aloeProductEntry = pairedProducts.find(p => p.aloe_recommended?.toLowerCase() === 'ano' && p.aloe_product);
+    const aloeProduct = aloeProductEntry?.aloe_product ?? null;
     const merkaba = pairedProducts.some(p => p.merkaba_recommended?.toLowerCase() === 'ano');
 
     console.log('✅ Napárováno produktů z SQL:', pairedProducts.length);
     console.log('💧 Aloe doporučeno:', aloe);
+    console.log('💧 Aloe produkt (z leceni):', aloeProduct);
     console.log('✨ Merkaba doporučeno:', merkaba);
     
     pairedProducts.forEach(p => {
@@ -96,12 +101,13 @@ export async function matchProductCombinationsWithProblems(
     return {
       products: pairedProducts,
       aloe,
+      aloeProduct,
       merkaba
     };
 
   } catch (error) {
     console.error('❌ Kritická chyba při párování s problémy:', error);
-    return { products: [], aloe: false, merkaba: false };
+    return { products: [], aloe: false, aloeProduct: null, merkaba: false };
   }
 }
 
@@ -121,7 +127,7 @@ export async function matchProductCombinations(
   // Validace vstupu
   if (!productCodes || productCodes.length === 0) {
     console.log('🔗 Párování: Žádné produkty k napárování');
-    return { products: [], aloe: false, merkaba: false };
+    return { products: [], aloe: false, aloeProduct: null, merkaba: false };
   }
 
   console.log('🔗 Párování kombinací produktů...');
@@ -141,7 +147,7 @@ export async function matchProductCombinations(
 
     if (!data || data.length === 0) {
       console.log('ℹ️ Žádné napárované produkty nenalezeny');
-      return { products: [], aloe: false, merkaba: false };
+      return { products: [], aloe: false, aloeProduct: null, merkaba: false };
     }
 
     // Typovaný výsledek
@@ -150,10 +156,13 @@ export async function matchProductCombinations(
     // Agreguj Aloe/Merkaba doporučení
     // Pokud alespoň jedna kombinace doporučuje, zobrazíme
     const aloe = pairedProducts.some(p => p.aloe_recommended?.toLowerCase() === 'ano');
+    const aloeProductEntry = pairedProducts.find(p => p.aloe_recommended?.toLowerCase() === 'ano' && p.aloe_product);
+    const aloeProduct = aloeProductEntry?.aloe_product ?? null;
     const merkaba = pairedProducts.some(p => p.merkaba_recommended?.toLowerCase() === 'ano');
 
     console.log('✅ Napárováno produktů:', pairedProducts.length);
     console.log('💧 Aloe doporučeno:', aloe);
+    console.log('💧 Aloe produkt (z leceni):', aloeProduct);
     console.log('✨ Merkaba doporučeno:', merkaba);
     
     pairedProducts.forEach(p => {
@@ -163,12 +172,13 @@ export async function matchProductCombinations(
     return {
       products: pairedProducts,
       aloe,
+      aloeProduct,
       merkaba
     };
 
   } catch (error) {
     console.error('❌ Kritická chyba při párování:', error);
-    return { products: [], aloe: false, merkaba: false };
+    return { products: [], aloe: false, aloeProduct: null, merkaba: false };
   }
 }
 
