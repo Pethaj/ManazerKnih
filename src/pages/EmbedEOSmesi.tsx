@@ -79,6 +79,7 @@ import { supabase } from '../lib/supabase';
 const EmbedEOSmesi = () => {
   const [chatbotSettings, setChatbotSettings] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [userContext, setUserContext] = useState<{
     id?: string;
     email?: string;
@@ -242,8 +243,100 @@ const EmbedEOSmesi = () => {
   } : undefined;
 
 
+  const handleAcceptDisclaimer = () => {
+    setShowDisclaimer(false);
+  };
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
+      {/* Disclaimer popup - zobrazí se při prvním spuštění chatu */}
+      {showDisclaimer && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.55)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '20px',
+            padding: '40px 36px 32px',
+            maxWidth: '520px',
+            width: '100%',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+            fontFamily: 'Inter, sans-serif'
+          }}>
+            <div style={{
+              width: '72px',
+              height: '72px',
+              background: 'linear-gradient(135deg, #5d7fa3 0%, #3b5f85 100%)',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 24px'
+            }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+
+            <h2 style={{
+              margin: '0 0 24px',
+              fontSize: '22px',
+              fontWeight: '700',
+              color: '#1a1a1a',
+              textAlign: 'center'
+            }}>
+              Upozornění
+            </h2>
+
+            <div style={{
+              background: '#f8f9fb',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '28px',
+              fontSize: '14px',
+              color: '#333',
+              lineHeight: '1.7'
+            }}>
+              <p style={{ margin: 0 }}>
+                Tento nástroj slouží výhradně k vzdělávacím a orientačním účelům a nenahrazuje odborné lékařské doporučení ani individuální posouzení. V případě obtíží se vždy obraťte na kvalifikovaného odborníka. Chatbot je v testovací verzi a může obsahovat nepřesnosti.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAcceptDisclaimer}
+              style={{
+                width: '100%',
+                padding: '14px 24px',
+                fontSize: '16px',
+                fontWeight: '700',
+                color: 'white',
+                background: 'linear-gradient(135deg, #5d7fa3 0%, #3b5f85 100%)',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                fontFamily: 'Inter, sans-serif',
+                transition: 'opacity 0.2s',
+                boxShadow: '0 4px 16px rgba(93,127,163,0.4)'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            >
+              Rozumím a pokračuji
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 
         Modální wrapper - stejný jako v ChatWidget.tsx 
         Ale místo fixed inset-0 používáme celou obrazovku (w-full h-screen)

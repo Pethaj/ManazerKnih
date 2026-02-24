@@ -3661,9 +3661,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
     const [selectedLanguage, setSelectedLanguage] = useState<string>('cs');
     const [autoScroll, setAutoScroll] = useState<boolean>(true);
     const [isFilterPanelVisible, setIsFilterPanelVisible] = useState<boolean>(false);
-    // 🆕 State pro sumarizovanou historii (pro N8N webhook)
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
-    // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
     const summarizedHistoryRef = useRef<string[]>([]);
 
     // Token z externalUserInfo pro prokliknutí produktů
@@ -4413,6 +4411,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     const [activeChatbotId, setActiveChatbotId] = useState(chatbotId);
     // Flag: true = uživatel přepnul na Universal, ignoruj přepsání z parenta
     const isSwitchedToUniversal = useRef(false);
+
 
     // Přepnutí na Universal chatbot nebo zpět na původní (podle aktuálního stavu)
     const handleSwitchToUniversal = useCallback(async () => {
