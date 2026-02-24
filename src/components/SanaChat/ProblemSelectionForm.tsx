@@ -10,16 +10,22 @@ import React, { useState } from 'react';
 interface ProblemSelectionFormProps {
   problems: string[];
   onSelect: (selectedProblem: string) => void;
+  disabled?: boolean;
 }
 
 export function ProblemSelectionForm({ 
   problems, 
-  onSelect 
+  onSelect,
+  disabled = false
 }: ProblemSelectionFormProps) {
   const [selected, setSelected] = useState<string>('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const isLocked = submitted || disabled;
 
   const handleConfirm = () => {
-    if (selected) {
+    if (selected && !isLocked) {
+      setSubmitted(true);
       onSelect(selected);
     }
   };
@@ -40,11 +46,14 @@ export function ProblemSelectionForm({
         {problems.map((problem) => (
           <button
             key={problem}
-            onClick={() => setSelected(problem)}
+            onClick={() => !isLocked && setSelected(problem)}
+            disabled={isLocked}
             className={`group relative flex items-center justify-between p-4 rounded-xl transition-all duration-200 text-left border ${
               selected === problem
                 ? 'bg-white border-blue-500 shadow-md scale-[1.02] ring-1 ring-blue-500/20'
-                : 'bg-white/60 border-gray-100 hover:border-blue-200 hover:bg-white hover:shadow-sm'
+                : isLocked
+                  ? 'bg-white/40 border-gray-100 opacity-50 cursor-not-allowed'
+                  : 'bg-white/60 border-gray-100 hover:border-blue-200 hover:bg-white hover:shadow-sm'
             }`}
           >
             <div className="flex items-center gap-4">
@@ -77,17 +86,30 @@ export function ProblemSelectionForm({
       <div className="flex items-center gap-3">
         <button
           onClick={handleConfirm}
-          disabled={!selected}
+          disabled={!selected || isLocked}
           className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl text-sm font-bold transition-all duration-300 ${
-            selected
-              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200 hover:shadow-blue-300 transform active:scale-[0.98]'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+            isLocked
+              ? 'bg-green-500 text-white cursor-not-allowed opacity-80'
+              : selected
+                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200 hover:shadow-blue-300 transform active:scale-[0.98]'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-60'
           }`}
         >
-          <span>Potvrdit</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={selected ? 'animate-pulse' : ''}>
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
+          {isLocked ? (
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Odesláno</span>
+            </>
+          ) : (
+            <>
+              <span>Potvrdit</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={selected ? 'animate-pulse' : ''}>
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </>
+          )}
         </button>
       </div>
       

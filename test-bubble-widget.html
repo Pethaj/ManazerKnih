@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Test – EO Směsi Chat s plovoucí bublinou</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      min-height: 100vh;
+    }
+
+    /* ---- Simulace webu klienta ---- */
+    header {
+      background: #1a4f8a;
+      color: white;
+      padding: 18px 40px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    header span { font-size: 13px; opacity: 0.75; margin-left: auto; }
+
+    main {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+
+    .info-box {
+      background: white;
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 28px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      border-left: 4px solid #1a4f8a;
+    }
+    .info-box h2 { font-size: 18px; margin-bottom: 10px; color: #1a4f8a; }
+    .info-box p { font-size: 14px; line-height: 1.7; color: #4a5568; }
+    .info-box ul { margin-top: 10px; padding-left: 20px; }
+    .info-box li { font-size: 14px; line-height: 1.8; color: #4a5568; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #718096;
+      margin-bottom: 10px;
+    }
+
+    /* ---- Existující iframe (EO Směsi Chat – modální způsob) ---- */
+    .existing-iframe-demo {
+      background: white;
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 28px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .existing-iframe-demo h2 { font-size: 18px; margin-bottom: 6px; }
+    .existing-iframe-demo p { font-size: 14px; color: #718096; margin-bottom: 20px; line-height: 1.6; }
+
+    .chat-tile {
+      position: relative;
+      background: linear-gradient(135deg, #1a4f8a 0%, #0d2d5a 100%);
+      border-radius: 18px;
+      padding: 36px 32px;
+      max-width: 400px;
+      min-height: 240px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(26,79,138,0.35);
+    }
+    .chat-tile h3 { color: white; font-size: 22px; font-weight: 700; }
+    .chat-tile p { color: rgba(255,255,255,0.78); font-size: 14px; line-height: 1.6; }
+    .chat-tile-btn {
+      background: #079854;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 32px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .chat-tile-btn:hover { background: #058040; }
+
+    /* ---- Overlay + Modal (stávající způsob) ---- */
+    #eo-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(4px);
+      z-index: 999998;
+      visibility: hidden; opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    #eo-modal-wrapper {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%) scale(0.95);
+      width: 90%; max-width: 1100px;
+      height: 85%; max-height: 780px;
+      z-index: 999999;
+      visibility: hidden; opacity: 0;
+      transition: all 0.3s ease;
+    }
+    #eo-close-btn {
+      position: absolute; top: -44px; right: 0;
+      background: rgba(0,0,0,0.6); color: white;
+      border: none; width: 36px; height: 36px;
+      border-radius: 8px; cursor: pointer;
+      font-size: 18px; display: flex;
+      align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    #eo-close-btn:hover { background: rgba(0,0,0,0.9); }
+    #eo-modal-inner {
+      width: 100%; height: 100%;
+      border-radius: 20px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+      overflow: hidden;
+    }
+
+    /* ---- Výsledek testu ---- */
+    .result-box {
+      background: #e6fffa;
+      border: 1px solid #81e6d9;
+      border-radius: 12px;
+      padding: 18px 24px;
+      margin-bottom: 28px;
+      font-size: 14px;
+      color: #234e52;
+      line-height: 1.7;
+    }
+    .result-box strong { color: #1a4f8a; }
+
+    footer {
+      text-align: center;
+      padding: 32px;
+      font-size: 12px;
+      color: #a0aec0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ========================
+     SIMULACE WEBU KLIENTA
+     ======================== -->
+<header>
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <h1>Bewit — EO Směsi Chat · Testovací stránka</h1>
+  <span>test-bubble-widget.html</span>
+</header>
+
+<main>
+
+  <div class="info-box">
+    <h2>Co tento test ověřuje</h2>
+    <p>Tato stránka simuluje web klienta s chatbotem <strong>EO Směsi</strong>. Existující dlaždice i nová plovoucí bublina vpravo dole otevírají <strong>stejné modální okno</strong> uprostřed stránky.</p>
+    <ul>
+      <li>Klikni na <strong>"Spustit Chat"</strong> v dlaždici → modální okno (stávající způsob)</li>
+      <li>Klikni na <strong>modrou bublinu vpravo dole</strong> → stejné modální okno (nový způsob)</li>
+    </ul>
+  </div>
+
+  <!-- STÁVAJÍCÍ ZPŮSOB – dlaždice + modální okno -->
+  <div class="existing-iframe-demo">
+    <div class="section-label">Stávající způsob – dlaždice</div>
+    <h2>EO Směsi Chat – Poradce na esenciální oleje</h2>
+    <p>Toto je stávající integrace klienta. Chat se otevírá jako modální okno po kliknutí na dlaždici.</p>
+
+    <div class="chat-tile">
+      <h3>Poradce na směsi esenciálních olejů</h3>
+      <p>Náš asistent poradí s výběrem esenciálních olejů a zodpoví vaše dotazy</p>
+      <button class="chat-tile-btn" onclick="openEOSmesiChat()">Spustit Chat</button>
+    </div>
+  </div>
+
+  <div class="result-box">
+    <strong>Plovoucí bublina</strong> vpravo dole otevírá <strong>stejné modální okno</strong> jako dlaždice výše — chování je identické, jen vstupní bod je jiný (bublina místo dlaždice).
+  </div>
+
+</main>
+
+<footer>Bewit Intelligence · Testovací prostředí · gr8learn.eu</footer>
+
+
+<!-- =====================================================
+     OVERLAY + MODÁLNÍ OKNO – EO SMĚSI CHAT
+     Používá ho jak dlaždice, tak plovoucí bublina
+     ===================================================== -->
+
+<!-- Overlay -->
+<div id="eo-overlay" onclick="closeEOSmesiChat()"></div>
+
+<!-- Modální wrapper -->
+<div id="eo-modal-wrapper">
+  <button id="eo-close-btn" onclick="closeEOSmesiChat()">✕</button>
+  <div id="eo-modal-inner">
+    <iframe
+      id="eo-chat-iframe"
+      src="https://gr8learn.eu/embed-eo-smesi.html"
+      style="width:100%;height:100%;border:0;background:#fff;"
+      allow="clipboard-write"
+      title="EO Směsi Chat"
+    ></iframe>
+  </div>
+</div>
+
+<script>
+function openEOSmesiChat() {
+  document.getElementById('eo-overlay').style.visibility = 'visible';
+  document.getElementById('eo-overlay').style.opacity = '1';
+  document.getElementById('eo-modal-wrapper').style.visibility = 'visible';
+  setTimeout(() => {
+    document.getElementById('eo-modal-wrapper').style.opacity = '1';
+    document.getElementById('eo-modal-wrapper').style.transform = 'translate(-50%,-50%) scale(1)';
+  }, 10);
+  document.body.style.overflow = 'hidden';
+}
+function closeEOSmesiChat() {
+  document.getElementById('eo-modal-wrapper').style.opacity = '0';
+  document.getElementById('eo-modal-wrapper').style.transform = 'translate(-50%,-50%) scale(0.95)';
+  document.getElementById('eo-overlay').style.opacity = '0';
+  setTimeout(() => {
+    document.getElementById('eo-modal-wrapper').style.visibility = 'hidden';
+    document.getElementById('eo-overlay').style.visibility = 'hidden';
+  }, 300);
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeEOSmesiChat();
+});
+</script>
+
+
+<!-- =====================================================
+     NOVÁ PLOVOUCÍ BUBLINA – PRAVÝ DOLNÍ ROH
+     Otevírá stejný modální popup jako dlaždice
+     ===================================================== -->
+
+<!-- Bublina / tlačítko -->
+<div
+  id="bewit-chat-bubble"
+  onclick="openEOSmesiChat()"
+  title="Otevřít EO Směsi Chat"
+  style="
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999999;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #1a4f8a;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.28);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+  "
+  onmouseover="this.style.transform='scale(1.10)';this.style.boxShadow='0 6px 24px rgba(0,0,0,0.38)'"
+  onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.28)'"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+  </svg>
+</div>
+
+<!-- =====================================================
+     GLOBÁLNÍ IFRAME_READY LISTENER
+     Posílá user data do obou chatů (stávajícího i bubliny)
+     ===================================================== -->
+<script>
+(function() {
+  var GR8_ORIGIN = 'https://gr8learn.eu';
+  var sentTo = new WeakSet();
+
+  // Testovací user data (na produkci přijdou z backendu)
+  var CURRENT_USER = {
+    id: 'test-123',
+    email: 'test@bewit.cz',
+    firstName: 'Testovací',
+    lastName: 'Uživatel',
+    position: 'Manager',
+    tokenEshop: ''
+  };
+
+  window.addEventListener('message', function(event) {
+    if (event.origin !== GR8_ORIGIN) return;
+    if (!event.data || event.data.type !== 'IFRAME_READY') return;
+    if (!event.source) return;
+    if (sentTo.has(event.source)) return;
+
+    var userData = {
+      type: 'USER_DATA',
+      user: {
+        id: CURRENT_USER.id,
+        firstName: CURRENT_USER.firstName,
+        lastName: CURRENT_USER.lastName,
+        email: CURRENT_USER.email,
+        position: CURRENT_USER.position,
+        tokenEshop: CURRENT_USER.tokenEshop
+      }
+    };
+
+    event.source.postMessage(userData, event.origin);
+    sentTo.add(event.source);
+    console.log('📤 User data poslána do iframe:', event.data.chatId);
+  });
+})();
+</script>
+
+</body>
+</html>

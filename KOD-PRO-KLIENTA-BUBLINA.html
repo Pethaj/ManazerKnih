@@ -1,0 +1,35 @@
+<!--
+  BEWIT – Plovoucí chatovací bublina
+  Vložit těsně před </body>. Žádné další úpravy není třeba.
+  Funguje pro obě varianty (vyber jednu):
+    - EO Směsi:  onclick="openEOSmesiChat()"
+    - Wany Chat: onclick="openWanyChat()"
+-->
+
+<div
+  onclick="openEOSmesiChat()"
+  title="Spustit EO Směsi Chat"
+  style="
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999999;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #1a4f8a;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.30);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  "
+  onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 6px 24px rgba(0,0,0,0.4)'"
+  onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.3)'"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+       fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+  </svg>
+</div>

@@ -47,6 +47,8 @@ import { processEoSmesiQuery, processEoSmesiQueryWithKnownProblem } from '../../
 import { ProblemSelectionForm } from './ProblemSelectionForm';
 // 🔍 Feed Agent - vyhledávač produktů
 import { searchProductsAutocomplete } from '../../feedAgent/feedAgentService';
+// Chatbot Settings Service - načítání nastavení chatbotů z databáze
+import { ChatbotSettingsService } from '../../services/chatbotSettingsService';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -136,6 +138,7 @@ interface ChatMessage {
   };
   // 🔍 Problem Selection Form (pro EO Směsi Chat - mezikrok)
   requiresProblemSelection?: boolean;  // Flag: zobrazit formulář pro výběr problému?
+  problemSelectionSubmitted?: boolean; // Flag: formulář byl odeslán, tlačítko se zablokuje
   uncertainProblems?: string[];        // Seznam problémů k výběru
   hideProductCallout?: boolean;        // Skryje "Související produkty BEWIT" callout (produkty jsou jen jako pills v textu)
 }
@@ -802,15 +805,15 @@ const EoSmesiLearnMoreButton: React.FC<{
     };
 
     return (
-        <div className="mt-4 pt-4 border-t border-blue-200 flex flex-wrap gap-2">
+        <div className="mt-4 pt-4 border-t border-blue-100 flex flex-col gap-2">
             <button
                 onClick={handleClick}
                 disabled={isLoading || isDone}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-bewit-blue text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
+                className="w-full inline-flex items-center justify-center gap-2.5 px-6 py-3 bg-bewit-blue text-white rounded-xl text-sm font-bold hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
             >
                 {isLoading ? (
                     <>
-                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
@@ -818,12 +821,12 @@ const EoSmesiLearnMoreButton: React.FC<{
                     </>
                 ) : isDone ? (
                     <>
-                        <span>✓</span>
+                        <span className="text-base">✓</span>
                         <span>Informace zobrazeny níže</span>
                     </>
                 ) : (
                     <>
-                        <span>🔍</span>
+                        <span className="text-base">🔍</span>
                         <span>Chci o produktech vědět víc</span>
                     </>
                 )}
@@ -885,6 +888,50 @@ const ProductPill: React.FC<{
     );
 };
 
+// 🆕 Komponenta pro produktové tlačítko v callout boxu (EO Směsi design)
+const ProductCalloutButton: React.FC<{
+    productName: string;
+    pinyinName?: string;
+    thumbnail?: string;
+    url: string;
+    token?: string;
+}> = ({ productName, pinyinName, thumbnail, url, token }) => {
+    const handleClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        openBewitProductLink(url, token, '_blank');
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            className="w-full flex items-center gap-3 p-2.5 bg-white border border-slate-200 hover:border-blue-300 rounded-2xl transition-all duration-200 group text-left shadow-sm hover:shadow-md"
+        >
+            <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform">
+                {thumbnail ? (
+                    <img src={thumbnail} alt={productName} className="w-full h-full object-cover" />
+                ) : (
+                    <span className="text-2xl opacity-50">🌿</span>
+                )}
+            </div>
+            <div className="flex-grow min-w-0">
+                <div className="text-sm font-semibold text-gray-800 group-hover:text-bewit-blue truncate">
+                    {productName}
+                </div>
+                {pinyinName && pinyinName !== productName && (
+                    <div className="text-[10px] text-gray-500 truncate mt-0.5">
+                        {pinyinName}
+                    </div>
+                )}
+            </div>
+            <div className="text-bewit-blue opacity-30 group-hover:opacity-100 transition-opacity pr-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </div>
+        </button>
+    );
+};
+
 const TypingIndicator: React.FC = () => (
     <div className="flex items-start gap-3 max-w-4xl mx-auto justify-start">
         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-bewit-blue flex items-center justify-center text-white">
@@ -931,7 +978,7 @@ const Message: React.FC<{
     onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
 }> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] }, onAddMessage, onSwitchToUniversal }) => {
     const isUser = message.role === 'user';
-    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local' || chatbotId === 'universal_chat';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi, Wany.Chat Local a Universal Chat používají markdown
+    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local' || chatbotId === 'universal_chat' || chatbotId === 'universal';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi, Wany.Chat Local, Universal Chat a Universal používají markdown
     
     // 🆕 State pro obohacené produkty (obsahují category pro seskupení v ProductPills)
     const [enrichedProducts, setEnrichedProducts] = useState<RecommendedProduct[]>([]);
@@ -1216,29 +1263,54 @@ const Message: React.FC<{
                         });
                         
                         segments.push(
-                            <div key={`products-section`} className="my-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
+                            <div key={`products-section`} className={`my-4 border rounded-2xl p-4 shadow-sm ${
+                                chatbotId === 'eo_smesi' 
+                                    ? "bg-blue-50/40 border-blue-100" 
+                                    : "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"
+                            }`}>
                                 <h4 className="text-sm font-semibold text-bewit-blue mb-3 flex items-center gap-2">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg 
+                                        width="18" 
+                                        height="18" 
+                                        viewBox="0 0 24 24" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        strokeWidth="2.5" 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round"
+                                        className="text-bewit-blue"
+                                    >
                                         <circle cx="9" cy="21" r="1"></circle>
                                         <circle cx="20" cy="21" r="1"></circle>
                                         <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
                                     </svg>
                                     Související produkty BEWIT
-                                    {productsLoading && <span className="text-xs text-gray-500">(načítám...)</span>}
+                                    {productsLoading && <span className="text-xs text-gray-500 animate-pulse">(načítám...)</span>}
                                 </h4>
                                 <div className="flex flex-col gap-4">
                                     {categories.map((cat) => (
                                         <div key={cat}>
-                                            <p className="text-xs font-medium text-gray-600 mb-2">{cat}</p>
-                                            <div className="flex flex-col gap-2">
+                                            <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
+                                            <div className="flex flex-col gap-2.5">
                                                 {byCategory[cat].map((product, index) => (
-                                                    <ProductPill
-                                                        key={`${cat}-${index}`}
-                                                        productName={product.product_name}
-                                                        pinyinName={product.description || product.product_name}
-                                                        url={product.url || ''}
-                                                        token={token}
-                                                    />
+                                                    chatbotId === 'eo_smesi' ? (
+                                                        <ProductCalloutButton
+                                                            key={`${cat}-${index}`}
+                                                            productName={product.product_name}
+                                                            pinyinName={product.description || product.product_name}
+                                                            thumbnail={product.thumbnail}
+                                                            url={product.url || ''}
+                                                            token={token}
+                                                        />
+                                                    ) : (
+                                                        <ProductPill
+                                                            key={`${cat}-${index}`}
+                                                            productName={product.product_name}
+                                                            pinyinName={product.description || product.product_name}
+                                                            url={product.url || ''}
+                                                            token={token}
+                                                        />
+                                                    )
                                                 ))}
                                             </div>
                                         </div>
@@ -1247,19 +1319,19 @@ const Message: React.FC<{
                                 
                                 {/* 🆕 Aloe/Merkaba indikátory (pokud je zapnuté párování) */}
                                 {chatbotSettings?.enable_product_pairing && (pairingRecommendations.aloe || pairingRecommendations.merkaba) && (
-                                    <div className="mt-4 pt-4 border-t border-blue-200">
-                                        <p className="text-xs font-medium text-gray-600 mb-2">Doplňkové doporučení:</p>
-                                        <div className="flex flex-wrap gap-2">
+                                    <div className="mt-4 pt-4 border-t border-blue-100">
+                                        <p className="text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Doplňkové doporučení:</p>
+                                        <div className="flex flex-wrap gap-3">
                                             {pairingRecommendations.aloe && (
-                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                                                    <span className="text-base">💧</span>
-                                                    <span>Aloe doporučeno</span>
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm">
+                                                    <span className="text-base leading-none">✅</span>
+                                                    <span>Aloe Vera gel</span>
                                                 </div>
                                             )}
                                             {pairingRecommendations.merkaba && (
-                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
-                                                    <span className="text-base">✨</span>
-                                                    <span>Merkaba doporučeno</span>
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-100/50 shadow-sm">
+                                                    <span className="text-base leading-none">✅</span>
+                                                    <span>Merkaba</span>
                                                 </div>
                                             )}
                                         </div>
@@ -1584,6 +1656,7 @@ const Message: React.FC<{
                         <ProblemSelectionForm
                             problems={message.uncertainProblems}
                             onSelect={onProblemSelect}
+                            disabled={message.problemSelectionSubmitted}
                         />
                     )}
                     
@@ -1609,9 +1682,23 @@ const Message: React.FC<{
 
                     {/* 🌿 EO SMĚSI: Callout box "Související produkty BEWIT" - pouze pro první odpověď (bez hideProductCallout) */}
                     {!isUser && usesMarkdown && !message.hideProductCallout && !message.text?.includes('<<<PRODUCT:') && enrichedProducts.length > 0 && (
-                        <div className="mt-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
+                        <div className={`mt-4 border rounded-2xl p-4 shadow-sm ${
+                            chatbotId === 'eo_smesi' 
+                                ? "bg-blue-50/40 border-blue-100" 
+                                : "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"
+                        }`}>
                             <h4 className="text-sm font-semibold text-bewit-blue mb-3 flex items-center gap-2">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg 
+                                    width="18" 
+                                    height="18" 
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    strokeWidth="2.5" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                    className="text-bewit-blue"
+                                >
                                     <circle cx="9" cy="21" r="1"></circle>
                                     <circle cx="20" cy="21" r="1"></circle>
                                     <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
@@ -1640,16 +1727,27 @@ const Message: React.FC<{
                                     
                                     return categories.map((cat) => (
                                         <div key={cat}>
-                                            <p className="text-xs font-medium text-gray-600 mb-2">{cat}</p>
-                                            <div className="flex flex-col gap-2">
+                                            <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
+                                            <div className="flex flex-col gap-2.5">
                                                 {byCategory[cat].map((product, index) => (
-                                                    <ProductPill
-                                                        key={`${cat}-${index}`}
-                                                        productName={product.product_name}
-                                                        pinyinName={product.description || product.product_name}
-                                                        url={product.url || ''}
-                                                        token={token}
-                                                    />
+                                                    chatbotId === 'eo_smesi' ? (
+                                                        <ProductCalloutButton
+                                                            key={`${cat}-${index}`}
+                                                            productName={product.product_name}
+                                                            pinyinName={product.description || product.product_name}
+                                                            thumbnail={product.thumbnail}
+                                                            url={product.url || ''}
+                                                            token={token}
+                                                        />
+                                                    ) : (
+                                                        <ProductPill
+                                                            key={`${cat}-${index}`}
+                                                            productName={product.product_name}
+                                                            pinyinName={product.description || product.product_name}
+                                                            url={product.url || ''}
+                                                            token={token}
+                                                        />
+                                                    )
                                                 ))}
                                             </div>
                                         </div>
@@ -1659,30 +1757,34 @@ const Message: React.FC<{
                             
                             {/* Aloe/Merkaba textové odkazy */}
                             {chatbotSettings?.enable_product_pairing && message.pairingInfo && (message.pairingInfo.aloe || message.pairingInfo.merkaba) && (
-                                <div className="mt-4 pt-4 border-t border-blue-200">
-                                    <p className="text-xs font-medium text-gray-600 mb-2">Doplňkové doporučení:</p>
-                                    <div className="flex flex-wrap gap-3 text-sm">
-                                        {message.pairingInfo.aloe && message.pairingInfo.aloeUrl && (
-                                            <a 
-                                                href={message.pairingInfo.aloeUrl} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 hover:underline transition-colors"
-                                            >
-                                                <span className="text-green-600">✅</span>
-                                                <span>Aloe Vera gel</span>
-                                            </a>
+                                <div className="mt-4 pt-4 border-t border-blue-100">
+                                    <p className="text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Doplňkové doporučení:</p>
+                                    <div className="flex flex-wrap gap-3">
+                                        {message.pairingInfo.aloe && (
+                                            message.pairingInfo.aloeUrl ? (
+                                                <a href={message.pairingInfo.aloeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm hover:bg-green-100 transition-colors">
+                                                    <span className="text-base leading-none">✅</span>
+                                                    <span>Aloe Vera gel</span>
+                                                </a>
+                                            ) : (
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm">
+                                                    <span className="text-base leading-none">✅</span>
+                                                    <span>Aloe Vera gel</span>
+                                                </div>
+                                            )
                                         )}
-                                        {message.pairingInfo.merkaba && message.pairingInfo.merkabaUrl && (
-                                            <a 
-                                                href={message.pairingInfo.merkabaUrl} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-1.5 text-purple-600 hover:text-purple-800 hover:underline transition-colors"
-                                            >
-                                                <span className="text-green-600">✅</span>
-                                                <span>Merkaba</span>
-                                            </a>
+                                        {message.pairingInfo.merkaba && (
+                                            message.pairingInfo.merkabaUrl ? (
+                                                <a href={message.pairingInfo.merkabaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-100/50 shadow-sm hover:bg-purple-100 transition-colors">
+                                                    <span className="text-base leading-none">✅</span>
+                                                    <span>Merkaba</span>
+                                                </a>
+                                            ) : (
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-100/50 shadow-sm">
+                                                    <span className="text-base leading-none">✅</span>
+                                                    <span>Merkaba</span>
+                                                </div>
+                                            )
                                         )}
                                     </div>
                                 </div>
@@ -1756,16 +1858,30 @@ const Message: React.FC<{
                                         <p className="text-xs font-medium text-amber-700 mb-2">Doplňkové doporučení:</p>
                                         <div className="flex flex-wrap gap-2">
                                             {message.pairingInfo.aloe && (
-                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                                                    <span className="text-base">💧</span>
-                                                    <span>Aloe doporučeno</span>
-                                                </div>
+                                                message.pairingInfo.aloeUrl ? (
+                                                    <a href={message.pairingInfo.aloeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium hover:bg-green-200 transition-colors">
+                                                        <span className="text-base">💧</span>
+                                                        <span>Aloe doporučeno</span>
+                                                    </a>
+                                                ) : (
+                                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                                                        <span className="text-base">💧</span>
+                                                        <span>Aloe doporučeno</span>
+                                                    </div>
+                                                )
                                             )}
                                             {message.pairingInfo.merkaba && (
-                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
-                                                    <span className="text-base">✨</span>
-                                                    <span>Merkaba doporučeno</span>
-                                                </div>
+                                                message.pairingInfo.merkabaUrl ? (
+                                                    <a href={message.pairingInfo.merkabaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium hover:bg-purple-200 transition-colors">
+                                                        <span className="text-base">✨</span>
+                                                        <span>Merkaba doporučeno</span>
+                                                    </a>
+                                                ) : (
+                                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                                                        <span className="text-base">✨</span>
+                                                        <span>Merkaba doporučeno</span>
+                                                    </div>
+                                                )
                                             )}
                                         </div>
                                     </div>
@@ -2266,6 +2382,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
     // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
     const summarizedHistoryRef = useRef<string[]>([]);
+    const [showNewChatPopup, setShowNewChatPopup] = useState<boolean>(false);
 
     useEffect(() => {
         setSessionId(generateSessionId());
@@ -2295,6 +2412,11 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     const handleProblemSelection = useCallback(async (selectedProblem: string) => {
         setIsLoading(true);
         
+        // Zablokuj formulář výběru – zabráníme opakovanému odeslání při rerenderu
+        setMessages(prev => prev.map(msg =>
+            msg.requiresProblemSelection ? { ...msg, problemSelectionSubmitted: true } : msg
+        ));
+
         try {
             const eoSmesiResult = await processEoSmesiQueryWithKnownProblem(selectedProblem);
             
@@ -3443,6 +3565,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
     // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
     const summarizedHistoryRef = useRef<string[]>([]);
+    const [showNewChatPopup, setShowNewChatPopup] = useState<boolean>(false);
 
     // Token z externalUserInfo pro prokliknutí produktů
     const userToken = externalUserInfo?.token_eshop;
@@ -4163,11 +4286,34 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     // Flag: true = uživatel přepnul na Universal, ignoruj přepsání z parenta
     const isSwitchedToUniversal = useRef(false);
 
-    // Přepnutí na Universal chatbot - nový chat s Universal nastavením
-    const handleSwitchToUniversal = useCallback(() => {
+    // Přepnutí na Universal chatbot - načte nastavení z databáze
+    const handleSwitchToUniversal = useCallback(async () => {
         isSwitchedToUniversal.current = true;
-        setSettings(UNIVERSAL_CHATBOT_SETTINGS);
-        setActiveChatbotId('universal_chat');
+        try {
+            const universalSettings = await ChatbotSettingsService.getChatbotSettings('universal');
+            if (universalSettings) {
+                setSettings({
+                    product_recommendations: universalSettings.product_recommendations,
+                    product_button_recommendations: universalSettings.product_button_recommendations,
+                    inline_product_links: universalSettings.inline_product_links ?? false,
+                    book_database: universalSettings.book_database,
+                    use_feed_1: universalSettings.use_feed_1 ?? false,
+                    use_feed_2: universalSettings.use_feed_2 ?? false,
+                    webhook_url: universalSettings.webhook_url,
+                    enable_product_router: universalSettings.enable_product_router ?? false,
+                    enable_manual_funnel: universalSettings.enable_manual_funnel ?? false,
+                    summarize_history: universalSettings.summarize_history ?? false,
+                    show_sources: universalSettings.show_sources ?? false,
+                    allowed_product_categories: universalSettings.allowed_product_categories ?? [],
+                    enable_product_pairing: universalSettings.enable_product_pairing ?? false,
+                });
+            } else {
+                setSettings(UNIVERSAL_CHATBOT_SETTINGS);
+            }
+        } catch {
+            setSettings(UNIVERSAL_CHATBOT_SETTINGS);
+        }
+        setActiveChatbotId('universal');
         setChatKey(k => k + 1);
     }, []);
     
@@ -4371,8 +4517,8 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     };
 
     const handleNewChat = useCallback(() => {
-        // Reset chat - tady by byla logika pro vymazání zpráv v SanaChatContent
-        console.log('🔄 Nový chat v FilteredSanaChat');
+        setChatKey(k => k + 1);
+        startNewChatOnAPI();
     }, []);
 
     const handleExportPdf = useCallback(() => {
