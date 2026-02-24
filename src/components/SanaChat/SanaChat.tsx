@@ -374,7 +374,8 @@ const sendMessageToAPI = async (
     },
     summarizedHistory?: string[],  // 🆕 Sumarizovaná historie (místo plné historie)
     allowedProductCategories?: string[],  // 🆕 Povolené produktové kategorie pro filtrování
-    pairedProductNames?: string[]  // 🆕 Názvy produktů z SQL párování
+    pairedProductNames?: string[],  // 🆕 Názvy produktů z SQL párování
+    enableProductScreening?: boolean  // 🆕 Pokud false, přeskočí screening produktů z textu
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
         // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
@@ -579,7 +580,7 @@ const sendMessageToAPI = async (
         // 🆕 PRODUCT NAME MATCHING - Screening produktů a matching proti databázi
         let matchedProducts: any[] = [];
         
-        try {
+        if (enableProductScreening !== false) try {
             // 1. Screening - extrakce názvů produktů z textu pomocí GPT
             const screeningResult = await screenTextForProducts(finalBotText);
             
@@ -3312,7 +3313,8 @@ Symptomy zákazníka: ${symptomsList}
                     externalUserInfo,  // 🆕 External user data z iframe
                     undefined,  // Tenhle parametr už nepoužíváme - posíláme přímo v history
                     chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
-                    pairedProductNames  // 🆕 Názvy produktů z SQL párování
+                    pairedProductNames,  // 🆕 Názvy produktů z SQL párování
+                    !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // 🆕 Screening jen když je zapnutý
                 );
                 
                 // 🔗 Přidáme párování metadata do výsledku (pokud existují)
@@ -3509,7 +3511,9 @@ Symptomy zákazníka: ${symptomsList}
                 currentUser,  // 🆕 Přidáno: informace o uživateli
                 externalUserInfo,  // 🆕 External user data z iframe
                 chatbotSettings.summarize_history ? summarizedHistory : undefined,  // 🆕 Sumarizovaná historie
-                chatbotSettings.allowed_product_categories  // 🆕 Povolené produktové kategorie
+                chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
+                undefined,  // pairedProductNames
+                !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // 🆕 Screening jen když je zapnutý
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
@@ -3928,7 +3932,8 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     externalUserInfo,  // 🆕 External user data z iframe
                     undefined,  // Tenhle parametr už nepoužíváme
                     chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
-                    pairedProductNames  // 🆕 Názvy produktů z SQL párování
+                    pairedProductNames,  // 🆕 Názvy produktů z SQL párování
+                    !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // 🆕 Screening jen když je zapnutý
                 );
                 
                 // 🔗 Přidáme párování metadata do výsledku (pokud existují)
@@ -4110,7 +4115,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 currentUser,  // 🆕 Přidáno: informace o uživateli
                 externalUserInfo,  // 🆕 External user data z iframe
                 chatbotSettings.summarize_history ? summarizedHistory : undefined,  // 🆕 Sumarizovaná historie
-                chatbotSettings.allowed_product_categories  // 🆕 Povolené produktové kategorie
+                chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
+                undefined,  // pairedProductNames
+                !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // 🆕 Screening jen když je zapnutý
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
