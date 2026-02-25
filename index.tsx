@@ -4530,37 +4530,42 @@ const App = ({ currentUser }: { currentUser: User }) => {
         if (!deleteConfirmation.book) return;
 
         const bookToDelete = deleteConfirmation.book;
+        const bookIdToDelete = bookToDelete.id;
+
+        // Zavřeme dialog okamžitě
+        setDeleteConfirmation({ isOpen: false, book: null });
+
+        // Optimistický update - okamžitě odebereme knihu z UI
+        const removedIndex = books.findIndex(b => b.id === bookIdToDelete);
+        const booksAfterDelete = books.filter(b => b.id !== bookIdToDelete);
+        setBooks(booksAfterDelete);
+
+        if (selectedBookId === bookIdToDelete) {
+            setSelectedBookId(
+                booksAfterDelete.length > 0
+                    ? booksAfterDelete[Math.min(removedIndex, booksAfterDelete.length - 1)].id
+                    : null
+            );
+        }
+
+        if (selectedBookIds.has(bookIdToDelete)) {
+            const updated = new Set(selectedBookIds);
+            updated.delete(bookIdToDelete);
+            setSelectedBookIds(updated);
+        }
 
         try {
-            await api.deleteBook(bookToDelete.id, bookToDelete.filePath, bookToDelete.coverImageUrl, bookToDelete.title);
-
-            // Always update UI - the book should be removed from the list even if there were storage errors
-            const originalBookIndex = books.findIndex(b => b.id === bookToDelete.id);
-            const newBooks = books.filter(b => b.id !== bookToDelete.id);
-            setBooks(newBooks);
-
-            if (selectedBookId === bookToDelete.id) {
-                let newSelectedId = null;
-                if (newBooks.length > 0) {
-                    const newIndex = Math.min(originalBookIndex, newBooks.length - 1);
-                    newSelectedId = newBooks[newIndex].id;
-                }
-                setSelectedBookId(newSelectedId);
-            }
-
-            if (selectedBookIds.has(bookToDelete.id)) {
-                const newSelectedIds = new Set(selectedBookIds);
-                newSelectedIds.delete(bookToDelete.id);
-                setSelectedBookIds(newSelectedIds);
-            }
-
-            console.log(`Kniha "${bookToDelete.title}" byla úspěšně smazána`);
-
+            await api.deleteBook(bookIdToDelete, bookToDelete.filePath, bookToDelete.coverImageUrl, bookToDelete.title);
+            console.log(`✅ Kniha "${bookToDelete.title}" byla úspěšně smazána`);
         } catch (error: any) {
+            // Rollback - vrátíme knihu zpět do seznamu
             console.error("Failed to delete book:", error.message, error);
+            setBooks(prev => {
+                const restored = [...prev];
+                restored.splice(removedIndex, 0, bookToDelete);
+                return restored;
+            });
             alert(`Smazání knihy se nezdařilo: ${error.message}`);
-        } finally {
-            setDeleteConfirmation({ isOpen: false, book: null });
         }
     };
 
@@ -5851,8 +5856,8 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                         }}
                                     >
                                         {ILovePDFService.getAvailableLanguages().map(lang => (
-                                            <option key={lang.code} value={lang.label}>
-                                                {lang.label}
+                                            <option key={lang.code} value={lang.name}>
+                                                {lang.name}
                                             </option>
                                         ))}
                                     </select>
@@ -7795,8 +7800,8 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                                     }}
                                 >
                                     {ILovePDFService.getAvailableLanguages().map(lang => (
-                                        <option key={lang.code} value={lang.label}>
-                                            {lang.label}
+                                        <option key={lang.code} value={lang.name}>
+                                            {lang.name}
                                         </option>
                                     ))}
                                 </select>
