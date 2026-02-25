@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import FilteredSanaChat from '../components/SanaChat/SanaChat';
 import { supabase } from '../lib/supabase';
+import ChatFeedback, { ChatFeedbackData } from '../components/ui/ChatFeedback';
+import { saveChatFeedback } from '../services/chatHistoryService';
 
 /**
  * EmbedVanyChat - Dedikovaná stránka pro embedding Wany Chatu
@@ -85,6 +87,8 @@ const EmbedVanyChat = () => {
     position?: string;
     tokenEshop?: string;  // 🆕 E-shop token z Bewit webu
   }>({});
+  const [showFeedback, setShowFeedback] = useState(false);
+  const sessionIdRef = useRef<string>('');
 
   useEffect(() => {
     
@@ -240,24 +244,36 @@ const EmbedVanyChat = () => {
   } : undefined;
 
 
+  const handleClose = () => setShowFeedback(true);
+
+  const handleFeedbackClose = async (feedback: ChatFeedbackData) => {
+    const sid = sessionIdRef.current;
+    if (sid) {
+      await saveChatFeedback(sid, feedback.smiley, feedback.feedbackText);
+    }
+    setShowFeedback(false);
+    // Informuj parenta o zavření (parent může, ale nemusí naslouchat)
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'WIDGET_CLOSE' }, '*');
+    }
+  };
+
   return (
-    <div className="w-full h-screen overflow-hidden">
-      {/* 
-        Modální wrapper - stejný jako v ChatWidget.tsx 
-        Ale místo fixed inset-0 používáme celou obrazovku (w-full h-screen)
-      */}
+    <div className="w-full h-screen overflow-hidden relative">
       <div className="w-full h-full">
-        {/* 🔒 External users: currentUser=undefined aby se user_id neuložil do Supabase (UUID error) */}
-        {/* 🔑 key={userContext.id || 'anonymous'} vynucuje re-render při změně user dat */}
         <FilteredSanaChat 
           key={userContext.id || userContext.email || 'anonymous'}
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
-          onClose={undefined}
+          onClose={handleClose}
+          onSessionReady={(sid) => { sessionIdRef.current = sid; }}
           currentUser={undefined}
           externalUserInfo={externalUserInfo}
         />
       </div>
+      {showFeedback && (
+        <ChatFeedback onClose={handleFeedbackClose} />
+      )}
     </div>
   );
 };

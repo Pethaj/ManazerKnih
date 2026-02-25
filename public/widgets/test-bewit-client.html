@@ -319,8 +319,17 @@ function openWanyChat() {
   }
 }
 
-// Zavřít chat (BEZE ZMĚN)
+// Zavřít chat - pošleme REQUEST_CLOSE do iframe, ten zobrazí feedback a pak pošle WIDGET_CLOSE
 function closeWanyChat() {
+  const iframe = document.getElementById('wany-chat-iframe');
+  if (iframe && iframe.contentWindow) {
+    iframe.contentWindow.postMessage({ type: 'REQUEST_CLOSE' }, '*');
+  } else {
+    hideWanyChat();
+  }
+}
+
+function hideWanyChat() {
   const wrapper = document.getElementById('wany-chat-wrapper');
   const overlay = document.getElementById('wany-chat-overlay');
   
@@ -333,6 +342,13 @@ function closeWanyChat() {
     document.body.style.overflow = '';
   }
 }
+
+// Nasloucháme na WIDGET_CLOSE od iframe
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'WIDGET_CLOSE') {
+    hideWanyChat();
+  }
+});
 
 // ESC klávesa (BEZE ZMĚN)
 document.addEventListener('keydown', function(e) {
@@ -470,6 +486,16 @@ document.addEventListener('keydown', function(e) {
         }
 
         function closeWanyChat() {
+            // Pošleme REQUEST_CLOSE do iframe - ten zobrazí feedback a pak pošle WIDGET_CLOSE zpět
+            const iframe = document.getElementById('wany-chat-iframe');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage({ type: 'REQUEST_CLOSE' }, '*');
+            } else {
+                hideWanyChat();
+            }
+        }
+
+        function hideWanyChat() {
             const wrapper = document.getElementById('wany-chat-wrapper');
             const overlay = document.getElementById('wany-chat-overlay');
             
@@ -482,6 +508,14 @@ document.addEventListener('keydown', function(e) {
                 document.body.style.overflow = '';
             }
         }
+
+        // Nasloucháme na WIDGET_CLOSE od iframe (poté co uživatel odeslal feedback)
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'WIDGET_CLOSE') {
+                console.log('📨 WIDGET_CLOSE přijat od iframe - zavírám chat');
+                hideWanyChat();
+            }
+        });
 
         function sendUserData() {
             const iframe = document.getElementById('wany-chat-iframe');

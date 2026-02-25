@@ -6,7 +6,7 @@
  * ============================================================================
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { FilteredSanaChat } from '../SanaChat/SanaChat';
 import {
   getWidgetConfigFromURL,
@@ -19,6 +19,8 @@ import {
 } from '../../services/widgetConfigService';
 import { getCurrentUser } from '../../services/customAuthService';
 import type { User } from '../../services/customAuthService';
+import ChatFeedback, { ChatFeedbackData } from '../ui/ChatFeedback';
+import { saveChatFeedback } from '../../services/chatHistoryService';
 
 export const WidgetChatContainer: React.FC = () => {
   const [config, setConfig] = useState<WidgetConfig | null>(null);
@@ -26,6 +28,27 @@ export const WidgetChatContainer: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const sessionIdRef = useRef<string>('');
+
+  // Funkce pro skutečné zavření - pošle WIDGET_CLOSE do parenta
+  const confirmClose = useCallback(() => {
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'WIDGET_CLOSE' }, '*');
+    }
+  }, []);
+
+  // Nasloucháme na REQUEST_CLOSE od parenta (když klikne na černý křížek)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'REQUEST_CLOSE') {
+        widgetLog('📨 REQUEST_CLOSE přijat od parenta');
+        setShowFeedback(true);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   useEffect(() => {
     initializeWidget();
@@ -98,21 +121,34 @@ export const WidgetChatContainer: React.FC = () => {
     );
   }
 
-  // 🔥 PŘESNĚ STEJNÝ MODÁLNÍ WRAPPER JAKO V ChatWidget.tsx (řádky 115-124)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] rounded-xl shadow-2xl transition-all duration-300 ease-in-out overflow-hidden">
+      <div className="relative w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] rounded-xl shadow-2xl transition-all duration-300 ease-in-out overflow-hidden">
         <FilteredSanaChat 
-          currentUser={currentUser}  // ✅ Předáváme informace o uživateli do chatu
+          currentUser={currentUser}
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
-          onClose={() => {
-            // Notify parent to close widget
-            if (window.parent !== window) {
-              window.parent.postMessage({ type: 'WIDGET_CLOSE' }, '*');
-            }
-          }}
+          onClose={() => setShowFeedback(true)}
+          onSessionReady={(sid) => { sessionIdRef.current = sid; }}
         />
+        {showFeedback && (
+          <ChatFeedback
+            onClose={async (feedback: ChatFeedbackData) => {
+              const sid = sessionIdRef.current;
+              widgetLog('📝 Feedback odesílán, sessionId:', sid, 'smiley:', feedback.smiley);
+              if (sid) {
+                const result = await saveChatFeedback(sid, feedback.smiley, feedback.feedbackText);
+                if (result.error) {
+                  widgetError('❌ Chyba při ukládání feedbacku:', result.error);
+                } else {
+                  widgetLog('✅ Feedback uložen');
+                }
+              }
+              setShowFeedback(false);
+              confirmClose();
+            }}
+          />
+        )}
       </div>
     </div>
   );

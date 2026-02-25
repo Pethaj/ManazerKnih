@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import FilteredSanaChat from '../components/SanaChat/SanaChat';
 import { supabase } from '../lib/supabase';
+import ChatFeedback, { ChatFeedbackData } from '../components/ui/ChatFeedback';
+import { saveChatFeedback } from '../services/chatHistoryService';
 
 /**
  * EmbedEOSmesi - Dedikovaná stránka pro embedding EO Směsi Chatu
@@ -80,6 +82,8 @@ const EmbedEOSmesi = () => {
   const [chatbotSettings, setChatbotSettings] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const sessionIdRef = useRef<string>('');
   const [userContext, setUserContext] = useState<{
     id?: string;
     email?: string;
@@ -342,17 +346,30 @@ const EmbedEOSmesi = () => {
         Ale místo fixed inset-0 používáme celou obrazovku (w-full h-screen)
       */}
       <div className="w-full h-full">
-        {/* 🔒 External users: currentUser=undefined aby se user_id neuložil do Supabase (UUID error) */}
-        {/* 🔑 key={userContext.id || 'anonymous'} vynucuje re-render při změně user dat */}
         <FilteredSanaChat 
           key={userContext.id || userContext.email || 'anonymous'}
           chatbotId="eo_smesi"
           chatbotSettings={chatbotSettings}
-          onClose={undefined}
+          onClose={() => setShowFeedback(true)}
+          onSessionReady={(sid) => { sessionIdRef.current = sid; }}
           currentUser={undefined}
           externalUserInfo={externalUserInfo}
         />
       </div>
+      {showFeedback && (
+        <ChatFeedback
+          onClose={async (feedback: ChatFeedbackData) => {
+            const sid = sessionIdRef.current;
+            if (sid) {
+              await saveChatFeedback(sid, feedback.smiley, feedback.feedbackText);
+            }
+            setShowFeedback(false);
+            if (window.parent !== window) {
+              window.parent.postMessage({ type: 'WIDGET_CLOSE' }, '*');
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
