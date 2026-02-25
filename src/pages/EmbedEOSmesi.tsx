@@ -154,8 +154,17 @@ const EmbedEOSmesi = () => {
 
   // 🔥 SAMOSTATNÝ useEffect PRO LISTENER - běží pořád, ne jen při mount
   useEffect(() => {
-    // 🆕 Listener pro postMessage - přijímá USER_DATA kdykoliv
+    // 🆕 Listener pro postMessage - přijímá USER_DATA a REQUEST_CLOSE
     const handleMessage = (event: MessageEvent) => {
+      // Otevři feedback při REQUEST_CLOSE (klik na černý křížek mimo iframe)
+      if (event.data?.type === 'REQUEST_CLOSE') {
+        setShowFeedback(true);
+        // Potvrd parentovi že zpráva dorazila - zruší 6s fallback timeout
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'CLOSE_ACKNOWLEDGED' }, '*');
+        }
+        return;
+      }
       // Validace struktury dat
       if (event.data.type === 'USER_DATA' && event.data.user) {
         
@@ -350,7 +359,11 @@ const EmbedEOSmesi = () => {
           key={userContext.id || userContext.email || 'anonymous'}
           chatbotId="eo_smesi"
           chatbotSettings={chatbotSettings}
-          onClose={() => setShowFeedback(true)}
+          onClose={() => {
+            if (window.parent !== window) {
+              window.parent.postMessage({ type: 'WIDGET_CLOSE' }, '*');
+            }
+          }}
           onSessionReady={(sid) => { sessionIdRef.current = sid; }}
           currentUser={undefined}
           externalUserInfo={externalUserInfo}
