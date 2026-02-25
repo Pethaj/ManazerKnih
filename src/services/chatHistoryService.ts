@@ -391,6 +391,62 @@ export async function saveChatPair(
 }
 
 // ============================================================================
+// FEEDBACK
+// ============================================================================
+
+/**
+ * Uloží feedback (smiley + text) k poslednímu záznamu dané session
+ * Aktualizuje nejnovější řádek v chat_messages pro danou session_id
+ */
+export async function saveChatFeedback(
+  sessionId: string,
+  smiley: number | null,
+  feedbackText: string
+): Promise<{ error: string | null }> {
+  try {
+    // Připravíme jen vyplněná data
+    const updateData: any = {};
+    if (smiley !== null) {
+      updateData.smiley = smiley;
+    }
+    if (feedbackText && feedbackText.trim().length > 0) {
+      updateData.feedback_text = feedbackText.trim();
+    }
+
+    // Pokud není co uložit, vrátíme úspěch bez dotazu
+    if (Object.keys(updateData).length === 0) {
+      return { error: null };
+    }
+
+    // Najdeme ID posledního záznamu pro tuto session
+    const { data: lastRecord, error: fetchError } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (fetchError || !lastRecord) {
+      return { error: fetchError?.message || 'Záznam nenalezen' };
+    }
+
+    const { error } = await supabase
+      .from('chat_messages')
+      .update(updateData)
+      .eq('id', lastRecord.id);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Neznámá chyba' };
+  }
+}
+
+// ============================================================================
 // NAČÍTÁNÍ SESSIONS (PRO UI - SEZNAM KONVERZACÍ)
 // ============================================================================
 

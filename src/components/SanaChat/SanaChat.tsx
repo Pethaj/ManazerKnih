@@ -177,6 +177,7 @@ interface SanaChatProps {
   chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
   originalChatbotId?: string;  // 🆕 Původní ID chatbota před přepnutím
   onClose?: () => void;
+  onSessionReady?: (sessionId: string) => void;  // Callback při vytvoření session (pro feedback)
   onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
   modeSwitch?: React.ReactNode;  // 🔍 Toggle UI - předaný zvenku
   searchMode?: boolean;           // 🔍 Vyhledávací mód - přepnutí chování inputu
@@ -2455,6 +2456,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     originalChatbotId, // 🆕 Původní ID chatbota před přepnutím
     onClose,
+    onSessionReady,
     onSwitchToUniversal,
     modeSwitch,  // 🔍 Toggle UI
     searchMode,  // 🔍 Vyhledávací mód
@@ -2476,7 +2478,9 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     const summarizedHistoryRef = useRef<string[]>([]);
 
     useEffect(() => {
-        setSessionId(generateSessionId());
+        const newSessionId = generateSessionId();
+        setSessionId(newSessionId);
+        onSessionReady?.(newSessionId);
         
         // Spustíme KOMPLETNÍ diagnostiku vektorové databáze při prvním načtení
         if (chatbotSettings.product_recommendations) {
@@ -4275,6 +4279,7 @@ interface FilteredSanaChatProps {
     };
     chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
     onClose?: () => void;
+    onSessionReady?: (sessionId: string) => void;  // Callback při vytvoření session (pro feedback)
     externalUserInfo?: {  // 🆕 External user data z iframe embedu
         external_user_id?: string;
         first_name?: string;
@@ -4389,6 +4394,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     },
     chatbotId,  // 🆕 Pro Sana 2 markdown rendering
     onClose,
+    onSessionReady,
     externalUserInfo  // 🆕 External user data z iframe embedu
 }) => {
     // 🔥 DEBUG: Log přijatých props při každém renderu
@@ -4874,6 +4880,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                             originalChatbotId={chatbotId}
                             externalUserInfo={externalUserInfo}
                             onClose={onClose}
+                            onSessionReady={onSessionReady}
                             onSwitchToUniversal={undefined}
                             modeSwitch={
                                 <TripleModeSwitch mode={tripleMode} onChange={handleTripleModeChange} />

@@ -1,9 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FilteredSanaChat } from './SanaChat';
 import { ChatbotSettingsService, ChatbotSettings } from '../../services/chatbotSettingsService';
 import ChatbotSelector from '../ChatbotSelector/ChatbotSelector';
 import { User } from '../../services/customAuthService';
+import ChatFeedback, { ChatFeedbackData } from '../ui/ChatFeedback';
+import { saveChatFeedback } from '../../services/chatHistoryService';
 
 const ChatBubbleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -41,6 +43,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     chatbotSettings: propChatbotSettings 
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [showFeedback, setShowFeedback] = useState(false);
+    const [sessionId, setSessionId] = useState<string>('');
+    const sessionIdRef = useRef<string>('');
     const [showSelector, setShowSelector] = useState(false);
     const [availableChatbots, setAvailableChatbots] = useState<ChatbotSettings[]>([]);
     const [chatbotSettings, setChatbotSettings] = useState<{
@@ -229,13 +234,43 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             {/* Chat okno */}
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                    <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
+                    <div className="relative w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
                         <FilteredSanaChat 
                             currentUser={currentUser}
                             chatbotId={chatbotId}
                             chatbotSettings={chatbotSettings} 
-                            onClose={() => setIsOpen(false)}
+                            onClose={() => setShowFeedback(true)}
+                            onSessionReady={(sid) => {
+                                setSessionId(sid);
+                                sessionIdRef.current = sid;
+                            }}
                         />
+                        {showFeedback && (
+                            <ChatFeedback
+                                onClose={async (feedback) => {
+                                    const currentSessionId = sessionIdRef.current || sessionId;
+                                    console.log('[ChatFeedback] sessionId:', currentSessionId, 'smiley:', feedback.smiley, 'text:', feedback.feedbackText);
+                                    if (currentSessionId) {
+                                        const result = await saveChatFeedback(
+                                            currentSessionId,
+                                            feedback.smiley,
+                                            feedback.feedbackText
+                                        );
+                                        if (result.error) {
+                                            console.error('[ChatFeedback] Chyba při ukládání:', result.error);
+                                        } else {
+                                            console.log('[ChatFeedback] Feedback uložen úspěšně');
+                                        }
+                                    } else {
+                                        console.warn('[ChatFeedback] Chybí sessionId, feedback nebude uložen');
+                                    }
+                                    setShowFeedback(false);
+                                    setIsOpen(false);
+                                    sessionIdRef.current = '';
+                                    setSessionId('');
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             )}
