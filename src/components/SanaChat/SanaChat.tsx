@@ -913,7 +913,7 @@ const EoSmesiLearnMoreButton: React.FC<{
                 ) : (
                     <>
                         <span className="text-base">🔍</span>
-                        <span>Chci o produktech vědět víc</span>
+                        <span>Chci o těchto produktech vědět více</span>
                     </>
                 )}
             </button>
@@ -1504,7 +1504,7 @@ const Message: React.FC<{
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                                             </svg>
-                                            Chci o produktech vědět víc
+                                            Chci o těchto produktech vědět více
                                         </button>
                                     </div>
                                 )}
@@ -1560,7 +1560,7 @@ const Message: React.FC<{
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                                             </svg>
-                                            Chci o produktech vědět víc
+                                            Chci o těchto produktech vědět více
                                         </button>
                                     </div>
                                 )}
@@ -1775,8 +1775,8 @@ const Message: React.FC<{
                         <div className="markdown-content">
                             {renderTextWithProductButtons()}
                         </div>
-                    ) : /* 🆕 SANA 2: ReactMarkdown rendering pro markdown formát */
-                    usesMarkdown && !isUser ? (
+                    ) : !isUser ? (
+                        /* ReactMarkdown rendering pro všechny bot zprávy - podporuje **bold** formátování */
                         <div className="markdown-content">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
@@ -1826,58 +1826,7 @@ const Message: React.FC<{
                                 {message.text || ''}
                             </ReactMarkdown>
                         </div>
-                    ) : (
-                        /* Standardní Markdown rendering pro ostatní chatboty */
-                        <div className="markdown-content">
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
-                                components={{
-                                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
-                                    h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
-                                    h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
-                                    h4: ({node, ...props}) => <h4 className="text-base font-bold mt-2 mb-1" {...props} />,
-                                    h5: ({node, ...props}) => <h5 className="text-sm font-bold mt-1 mb-1" {...props} />,
-                                    h6: ({node, ...props}) => <h6 className="text-xs font-bold mt-1 mb-1" {...props} />,
-                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
-                                    strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
-                                    em: ({node, ...props}) => <em className="italic" {...props} />,
-                                    a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
-                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
-                                    li: ({node, ...props}) => <li className="ml-4" {...props} />,
-                                    img: ({node, ...props}) => (
-                                        <img 
-                                            className="max-w-full h-auto rounded-lg my-3 shadow-md block" 
-                                            loading="lazy"
-                                            {...props} 
-                                        />
-                                    ),
-                                    code: ({node, inline, ...props}: any) => 
-                                        inline ? (
-                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
-                                        ) : (
-                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
-                                        ),
-                                    pre: ({node, ...props}) => <pre className="bg-slate-100 p-3 rounded-lg my-2 overflow-x-auto" {...props} />,
-                                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-bewit-blue pl-4 my-2 italic text-slate-600" {...props} />,
-                                    hr: ({node, ...props}) => <hr className="my-4 border-slate-200" {...props} />,
-                                    table: ({node, ...props}) => (
-                                        <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
-                                            <table className="min-w-full border-collapse bg-white" {...props} />
-                                        </div>
-                                    ),
-                                    thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
-                                    tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
-                                    tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
-                                    td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
-                                }}
-                            >
-                                {message.text || ''}
-                            </ReactMarkdown>
-                        </div>
-                    )}
+                    ) : null}
                     
                     {/* 🔍 EO SMĚSI: Formulář pro výběr problému (mezikrok) */}
                     {!isUser && message.requiresProblemSelection && message.uncertainProblems && message.uncertainProblems.length > 0 && onProblemSelect && (
