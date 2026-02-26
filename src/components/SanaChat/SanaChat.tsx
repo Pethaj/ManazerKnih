@@ -1538,7 +1538,7 @@ const Message: React.FC<{
                                 {chatbotSettings?.enable_product_pairing && (pairingRecommendations.aloe || pairingRecommendations.merkaba) && (
                                     <div className="mt-4 pt-4 border-t border-blue-200">
                                         <p className="text-xs font-medium text-gray-600 mb-2">Doplňkové doporučení:</p>
-                                        <div className="flex flex-wrap gap-2">
+                                        <div className="flex flex-wrap gap-2 mb-3">
                                             {pairingRecommendations.aloe && (
                                                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                                                     <span className="text-base">💧</span>
@@ -1552,6 +1552,16 @@ const Message: React.FC<{
                                                 </div>
                                             )}
                                         </div>
+                                        <button
+                                            onClick={() => setIsSearchDrawerOpen(true)}
+                                            className="w-full py-2 px-3 bg-bewit-blue text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-bewit-blue/50 flex items-center justify-center gap-2"
+                                            title="Otevřít vyhledávač produktů"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                            </svg>
+                                            Chci o produktech vědět víc
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -2437,7 +2447,7 @@ const ChatInput: React.FC<{
         ? 'Hledejte produkty...'
         : chatbotId === 'universal'
             ? 'Máte dotaz na TČM? Které oleje provoní váš domov? Napište, co vás zajímá...'
-            : 'Trápí vás bolest hlavy? Poruchy spánku? Nevolnost? Napište váš problém...';
+            : 'Popište co vás trápí...';
 
     return (
         <div className="relative">
@@ -4514,18 +4524,6 @@ const TripleModeSwitch: React.FC<TripleModeSwitchProps> = ({ mode, onChange }) =
         >
             <FlaskIconInline className="w-3.5 h-3.5" />
             Poradce Bewit produktů
-        </button>
-        <button
-            type="button"
-            onClick={() => onChange('search')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-250 ${
-                mode === 'search'
-                    ? 'bg-white text-bewit-blue shadow-md ring-1 ring-slate-200/80'
-                    : 'text-slate-400 hover:text-slate-600'
-            }`}
-        >
-            <SearchIconInline className="w-3.5 h-3.5" />
-            Vyhledávač
         </button>
         <button
             type="button"
