@@ -51,7 +51,6 @@ async function fetchAllProductsWithPinyinNames(): Promise<any[]> {
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ Matching ERROR:', error.message);
       throw new Error(`Database error: ${error.message}`);
     }
 
@@ -139,7 +138,6 @@ export async function matchProductNames(
     };
     
   } catch (error) {
-    console.error('❌ MATCHING CRITICAL ERROR:', error);
     return {
       success: false,
       matches: [],

@@ -56,12 +56,10 @@ async function loadAvailableProblemsFromSupabase(): Promise<string[]> {
       .select('Problém');
     
     if (error) {
-      console.error('❌ Chyba při načítání problémů z leceni:', error);
       throw error;
     }
     
     if (!data || data.length === 0) {
-      console.warn('⚠️  Žádné problémy v tabulce leceni');
       return [];
     }
     
@@ -76,14 +74,9 @@ async function loadAvailableProblemsFromSupabase(): Promise<string[]> {
     });
     
     const problemsArray = Array.from(problems);
-    
-    console.log(`✅ Načteno ${problemsArray.length} kategorií problémů z Supabase`);
-    console.log('📋 Kategorie:', problemsArray);
-    
     return problemsArray;
     
   } catch (error) {
-    console.error('❌ Kritická chyba při načítání problémů:', error);
     throw error;
   }
 }
@@ -184,19 +177,14 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
     }
     
     // KROK 1: Načti dostupné kategorie problémů z Supabase
-    console.log('🔄 Načítám kategorie problémů z Supabase...');
     const availableProblems = await loadAvailableProblemsFromSupabase();
     
     if (availableProblems.length === 0) {
-      console.warn('⚠️  Žádné kategorie problémů k dispozici');
       return {
         success: true,
         problems: []
       };
     }
-    
-    console.log(`✅ Načteno ${availableProblems.length} kategorií`);
-    
     // KROK 2: Vygeneruj system prompt s aktuálními kategoriemi
     const systemPrompt = generateSystemPrompt(availableProblems);
     
@@ -266,39 +254,29 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
         // 🛡️ OCHRANA: certain může mít maximálně 1 položku (pravidlo promptu)
         // Pokud agent vrátí více, přesuneme vše do uncertain a zobrazíme dotazník
         if (problems.length > 1) {
-          console.warn(`⚠️ Agent vrátil ${problems.length} certain problémů (max 1) → přesunuji do uncertain`);
           uncertainProblems = [...problems, ...uncertainProblems];
           problems = [];
         }
 
         if (multipleProblems) {
-          console.log('⚠️ Detekováno více problémů najednou:', allMentionedProblems);
         }
         if (problems.length > 0) {
-          console.log('✅ Úspěšně zmapovány certain problémy:', problems);
         }
         if (uncertainProblems.length > 0) {
-          console.log('✅ Úspěšně zmapovány uncertain problémy:', uncertainProblems);
         }
         
         if (invalidCertain.length > 0) {
-          console.warn('⚠️ LLM vrátilo neplatné certain problémy (ignoruji):', invalidCertain);
         }
         if (invalidUncertain.length > 0) {
-          console.warn('⚠️ LLM vrátilo neplatné uncertain problémy (ignoruji):', invalidUncertain);
         }
       }
     } catch (parseError) {
-      console.error('❌ Chyba při parsování JSON:', parseError);
       problems = [];
       uncertainProblems = [];
     }
     
     const requiresUserSelection = uncertainProblems.length > 0 && problems.length === 0;
-    
-    console.log(`🔍 Klasifikované problémy:`, problems);
     if (uncertainProblems.length > 0) {
-      console.log(`❓ Možné problémy k výběru:`, uncertainProblems);
     }
     
     return {
@@ -312,7 +290,6 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
     };
     
   } catch (error) {
-    console.error('❌ Chyba při klasifikaci problému:', error);
     return {
       success: false,
       problems: [],
@@ -345,7 +322,6 @@ export async function findCombinationsForProblemsAndEOs(
       .select('*');
 
     if (error || !allRecords || allRecords.length === 0) {
-      console.error('❌ Chyba při načítání leceni:', error);
       return [];
     }
 
@@ -382,12 +358,8 @@ export async function findCombinationsForProblemsAndEOs(
         });
       }
     }
-
-    console.log(`🔗 Nalezeno ${filtered.length} kombinací pro problémy:`, problems);
-    
     return filtered;
   } catch (error) {
-    console.error('❌ Chyba při hledání kombinací:', error);
     return [];
   }
 }

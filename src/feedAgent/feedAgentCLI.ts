@@ -581,9 +581,6 @@ async function processMessage(userInput: string, messages: ChatMessage[]): Promi
     if (toolCalls.length === 0) {
       return assistantMsg?.content || '(bez odpovědi)';
     }
-
-    console.log(`  🔧 Volám nástroj(e): ${toolCalls.map(tc => tc.function?.name).join(', ')}`);
-
     for (const tc of toolCalls) {
       let args: any = {};
       try {
@@ -617,14 +614,9 @@ async function main() {
   // Jednorázový dotaz z CLI argumentu (všechny argumenty spojit do jednoho dotazu)
   const singleQuestion = process.argv.slice(2).join(' ') || '';
   if (singleQuestion) {
-    console.log(`\n🤖 Feed Agent\n${'='.repeat(50)}`);
-    console.log(`❓ ${singleQuestion}`);
-    console.log('─'.repeat(50));
     try {
       const answer = await processMessage(singleQuestion, messages);
-      console.log(`\n${answer}\n`);
     } catch (err) {
-      console.error(`❌ ${err instanceof Error ? err.message : err}`);
     }
     process.exit(0);
   }
@@ -634,26 +626,16 @@ async function main() {
     input: process.stdin,
     output: process.stdout
   });
-
-  console.log('\n🤖 Feed Agent CLI');
-  console.log('='.repeat(50));
-  console.log('Ptej se na produkty v databázi product_feed_2.');
-  console.log('Napište "exit" nebo Ctrl+C pro ukončení.\n');
-
   const ask = () => {
     rl.question('Vy: ', async (input) => {
       const trimmed = input.trim();
       if (!trimmed || trimmed.toLowerCase() === 'exit') {
-        console.log('\nNa shledanou! 👋');
         rl.close();
         return;
       }
       try {
-        console.log('Agent přemýšlí...');
         const answer = await processMessage(trimmed, messages);
-        console.log(`\nAgent: ${answer}\n`);
       } catch (err) {
-        console.error(`❌ Chyba: ${err instanceof Error ? err.message : err}\n`);
       }
       ask();
     });
@@ -663,6 +645,5 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('Fatální chyba:', err);
   process.exit(1);
 });

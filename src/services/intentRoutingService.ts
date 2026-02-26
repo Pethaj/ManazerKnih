@@ -372,13 +372,6 @@ export async function enrichFunnelProductsFromDatabase(
     const productUrls = products
       .map(p => p.url)
       .filter(url => url && url.length > 0 && url !== 'null' && url !== 'undefined');
-    
-    console.log('🔍 enrichFunnelProductsFromDatabase - Hledám produkty:', {
-      productCodes,
-      productUrls,
-      total: products.length
-    });
-
     // Pokud nemáme ani product_codes ani URLs, použijeme fallback
     if (productCodes.length === 0 && productUrls.length === 0) {
       return await enrichByProductName(products);
@@ -408,12 +401,10 @@ export async function enrichFunnelProductsFromDatabase(
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ enrichFunnelProductsFromDatabase - Chyba při načítání z DB:', error);
       return await enrichByProductName(products);
     }
 
     if (!data || data.length === 0) {
-      console.warn('⚠️ enrichFunnelProductsFromDatabase - Žádná data z DB, fallback na enrichByProductName');
       return await enrichByProductName(products);
     }
     

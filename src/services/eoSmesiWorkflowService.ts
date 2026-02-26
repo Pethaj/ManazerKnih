@@ -131,8 +131,6 @@ async function extractMedicineTable(
     // Pokud je hodnota příliš obecná (jen "Aloe"), hledáme standardní "Aloe Vera gel"
     const isSpecificAloe = aloeProduct && aloeProduct.toLowerCase() !== 'aloe' && aloeProduct.length > 5;
     const aloeSearchTerm = isSpecificAloe ? `%${aloeProduct}%` : '%Aloe Vera gel%';
-    console.log('💧 Hledám Aloe produkt:', aloeSearchTerm, '(aloeProduct z leceni:', aloeProduct, ')');
-    
     const { data: aloeData, error } = await supabase
       .from('product_feed_2')
       .select('product_code, product_name, category, url, thumbnail')
@@ -145,7 +143,6 @@ async function extractMedicineTable(
       // - specifický (např. "Aloe vera Immunity") → hodnota z leceni
       // - obecný ("Aloe") → vždy "Aloe Vera"
       aloeProductName = (isSpecificAloe && aloeProduct) ? aloeProduct : 'Aloe Vera';
-      console.log('✅ Nalezen Aloe produkt:', aloeData[0].product_name, '→ zobrazí se jako:', aloeProductName);
     }
   }
   
@@ -261,7 +258,6 @@ export async function processEoSmesiQueryWithKnownProblem(
       }
     };
   } catch (error) {
-    console.error('❌ EO Směsi chyba (known problem):', error);
     return {
       success: false,
       problemClassification: { success: false, problems: [], error: String(error) },
@@ -330,8 +326,6 @@ export async function processEoSmesiQuery(
     };
     
   } catch (error) {
-    console.error('❌ EO Směsi chyba:', error);
-    
     return {
       success: false,
       problemClassification: {
@@ -368,7 +362,6 @@ export async function getPrawteinProductsForProblem(
       .limit(1);
     
     if (leceniError) {
-      console.error('❌ Chyba při načítání Prawtein produktů z leceni:', leceniError);
       return [];
     }
     
@@ -399,9 +392,6 @@ export async function getPrawteinProductsForProblem(
     if (prawteinNames.length === 0) {
       return [];
     }
-    
-    console.log('🔍 Prawtein názvy/kódy k vyhledání:', prawteinNames);
-    
     const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
     
     for (const prawteinName of prawteinNames) {
@@ -462,7 +452,6 @@ export async function getPrawteinProductsForProblem(
         }
         
         if (product) {
-          console.log(`✅ Prawtein produkt přidán: ${product.product_name} (${product.category})`);
           enrichedProducts.push({
             code: product.product_code,
             name: product.product_name,
@@ -471,17 +460,14 @@ export async function getPrawteinProductsForProblem(
             thumbnail: product.thumbnail
           });
         } else {
-          console.warn(`⚠️ Produkt "${prawteinName}" nebyl nalezen v kategorii Prawtein`);
         }
       } catch (err) {
-        console.warn(`⚠️ Nepodařilo se najít Prawtein produkt: ${prawteinName}`, err);
       }
     }
     
     return enrichedProducts;
     
   } catch (error) {
-    console.error('❌ Chyba při načítání Prawtein produktů:', error);
     return [];
   }
 }
@@ -503,7 +489,6 @@ export async function getEOProductsForProblem(
       .limit(1);
     
     if (leceniError) {
-      console.error('❌ Chyba při načítání EO produktů z leceni:', leceniError);
       return [];
     }
     
@@ -533,9 +518,6 @@ export async function getEOProductsForProblem(
     if (eoNames.length === 0) {
       return [];
     }
-    
-    console.log('🔍 EO názvy/kódy k vyhledání:', eoNames);
-    
     const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
     
     for (const eoName of eoNames) {
@@ -585,7 +567,6 @@ export async function getEOProductsForProblem(
         }
         
         if (product) {
-          console.log(`✅ EO produkt přidán: ${product.product_name} (${product.category})`);
           enrichedProducts.push({
             code: product.product_code,
             name: product.product_name,
@@ -594,17 +575,14 @@ export async function getEOProductsForProblem(
             thumbnail: product.thumbnail
           });
         } else {
-          console.warn(`⚠️ Produkt "${eoName}" nebyl nalezen ve "Směsi esenciálních olejů"`);
         }
       } catch (err) {
-        console.warn(`⚠️ Nepodařilo se najít EO produkt: ${eoName}`, err);
       }
     }
     
     return enrichedProducts;
     
   } catch (error) {
-    console.error('❌ Chyba při načítání EO produktů:', error);
     return [];
   }
 }

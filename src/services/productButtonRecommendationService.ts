@@ -242,12 +242,6 @@ export async function testButtonRecommendationsWebhook(): Promise<boolean> {
       botResponse: 'test odpověď chatbota',
       sessionId: 'test-session-' + Date.now()
     });
-    
-    console.log({
-      hasText: !!result.text,
-      productCount: result.products.length
-    });
-    
     return true;
   } catch (error) {
     return false;

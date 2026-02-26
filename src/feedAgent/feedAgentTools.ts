@@ -595,7 +595,6 @@ export async function searchProductsAutocomplete(
     });
 
     if (error) {
-      console.warn('Autocomplete RPC chyba:', error.message);
       // Fallback: jednoduchý ilike dotaz
       return searchProductsAutocompleteFallback(query, limit);
     }

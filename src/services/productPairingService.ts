@@ -69,25 +69,18 @@ export async function matchProductCombinationsWithProblems(
 ): Promise<PairingRecommendations> {
   // Validace vstupu
   if (!problems || problems.length === 0) {
-    console.log('🔗 Párování: Žádné problémy k napárování');
     return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
   }
-
-  console.log('🔗 Párování kombinací produktů POUZE podle problému...');
-  console.log('🔍 Problémy:', problems);
-
   try {
     // Jedno volání SQL funkce - vrátí hlavní i doprovodné produkty najednou
     const { data, error } = await supabase
       .rpc('match_product_combinations_with_problems', { problems });
 
     if (error) {
-      console.error('❌ Chyba při párování produktů s problémy:', error);
       throw error;
     }
 
     if (!data || data.length === 0) {
-      console.log('ℹ️ Žádné napárované produkty nenalezeny pro problémy:', problems);
       return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
     }
 
@@ -101,11 +94,7 @@ export async function matchProductCombinationsWithProblems(
 
     const mainProducts = pairedProducts.filter(p => !p.is_companion);
     const companionProducts = pairedProducts.filter(p => p.is_companion);
-
-    console.log('✅ Napárováno produktů celkem:', pairedProducts.length, `(${mainProducts.length} hlavních, ${companionProducts.length} doprovodných)`);
-    console.log('💧 Aloe doporučeno:', aloe, '| ✨ Merkaba:', merkaba);
     pairedProducts.forEach(p => {
-      console.log(`   ${p.is_companion ? '🔸' : '🔹'} ${p.matched_product_name} (${p.matched_category})`);
     });
 
     return {
@@ -118,7 +107,6 @@ export async function matchProductCombinationsWithProblems(
     };
 
   } catch (error) {
-    console.error('❌ Kritická chyba při párování s problémy:', error);
     return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
   }
 }
@@ -138,13 +126,8 @@ export async function matchProductCombinations(
 ): Promise<PairingRecommendations> {
   // Validace vstupu
   if (!productCodes || productCodes.length === 0) {
-    console.log('🔗 Párování: Žádné produkty k napárování');
     return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
   }
-
-  console.log('🔗 Párování kombinací produktů...');
-  console.log('📥 Vstupní kódy:', productCodes);
-
   try {
     // Volání SQL funkce přes RPC
     const { data, error } = await supabase
@@ -153,12 +136,10 @@ export async function matchProductCombinations(
       });
 
     if (error) {
-      console.error('❌ Chyba při párování produktů:', error);
       throw error;
     }
 
     if (!data || data.length === 0) {
-      console.log('ℹ️ Žádné napárované produkty nenalezeny');
       return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
     }
 
@@ -171,14 +152,7 @@ export async function matchProductCombinations(
     const aloeProductEntry = pairedProducts.find(p => p.aloe_recommended?.toLowerCase() === 'ano' && p.aloe_product);
     const aloeProduct = aloeProductEntry?.aloe_product ?? null;
     const merkaba = pairedProducts.some(p => p.merkaba_recommended?.toLowerCase() === 'ano');
-
-    console.log('✅ Napárováno produktů:', pairedProducts.length);
-    console.log('💧 Aloe doporučeno:', aloe);
-    console.log('💧 Aloe produkt (z leceni):', aloeProduct);
-    console.log('✨ Merkaba doporučeno:', merkaba);
-    
     pairedProducts.forEach(p => {
-      console.log(`   - ${p.matched_product_name} (${p.matched_category})`);
     });
 
     return {
@@ -191,7 +165,6 @@ export async function matchProductCombinations(
     };
 
   } catch (error) {
-    console.error('❌ Kritická chyba při párování:', error);
     return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
   }
 }
@@ -251,16 +224,7 @@ export function deduplicateProducts<T extends { matched_product_code?: string; p
  * Volej z konzole: await testProductPairing(['NOHEPA'])
  */
 export async function testProductPairing(codes: string[]) {
-  console.log('🧪 TEST: Párování produktů');
-  console.log('📥 Vstup:', codes);
-  
   const result = await matchProductCombinations(codes);
-  
-  console.log('📤 Výsledek:');
-  console.log('   Produkty:', result.products.length);
-  console.log('   Aloe:', result.aloe ? '✅ Ano' : '❌ Ne');
-  console.log('   Merkaba:', result.merkaba ? '✅ Ano' : '❌ Ne');
-  console.table(result.products);
   
   return result;
 }

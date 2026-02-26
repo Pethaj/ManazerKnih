@@ -72,14 +72,6 @@ export async function saveMessage(
   message: ChatHistoryMessage
 ): Promise<{ error: string | null }> {
   try {
-    console.log({
-      session_id: message.session_id,
-      role: message.role,
-      text_length: message.message_text.length,
-      has_metadata: !!message.conversation_metadata,
-      has_message_data: !!message.message_data
-    });
-
     // Připravíme data pro uložení - ukládáme JEN existující pole
     const dataToSave: any = {
       session_id: message.session_id,
@@ -264,14 +256,6 @@ export async function saveChatPair(
   }
 ): Promise<{ error: string | null }> {
   try {
-    console.log({
-      session_id: sessionId,
-      question_length: userQuestion.length,
-      answer_length: botAnswer.length,
-      has_metadata: !!questionMetadata,
-      has_answer_data: !!answerData
-    });
-
     // Připravíme data pro uložení
     const dataToSave: any = {
       session_id: sessionId,

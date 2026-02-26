@@ -508,7 +508,6 @@ export async function processFeedAgentMessage(
     };
 
   } catch (error) {
-    console.error('Feed Agent Error:', error);
     return {
       success: false,
       message: `Chyba: ${error instanceof Error ? error.message : String(error)}`,

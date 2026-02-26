@@ -226,12 +226,6 @@ export async function testProductChatWebhook(): Promise<boolean> {
       'test dotaz',
       'test-session-' + Date.now()
     );
-    
-    console.log({
-      hasText: !!result.text,
-      productCount: result.products.length
-    });
-    
     return true;
   } catch (error) {
     return false;

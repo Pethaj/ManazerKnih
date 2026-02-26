@@ -180,7 +180,6 @@ export class ChatbotSettingsService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Chyba při načítání nastavení chatbotů:', error);
         throw error;
       }
 
@@ -188,7 +187,6 @@ export class ChatbotSettingsService {
 
       return data || [];
     } catch (error) {
-      console.error('Chyba při načítání nastavení chatbotů:', error);
       throw error;
     }
   }
@@ -203,20 +201,10 @@ export class ChatbotSettingsService {
         .single();
 
       if (error) {
-        console.error('Chyba při načítání nastavení chatbota:', error);
         return null;
       }
-
-      console.log(`📥 Načteno nastavení pro chatbot "${chatbotId}":`, {
-        summarize_history: data?.summarize_history,
-        book_database: data?.book_database,
-        product_recommendations: data?.product_recommendations,
-        enable_product_pairing: data?.enable_product_pairing  // 🔗 PÁROVÁNÍ KOMBINACÍ
-      });
-
       return data;
     } catch (error) {
-      console.error('Chyba při načítání nastavení chatbota:', error);
       return null;
     }
   }
@@ -238,14 +226,12 @@ export class ChatbotSettingsService {
         .single();
 
       if (error) {
-        console.warn('⚠️ Výchozí webový chatbot nenalezen, fallback na sana_chat:', error);
         // Fallback na sana_chat, pokud není nastaven žádný výchozí
         return this.getChatbotSettings('sana_chat');
       }
 
       return data;
     } catch (error) {
-      console.error('❌ Chyba při načítání výchozího webového chatbota:', error);
       // Fallback na sana_chat
       return this.getChatbotSettings('sana_chat');
     }
@@ -261,14 +247,10 @@ export class ChatbotSettingsService {
         .order('chatbot_name', { ascending: true });
 
       if (error) {
-        console.error('❌ Chyba při načítání aktivních chatbotů:', error);
         throw error;
       }
-
-      console.log('✅ Načteno aktivních chatbotů:', data?.length || 0);
       return data || [];
     } catch (error) {
-      console.error('❌ Chyba při načítání aktivních chatbotů:', error);
       return [];
     }
   }
@@ -284,13 +266,11 @@ export class ChatbotSettingsService {
         .single();
 
       if (error) {
-        console.error('Chyba při vytváření chatbota:', error);
         throw error;
       }
 
       return result;
     } catch (error) {
-      console.error('Chyba při vytváření chatbota:', error);
       throw error;
     }
   }
@@ -298,13 +278,6 @@ export class ChatbotSettingsService {
   // Aktualizace nastavení chatbota
   static async updateChatbotSettings(chatbotId: string, data: UpdateChatbotSettingsData): Promise<ChatbotSettings> {
     try {
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('💾 SERVICE: updateChatbotSettings');
-      console.log('📝 Chatbot ID:', chatbotId);
-      console.log('📋 Data před UPDATE:', JSON.stringify(data, null, 2));
-      console.log('🔍 summarize_history hodnota:', data.summarize_history);
-      console.log('═══════════════════════════════════════════════════════════');
-      
       // Proveď UPDATE
       const { data: updateResult, error: updateError } = await supabase
         .from('chatbot_settings')
@@ -314,7 +287,6 @@ export class ChatbotSettingsService {
         .single();
 
       if (updateError) {
-        console.error('❌ Chyba při UPDATE:', updateError);
         throw new Error(
           `UPDATE selhal: ${updateError.message}\n\n` +
           `💡 Řešení:\n` +
@@ -326,14 +298,8 @@ export class ChatbotSettingsService {
       if (!updateResult) {
         throw new Error('UPDATE nevrátil žádná data');
       }
-
-      console.log('✅ UPDATE úspěšný, výsledek:', JSON.stringify(updateResult, null, 2));
-      console.log('🔍 summarize_history po UPDATE:', updateResult.summarize_history);
-      console.log('═══════════════════════════════════════════════════════════');
-
       return updateResult;
     } catch (error) {
-      console.error('❌ Chyba při aktualizaci chatbota:', error);
       throw error;
     }
   }
@@ -348,11 +314,9 @@ export class ChatbotSettingsService {
         .eq('chatbot_id', chatbotId);
 
       if (error) {
-        console.error('Chyba při mazání chatbota:', error);
         throw error;
       }
     } catch (error) {
-      console.error('Chyba při mazání chatbota:', error);
       throw error;
     }
   }
@@ -366,13 +330,11 @@ export class ChatbotSettingsService {
         .order('name', { ascending: true });
 
       if (error) {
-        console.error('Chyba při načítání kategorií:', error);
         throw error;
       }
 
       return data || [];
     } catch (error) {
-      console.error('Chyba při načítání kategorií:', error);
       throw error;
     }
   }
@@ -386,13 +348,11 @@ export class ChatbotSettingsService {
         .order('name', { ascending: true });
 
       if (error) {
-        console.error('Chyba při načítání typů publikací:', error);
         throw error;
       }
 
       return data || [];
     } catch (error) {
-      console.error('Chyba při načítání typů publikací:', error);
       throw error;
     }
   }
@@ -406,13 +366,11 @@ export class ChatbotSettingsService {
         .order('name', { ascending: true });
 
       if (error) {
-        console.error('Chyba při načítání štítků:', error);
         throw error;
       }
 
       return data || [];
     } catch (error) {
-      console.error('Chyba při načítání štítků:', error);
       throw error;
     }
   }
@@ -424,13 +382,11 @@ export class ChatbotSettingsService {
         .rpc('get_product_feed_2_categories');
 
       if (error) {
-        console.error('Chyba při načítání produktových kategorií:', error);
         throw error;
       }
 
       return data || [];
     } catch (error) {
-      console.error('Chyba při načítání produktových kategorií:', error);
       throw error;
     }
   }
@@ -453,7 +409,6 @@ export class ChatbotSettingsService {
           .in('id', settings.allowed_categories);
 
         if (catError) {
-          console.error('Chyba při načítání kategorií:', catError);
         } else {
           categories.push(...(catData || []));
         }
@@ -468,7 +423,6 @@ export class ChatbotSettingsService {
           .in('id', settings.allowed_publication_types);
 
         if (pubError) {
-          console.error('Chyba při načítání typů publikací:', pubError);
         } else {
           publicationTypes.push(...(pubData || []));
         }
@@ -483,7 +437,6 @@ export class ChatbotSettingsService {
           .in('id', settings.allowed_labels);
 
         if (labelError) {
-          console.error('Chyba při načítání štítků:', labelError);
         } else {
           labels.push(...(labelData || []));
         }
@@ -517,7 +470,6 @@ export class ChatbotSettingsService {
         enableProductSearch: settings.enable_product_search === true, // default false
       };
     } catch (error) {
-      console.error('Chyba při načítání filtrů chatbota:', error);
       throw error;
     }
   }
@@ -528,7 +480,6 @@ export class ChatbotSettingsService {
       // Použijeme edge funkci pro konzistenci
       await this.updateChatbotSettings(chatbotId, { is_active: isActive });
     } catch (error) {
-      console.error('Chyba při změně aktivace chatbota:', error);
       throw error;
     }
   }
