@@ -88,7 +88,6 @@ const MessageLimitInfo: React.FC<MessageLimitInfoProps> = ({ chatbotId }) => {
           });
         }
       } catch (err) {
-        console.error('Chyba při načítání limitu:', err);
         setLimitInfo(prev => ({ ...prev, loading: false }));
       }
     };
@@ -224,7 +223,6 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
         setAvailableProductCategories(productCategories);
       } catch (err) {
         setError('Nepodařilo se načíst dostupné možnosti');
-        console.error('Chyba při načítání dat:', err);
       } finally {
         setLoading(false);
       }
@@ -268,7 +266,6 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
           }));
         }
       } catch (err) {
-        console.error('Chyba při načítání limitu:', err);
         setMessageLimitState(prev => ({ ...prev, loading: false }));
       }
     };
@@ -289,7 +286,6 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
       await onSave(formData);
     } catch (err) {
       setError('Nepodařilo se uložit nastavení');
-      console.error('Chyba při ukládání:', err);
     }
   };
 
@@ -317,7 +313,6 @@ const ChatbotSettingsForm: React.FC<ChatbotSettingsFormProps> = ({
       alert('✅ Denní limit byl úspěšně uložen');
       
     } catch (err) {
-      console.error('Chyba při ukládání limitu:', err);
       alert('❌ Nepodařilo se uložit denní limit');
     } finally {
       setMessageLimitState(prev => ({ ...prev, saving: false }));
@@ -834,7 +829,6 @@ const ChatbotSettingsManager: React.FC = () => {
       setChatbotSettings(settings);
     } catch (err) {
       setError('Nepodařilo se načíst nastavení chatbotů');
-      console.error('Chyba při načítání nastavení chatbotů:', err);
     } finally {
       setLoading(false);
     }
@@ -862,13 +856,6 @@ const ChatbotSettingsManager: React.FC = () => {
     
     setActionLoading(true);
     try {
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('💾 UKLÁDÁM NASTAVENÍ CHATBOTA');
-      console.log('📝 Chatbot ID:', editingChatbot.chatbot_id);
-      console.log('📋 Data k uložení:', data);
-      console.log('🔍 summarize_history:', data.summarize_history);
-      console.log('═══════════════════════════════════════════════════════════');
-      
       await ChatbotSettingsService.updateChatbotSettings(editingChatbot.chatbot_id, data);
       await loadChatbotSettings();
       setEditingChatbot(null);
@@ -889,7 +876,6 @@ const ChatbotSettingsManager: React.FC = () => {
       await loadChatbotSettings();
     } catch (err) {
       setError('Nepodařilo se smazat nastavení chatbota');
-      console.error('Chyba při mazání chatbota:', err);
     }
   };
 

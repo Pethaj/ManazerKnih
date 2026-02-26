@@ -134,7 +134,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // Funkce pro načtení konkrétního chatbota podle ID
     const loadChatbotById = async (chatbotIdToLoad: string) => {
         try {
-            console.log('🔄 ChatWidget: Načítám chatbot z databáze', { chatbotIdToLoad });
             const settings = await ChatbotSettingsService.getChatbotSettings(chatbotIdToLoad);
             
             
@@ -166,22 +165,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 
                 
                 setChatbotSettings(newSettings);
-                console.log('✅ ChatWidget: Nastavení chatbota načteno z DB:', {
-                    chatbot_id: settings.chatbot_id,
-                    webhook_url: settings.webhook_url,  // 🆕 PŘIDÁNO: Debug log
-                    categories: settings.allowed_categories?.length || 0,
-                    labels: settings.allowed_labels?.length || 0,
-                    publicationTypes: settings.allowed_publication_types?.length || 0,
-                    enableProductRouter: settings.enable_product_router !== false,
-                    enableManualFunnel: settings.enable_manual_funnel === true,
-                    summarizeHistory: settings.summarize_history === true,  // 🆕 DEBUG: Sumarizace
-                    showSources: settings.show_sources !== false,  // 🆕 DEBUG: Zobrazování zdrojů
-                    enableProductPairing: settings.enable_product_pairing === true,  // 🔗 DEBUG: Párování
-                    newSettings  // 🔥 DEBUG: Celý objekt
-                });
             }
         } catch (error) {
-            console.error('❌ ChatWidget: Chyba při načítání chatbota', { chatbotIdToLoad, error });
         }
     };
 
@@ -249,7 +234,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                             <ChatFeedback
                                 onClose={async (feedback) => {
                                     const currentSessionId = sessionIdRef.current || sessionId;
-                                    console.log('[ChatFeedback] sessionId:', currentSessionId, 'smiley:', feedback.smiley, 'text:', feedback.feedbackText);
                                     if (currentSessionId) {
                                         const result = await saveChatFeedback(
                                             currentSessionId,
@@ -257,12 +241,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                                             feedback.feedbackText
                                         );
                                         if (result.error) {
-                                            console.error('[ChatFeedback] Chyba při ukládání:', result.error);
                                         } else {
-                                            console.log('[ChatFeedback] Feedback uložen úspěšně');
                                         }
                                     } else {
-                                        console.warn('[ChatFeedback] Chybí sessionId, feedback nebude uložen');
                                     }
                                     setShowFeedback(false);
                                     setIsOpen(false);

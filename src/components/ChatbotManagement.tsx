@@ -172,7 +172,6 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                 setAvailableProductCategories(productCategories);
                 
             } catch (err) {
-                console.error('❌ Chyba při načítání dat chatbotů:', err);
                 setError(`Nepodařilo se načíst data chatbotů z databáze: ${err instanceof Error ? err.message : 'Neznámá chyba'}`);
             } finally {
                 setLoading(false);
@@ -246,7 +245,6 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
 
         // Pokud se vypíná databáze knih, vypni také všechny filtrace
         if (feature === 'book_database' && !updatedValue) {
-            console.log('📚 Vypínám databázi knih - resetuji také všechny filtrace');
             updates = {
                 ...updates,
                 allowed_categories: [],
@@ -256,7 +254,6 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
         
         // Pokud se zapíná "Zobrazit na webu", vypni u všech ostatních
         if (feature === 'is_default_web_chatbot' && updatedValue) {
-            console.log('🌐 Nastavuji jako výchozí webový chatbot - ruším označení u ostatních');
             // Vypni is_default_web_chatbot u všech ostatních
             chatbotSettings.forEach(c => {
                 if (c.chatbot_id !== chatbotId && c.is_default_web_chatbot) {
@@ -276,9 +273,6 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
         try {
             setSavingChatbotId(chatbotId);
             setError(null);
-            
-            console.log(`💾 Ukládám nastavení pro chatbota ${chatbotId}:`, changes);
-            
             const updatedSettings = await ChatbotSettingsService.updateChatbotSettings(chatbotId, changes);
             
             // Aktualizuj lokální state s novými hodnotami z databáze
@@ -301,14 +295,10 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                 delete newTemp[chatbotId];
                 return newTemp;
             });
-            
-            console.log('✅ Nastavení úspěšně uloženo');
-            
             // Zobraz uživateli potvrzení
             alert('✅ Nastavení chatbota bylo úspěšně uloženo!');
             
         } catch (err) {
-            console.error('❌ Chyba při ukládání nastavení:', err);
             const errorMessage = err instanceof Error ? err.message : 'Nepodařilo se uložit nastavení chatbota';
             setError(`Chyba při ukládání nastavení chatbota "${chatbotId}": ${errorMessage}`);
             
@@ -346,11 +336,7 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                 delete newTemp[chatbotId];
                 return newTemp;
             });
-            
-            console.log('🔄 Nastavení resetováno na původní hodnoty');
-            
         } catch (err) {
-            console.error('❌ Chyba při resetování nastavení:', err);
             setError('Nepodařilo se resetovat nastavení chatbota');
         }
     };
@@ -364,8 +350,6 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
     };
 
     const openChatWithSettings = (chatbot: Chatbot) => {
-        console.log(`🚀 Spouštím chat "${chatbot.name}" s nastavením:`, chatbot.features);
-        
         // Zobrazíme informaci o konfiguraci
         const enabledFeatures = [];
         if (chatbot.features.product_recommendations) enabledFeatures.push("Produktová doporučení");
@@ -375,9 +359,6 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
         const featuresText = enabledFeatures.length > 0 
             ? enabledFeatures.join(" + ") 
             : "Žádné funkce nejsou povoleny";
-            
-        console.log(`💬 Otevírám chat s nastavením: ${featuresText}`);
-        
         // Zavřeme správu chatbotů a otevřeme chat
         onClose();
         

@@ -109,15 +109,6 @@ const FilteredSanaChatWithSettings: React.FC<FilteredSanaChatWithSettingsProps> 
           enable_product_pairing: filters.enableProductPairing,  // 🔗 Párování kombinací produktů
         };
         
-        console.log('✅ FilteredSanaChatWithSettings: Nastavení načteno z DB:', {
-          chatbotId,
-          enable_product_router: filters.enableProductRouter,
-          enable_manual_funnel: filters.enableManualFunnel,
-          summarize_history: filters.summarizeHistory,
-          show_sources: filters.showSources,
-          enable_product_pairing: filters.enableProductPairing,  // 🔗 DEBUG: Párování
-          newSettings
-        });
         setChatbotSettings(newSettings);
         
         // Pokud máme nastavení z databáze, použij název z databáze
