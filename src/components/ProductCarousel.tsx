@@ -6,6 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { ProductRecommendation } from '../services/productSearchService';
 import { openBewitProductLink } from '../services/productLinkService';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ProductCarouselProps {
   products: ProductRecommendation[];
@@ -171,11 +173,20 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
                 
                 
                 {product.description && (
-                  <p style={styles.description} title={product.description}>
-                    {product.description.length > 60 
-                      ? `${product.description.substring(0, 60)}...` 
-                      : product.description}
-                  </p>
+                  <div style={styles.description}>
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({node, ...props}) => <span {...props} />,
+                        strong: ({node, ...props}) => <strong style={{fontWeight: 'bold'}} {...props} />,
+                        em: ({node, ...props}) => <em style={{fontStyle: 'italic'}} {...props} />,
+                      }}
+                    >
+                      {product.description.length > 60 
+                        ? `${product.description.substring(0, 60)}...` 
+                        : product.description}
+                    </ReactMarkdown>
+                  </div>
                 )}
                 
                 <div style={styles.priceContainer}>
