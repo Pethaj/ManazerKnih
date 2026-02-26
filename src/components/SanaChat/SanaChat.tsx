@@ -249,7 +249,7 @@ const AdvisorToggleButton: React.FC<{
                     <span className="text-sm font-semibold">Obecný poradce</span>
                 </div>
                 
-                {/* Zadní strana: Poradce na potíže */}
+                {/* Zadní strana: Poradce Bewit produktů */}
                 <div 
                     className={`absolute inset-0 flex items-center justify-center gap-2 transition-all duration-500 ease-in-out ${
                         isUniversal 
@@ -258,7 +258,7 @@ const AdvisorToggleButton: React.FC<{
                     }`}
                 >
                     <FlaskIcon className="w-4 h-4" />
-                    <span className="text-sm font-semibold">Poradce na potíže</span>
+                    <span className="text-sm font-semibold">Poradce Bewit produktů</span>
                 </div>
             </button>
         </div>
@@ -1116,55 +1116,6 @@ const Message: React.FC<{
     // 🆕 State pro inline produktové linky
     
     // Vylepšené zpracování HTML pro lepší zobrazení obrázků a formátování
-    const processMessageText = (text: string): string => {
-        if (!text) return '';
-        
-        let processedText = text;
-        
-        // Ujisti se, že img tagy mají správné atributy pro zobrazení
-        processedText = processedText.replace(
-            /<img([^>]*)>/gi, 
-            (match, attrs) => {
-                // Pokud už má loading a style, zachovej je
-                if (attrs.includes('loading=') && attrs.includes('style=')) {
-                    return match;
-                }
-                
-                // Přidej loading="lazy" a základní styly pro obrázky
-                let newAttrs = attrs;
-                if (!attrs.includes('loading=')) {
-                    newAttrs += ' loading="lazy"';
-                }
-                if (!attrs.includes('style=')) {
-                    newAttrs += ' style="max-width: 100%; height: auto; border-radius: 8px; margin: 12px 0; display: block;"';
-                }
-                
-                // Přidej alt text pokud chybí (pro lepší accessibility)
-                if (!attrs.includes('alt=')) {
-                    newAttrs += ' alt="Obrázek z dokumentu"';
-                }
-                
-                return `<img${newAttrs}>`;
-            }
-        );
-        
-        // Debug log pro obrázky a formátování
-        if (processedText.includes('<img')) {
-            const imgTags = processedText.match(/<img[^>]*>/gi) || [];
-            console.log('🖼️ Zpracování zprávy s obrázky - počet:', imgTags.length);
-            imgTags.forEach((tag, index) => {
-                const srcMatch = tag.match(/src="([^"]*)"/) || tag.match(/src='([^']*)'/);
-                if (srcMatch) {
-                    console.log(`🖼️ Obrázek ${index + 1} URL:`, srcMatch[1]);
-                }
-            });
-        }
-        if (processedText.includes('<h1') || processedText.includes('<h2') || processedText.includes('<h3')) {
-            console.log('📝 Zpracování zprávy s nadpisy:', processedText.substring(0, 200) + '...');
-        }
-        
-        return processedText;
-    };
     
     // 🆕 useEffect pro načtení obohacených produktů z databáze
     useEffect(() => {
@@ -1656,8 +1607,6 @@ const Message: React.FC<{
         return <>{segments}</>;
     };
     
-    const sanitizedHtml = processMessageText(message.text || '');
-    
     return (
         <div className={`flex items-start gap-3 max-w-4xl mx-auto group ${isUser ? 'justify-end ml-auto pl-12' : 'justify-start'}`}>
             {!isUser && (
@@ -1733,8 +1682,56 @@ const Message: React.FC<{
                             </ReactMarkdown>
                         </div>
                     ) : (
-                        /* Standardní HTML rendering pro ostatní chatboty */
-                        <div className="prose prose-sm max-w-none text-inherit prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-h4:text-base prose-h5:text-sm prose-h6:text-xs prose-p:my-2 prose-strong:font-bold prose-a:text-bewit-blue hover:prose-a:underline prose-img:block prose-img:max-w-full prose-img:h-auto prose-img:rounded-lg prose-img:mt-3 prose-img:mb-2 prose-img:shadow-md prose-img:object-cover" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+                        /* Standardní Markdown rendering pro ostatní chatboty */
+                        <div className="markdown-content">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw, [rehypeSanitize, customSanitizeSchema]]}
+                                components={{
+                                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                                    h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                                    h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                                    h4: ({node, ...props}) => <h4 className="text-base font-bold mt-2 mb-1" {...props} />,
+                                    h5: ({node, ...props}) => <h5 className="text-sm font-bold mt-1 mb-1" {...props} />,
+                                    h6: ({node, ...props}) => <h6 className="text-xs font-bold mt-1 mb-1" {...props} />,
+                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                                    strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                                    em: ({node, ...props}) => <em className="italic" {...props} />,
+                                    a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                                    li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                                    img: ({node, ...props}) => (
+                                        <img 
+                                            className="max-w-full h-auto rounded-lg my-3 shadow-md block" 
+                                            loading="lazy"
+                                            {...props} 
+                                        />
+                                    ),
+                                    code: ({node, inline, ...props}: any) => 
+                                        inline ? (
+                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                        ) : (
+                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                        ),
+                                    pre: ({node, ...props}) => <pre className="bg-slate-100 p-3 rounded-lg my-2 overflow-x-auto" {...props} />,
+                                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-bewit-blue pl-4 my-2 italic text-slate-600" {...props} />,
+                                    hr: ({node, ...props}) => <hr className="my-4 border-slate-200" {...props} />,
+                                    table: ({node, ...props}) => (
+                                        <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
+                                            <table className="min-w-full border-collapse bg-white" {...props} />
+                                        </div>
+                                    ),
+                                    thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
+                                    tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
+                                    tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
+                                    td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                                }}
+                            >
+                                {message.text || ''}
+                            </ReactMarkdown>
+                        </div>
                     )}
                     
                     {/* 🔍 EO SMĚSI: Formulář pro výběr problému (mezikrok) */}
@@ -4347,7 +4344,7 @@ const TripleModeSwitch: React.FC<TripleModeSwitchProps> = ({ mode, onChange }) =
             }`}
         >
             <FlaskIconInline className="w-3.5 h-3.5" />
-            Poradce na potíže
+            Poradce Bewit produktů
         </button>
         <button
             type="button"
@@ -4411,7 +4408,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     const [settings, setSettings] = useState(chatbotSettings);
     // chatKey slouží pro force remount SanaChatContent (nový chat)
     const [chatKey, setChatKey] = useState(0);
-    // 🔍 Trojitý mód: poradce na potíže / vyhledávač / obecný poradce
+    // 🔍 Trojitý mód: poradce Bewit produktů / vyhledávač / obecný poradce
     const [tripleMode, setTripleMode] = useState<TripleMode>('problem');
     // activeChatbotId umožňuje přepnutí chatbota (např. na Universal)
     const [activeChatbotId, setActiveChatbotId] = useState(chatbotId);
