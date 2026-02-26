@@ -192,6 +192,22 @@ textarea:focus {
   animation: spin 1s linear infinite;
 }
 
+/* Slide Up Animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 /* Borders */
 .border-2 { border-width: 2px; }
 .border-t-transparent { border-top-color: transparent; }

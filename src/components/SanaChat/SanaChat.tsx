@@ -8,8 +8,8 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import ProductSyncAdmin from './ProductSync';
 import { ProductCarousel } from '../ProductCarousel';
 import { ProductRecommendationButton } from '../ProductRecommendationButton';
-import { ProductFunnelMessage } from '../ProductFunnelMessage';  // 🆕 Product Funnel UI
-import { ManualFunnelButton } from '../ManualFunnelButton';  // 🆕 Manuální funnel spouštěč
+import { ProductFunnelMessage } from '../ProductFunnelMessage';  // NEW Product Funnel UI
+import { ManualFunnelButton } from '../ManualFunnelButton';  // NEW Manuální funnel spouštěč
 import { ProductRecommendation } from '../../services/productSearchService';
 import { generateProductResponse, convertChatHistoryToGPT } from '../../services/gptService';
 import { quickVectorSearchTest } from '../../services/vectorDiagnostics';
@@ -119,13 +119,13 @@ interface ChatMessage {
   sources?: Source[];
   productRecommendations?: ProductRecommendation[];
   matchedProducts?: any[]; // 🆕 Matched produkty z name matching
-  // 🆕 Product Funnel data (pro Wany Chat)
+  // NEW Product Funnel data (pro Wany Chat)
   isFunnelMessage?: boolean;
   funnelProducts?: FunnelProduct[];
   symptomList?: string[];
   // Intent type pro update funnel
   isUpdateFunnel?: boolean;        // Uživatel chce změnit výběr v existujícím funnelu
-  // 🆕 Flag pro žlutý callout (více než 2 produkty)
+  // NEW Flag pro žlutý callout (více než 2 produkty)
   hasCallout?: boolean;             // True = zobrazil se žlutý callout "Potřebujete přesnější doporučení?"
   // 🔗 Pairing info - párování produktů s kombinacemi z leceni
   pairingInfo?: {
@@ -134,10 +134,10 @@ interface ChatMessage {
     aloe: boolean;
     aloeProductName?: string;  // Konkrétní název Aloe produktu (např. "Aloe Vera Immunity")
     merkaba: boolean;
-    aloeUrl?: string;    // 🆕 URL pro Aloe produkt (textový odkaz)
+    aloeUrl?: string;    // NEW URL pro Aloe produkt (textový odkaz)
     merkabaUrl?: string; // 🆕 URL pro Merkaba produkt (textový odkaz)
   };
-  // 🔍 Problem Selection Form (pro EO Směsi Chat - mezikrok)
+  // SEARCH Problem Selection Form (pro EO Směsi Chat - mezikrok)
   requiresProblemSelection?: boolean;  // Flag: zobrazit formulář pro výběr problému?
   problemSelectionSubmitted?: boolean; // Flag: formulář byl odeslán, tlačítko se zablokuje
   uncertainProblems?: string[];        // Seznam problémů k výběru
@@ -153,41 +153,41 @@ interface ChatMetadata {
 
 // Props pro SanaChat komponentu
 interface SanaChatProps {
-  currentUser?: User;  // 🆕 Přihlášený uživatel
+  currentUser?: User;  // NEW Přihlášený uživatel
   selectedCategories: string[];
   selectedLabels: string[];
   selectedPublicationTypes: string[];
   chatbotSettings?: {
     product_recommendations: boolean;
-    product_button_recommendations: boolean;  // 🆕 Produktové doporučení na tlačítko
-    inline_product_links?: boolean;  // 🆕 Inline produktové linky (ChatGPT styl)
+    product_button_recommendations: boolean;  // NEW Produktové doporučení na tlačítko
+    inline_product_links?: boolean;  // NEW Inline produktové linky (ChatGPT styl)
     book_database: boolean;
-    use_feed_1?: boolean;  // 🆕 Použít Feed 1 (zbozi.xml)
-    use_feed_2?: boolean;  // 🆕 Použít Feed 2 (Product Feed 2)
-    webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
-    enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí automatického produktového routeru
-    enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
-    summarize_history?: boolean;  // 🆕 Automatická sumarizace historie pro N8N webhook
-    allowed_product_categories?: string[];  // 🆕 Povolené produktové kategorie pro filtrování Product Pills
-    show_sources?: boolean;  // 🆕 Zobrazovat zdroje v odpovědích
-    group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
-    enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
-    enable_product_search?: boolean;   // 🔍 Vyhledávač produktů (Feed Agent toggle)
+    use_feed_1?: boolean;  // NEW Použít Feed 1 (zbozi.xml)
+    use_feed_2?: boolean;  // NEW Použít Feed 2 (Product Feed 2)
+    webhook_url?: string;  // NEW N8N webhook URL pro tento chatbot
+    enable_product_router?: boolean;  // NEW Zapnutí/vypnutí automatického produktového routeru
+    enable_manual_funnel?: boolean;   // NEW Zapnutí manuálního funnel spouštěče
+    summarize_history?: boolean;  // NEW Automatická sumarizace historie pro N8N webhook
+    allowed_product_categories?: string[];  // NEW Povolené produktové kategorie pro filtrování Product Pills
+    show_sources?: boolean;  // NEW Zobrazovat zdroje v odpovědích
+    group_products_by_category?: boolean;  // NEW Grupování produktů podle kategorií
+    enable_product_pairing?: boolean;  // NEW Párování kombinací produktů
+    enable_product_search?: boolean;   // SEARCH Vyhledávač produktů (Feed Agent toggle)
   };
-  chatbotId?: string;  // 🆕 ID chatbota (pro Sana 2 markdown rendering)
-  originalChatbotId?: string;  // 🆕 Původní ID chatbota před přepnutím
+  chatbotId?: string;  // NEW ID chatbota (pro Sana 2 markdown rendering)
+  originalChatbotId?: string;  // NEW Původní ID chatbota před přepnutím
   onClose?: () => void;
   onSessionReady?: (sessionId: string) => void;  // Callback při vytvoření session (pro feedback)
   onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
-  modeSwitch?: React.ReactNode;  // 🔍 Toggle UI - předaný zvenku
-  searchMode?: boolean;           // 🔍 Vyhledávací mód - přepnutí chování inputu
-  externalUserInfo?: {  // 🆕 External user data z iframe embedu
+  modeSwitch?: React.ReactNode;  // SEARCH Toggle UI - předaný zvenku
+  searchMode?: boolean;           // SEARCH Vyhledávací mód - přepnutí chování inputu
+  externalUserInfo?: {  // NEW External user data z iframe embedu
     external_user_id?: string;
     first_name?: string;
     last_name?: string;
     email?: string;
     position?: string;
-    token_eshop?: string;  // 🆕 E-shop token z Bewit webu
+    token_eshop?: string;  // NEW E-shop token z Bewit webu
     [key: string]: any;
   };
 }
@@ -361,22 +361,22 @@ const sendMessageToAPI = async (
     metadata?: ChatMetadata, 
     webhookUrl?: string, 
     chatbotId?: string,
-    intent?: 'chat' | 'funnel' | 'update_funnel',  // 🆕 Intent pro N8N routing
-    detectedSymptoms?: string[],  // 🆕 Symptomy pro N8N (i když je intent chat)
-    currentUser?: User,  // 🆕 Informace o přihlášeném uživateli
-    externalUserInfo?: {  // 🆕 External user data z iframe embedu
+    intent?: 'chat' | 'funnel' | 'update_funnel',  // NEW Intent pro N8N routing
+    detectedSymptoms?: string[],  // NEW Symptomy pro N8N (i když je intent chat)
+    currentUser?: User,  // NEW Informace o přihlášeném uživateli
+    externalUserInfo?: {  // NEW External user data z iframe embedu
         external_user_id?: string;
         first_name?: string;
         last_name?: string;
         email?: string;
         position?: string;
-        token_eshop?: string;  // 🆕 E-shop token z Bewit webu
+        token_eshop?: string;  // NEW E-shop token z Bewit webu
         [key: string]: any;
     },
-    summarizedHistory?: string[],  // 🆕 Sumarizovaná historie (místo plné historie)
-    allowedProductCategories?: string[],  // 🆕 Povolené produktové kategorie pro filtrování
-    pairedProductNames?: string[],  // 🆕 Názvy produktů z SQL párování
-    enableProductScreening?: boolean  // 🆕 Pokud false, přeskočí screening produktů z textu
+    summarizedHistory?: string[],  // NEW Sumarizovaná historie (místo plné historie)
+    allowedProductCategories?: string[],  // NEW Povolené produktové kategorie pro filtrování
+    pairedProductNames?: string[],  // NEW Názvy produktů z SQL párování
+    enableProductScreening?: boolean  // NEW Pokud false, přeskočí screening produktů z textu
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
         // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
@@ -386,11 +386,11 @@ const sendMessageToAPI = async (
             sessionId: sessionId,
             action: "sendMessage",
             chatInput: message,
-            chatHistory: history,  // 🔥 Historie už je připravená (buď sumarizace nebo normální zprávy)
+            chatHistory: history,  // HOT Historie už je připravená (buď sumarizace nebo normální zprávy)
             intent: intent || 'chat',
         };
         
-        // 🆕 Pokud byly detekovány symptomy, přidáme je do payloadu (i pro chat intent)
+        // NEW Pokud byly detekovány symptomy, přidáme je do payloadu (i pro chat intent)
         if (detectedSymptoms && detectedSymptoms.length > 0) {
             payload.detectedSymptoms = detectedSymptoms;
         }
@@ -400,10 +400,10 @@ const sendMessageToAPI = async (
             payload.metadata = metadata;
         }
 
-        // 🆕 VŽDY přidej pole user (prázdné nebo plné) - stejná struktura jako Wany.chat
+        // NEW VŽDY přidej pole user (prázdné nebo plné) - stejná struktura jako Wany.chat
         // Priorita: localStorage (BEWIT_USER_DATA) > externalUserInfo (z iframe embedu) > currentUser (přihlášený) > prázdné
         
-        // 💾 NOVÉ: Načti data z localStorage (fallback pro situace, kdy postMessage nefungoval)
+        // SAVE NOVÉ: Načti data z localStorage (fallback pro situace, kdy postMessage nefungoval)
         let localStorageUser = null;
         try {
             const stored = localStorage.getItem('BEWIT_USER_DATA');
@@ -415,7 +415,7 @@ const sendMessageToAPI = async (
             console.warn('⚠️ Nepodařilo se načíst user data z localStorage:', e);
         }
         
-        // 🔍 DIAGNOSTIKA USER DATA
+        // SEARCH DIAGNOSTIKA USER DATA
         console.log('🔍 USER DATA DIAGNOSTIKA:');
         console.log('  - localStorageUser:', localStorageUser);
         console.log('  - externalUserInfo:', externalUserInfo);
@@ -424,21 +424,21 @@ const sendMessageToAPI = async (
         console.log('  - externalUserInfo existuje?', !!externalUserInfo);
         console.log('  - currentUser existuje?', !!currentUser);
         
-        // ✅ PRIORITA: localStorage > externalUserInfo > currentUser > prázdné
+        // OK PRIORITA: localStorage > externalUserInfo > currentUser > prázdné
         payload.user = localStorageUser ? {
             id: String(localStorageUser.id || ""),
             email: localStorageUser.email || "",
             firstName: localStorageUser.firstName || "",
             lastName: localStorageUser.lastName || "",
             role: localStorageUser.position || "",  // position se mapuje na role
-            tokenEshop: localStorageUser.tokenEshop || ""  // 🆕 E-shop token
+            tokenEshop: localStorageUser.tokenEshop || ""  // NEW E-shop token
         } : externalUserInfo ? {
             id: externalUserInfo.external_user_id || "",
             email: externalUserInfo.email || "",
             firstName: externalUserInfo.first_name || "",
             lastName: externalUserInfo.last_name || "",
             role: externalUserInfo.position || "",  // position se mapuje na role
-            tokenEshop: externalUserInfo.token_eshop || ""  // 🆕 E-shop token
+            tokenEshop: externalUserInfo.token_eshop || ""  // NEW E-shop token
         } : currentUser ? {
             id: currentUser.id,
             email: currentUser.email,
@@ -529,7 +529,7 @@ const sendMessageToAPI = async (
         }
         
         // Rozšířený parsing textu - zkusíme více možností
-        let botText = responsePayload?.output ||  // 🆕 Pro Sana 2 markdown (priorita)
+        let botText = responsePayload?.output ||  // NEW Pro Sana 2 markdown (priorita)
                      responsePayload?.html || 
                      responsePayload?.text || 
                      responsePayload?.content ||
@@ -562,7 +562,7 @@ const sendMessageToAPI = async (
             }
         }
         
-        // 🆕 Pro markdown (Sana 2): Odstraň sekci "Zdroje:" pokud jsou sources v samostatném poli
+        // NEW Pro markdown (Sana 2): Odstraň sekci "Zdroje:" pokud jsou sources v samostatném poli
         if (responsePayload?.sources && responsePayload.sources.length > 0 && finalBotText.includes('### Zdroje:')) {
             // Odstraň vše od "### Zdroje:" až do konce
             finalBotText = finalBotText.replace(/###\s*Zdroje:[\s\S]*$/i, '').trim();
@@ -578,7 +578,7 @@ const sendMessageToAPI = async (
             console.log('🖼️ Detekován HTML s obrázky v odpovědi - počet:', (finalBotText.match(/<img[^>]*>/gi) || []).length);
         }
 
-        // 🆕 PRODUCT NAME MATCHING - Screening produktů a matching proti databázi
+        // NEW PRODUCT NAME MATCHING - Screening produktů a matching proti databázi
         let matchedProducts: any[] = [];
         
         if (enableProductScreening !== false) try {
@@ -601,7 +601,7 @@ const sendMessageToAPI = async (
             if (allProductNames.length > 0) {
                 
                 // 3. Matching - vyhledání VŠECH produktů v databázi (včetně párovaných!)
-                // 🆕 PŘEDÁVÁME POVOLENÉ KATEGORIE pro filtrování PŘED matchingem
+                // NEW PŘEDÁVÁME POVOLENÉ KATEGORIE pro filtrování PŘED matchingem
                 const matchingResult = await matchProductNames(allProductNames, allowedProductCategories);
                 
                 console.log('🔍 Fuzzy matching výsledky:', {
@@ -621,7 +621,7 @@ const sendMessageToAPI = async (
                     // Produkty jsou už vyfiltrované podle kategorií v matchProductNames
                     matchedProducts = matchingResult.matches;
                     
-                    // 🆕 PŘIDAT PRODUKTY INLINE PŘÍMO DO TEXTU
+                    // NEW PŘIDAT PRODUKTY INLINE PŘÍMO DO TEXTU
                     // Odstraň duplicity (stejný product_code)
                     const uniqueProducts = matchedProducts.filter((product, index, self) =>
                         index === self.findIndex((p) => p.product_code === product.product_code)
@@ -648,7 +648,7 @@ const sendMessageToAPI = async (
                                 const matchStart = match.index!;
                                 let matchEnd = matchStart + match[0].length;
                                 
-                                // 🆕 DŮLEŽITÉ: Musíme přeskočit markdown formátování za názvem produktu
+                                // NEW DŮLEŽITÉ: Musíme přeskočit markdown formátování za názvem produktu
                                 // Hledáme **, *, ___, __, _ apod. které ukončují bold/italic
                                 let afterMatch = finalBotText.substring(matchEnd);
                                 let markdownEndOffset = 0;
@@ -673,7 +673,7 @@ const sendMessageToAPI = async (
                                 // Posun pozici za markdown markup
                                 matchEnd += markdownEndOffset;
                                 
-                                // 🆕 Vytvoříme speciální marker pro produkt
+                                // NEW Vytvoříme speciální marker pro produkt
                                 // Formát: <<<PRODUCT:{code}|||{url}|||{name}|||{pinyin}>>>
                                 const productMarker = ` <<<PRODUCT:${product.product_code}|||${product.url}|||${product.product_name}|||${product.pinyin_name}>>>`;
                                 
@@ -927,7 +927,7 @@ const ProductPill: React.FC<{
     pinyinName: string;
     url: string; 
     similarity?: number;
-    token?: string;  // 🆕 Token z externalUserInfo
+    token?: string;  // NEW Token z externalUserInfo
 }> = ({ productName, pinyinName, url, similarity, token }) => {
     const [isHovered, setIsHovered] = React.useState(false);
     
@@ -1034,29 +1034,150 @@ const TypingIndicator: React.FC = () => (
     </div>
 );
 
+// 🔍 PRODUCT SEARCH DRAWER - komponenta pro vyhledávání produktů
+const ProductSearchDrawer: React.FC = () => {
+    const [searchInput, setSearchInput] = useState('');
+    const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleSearch = async (query: string) => {
+        setSearchInput(query);
+        
+        if (searchDebounce.current) {
+            clearTimeout(searchDebounce.current);
+        }
+        
+        if (query.trim().length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        
+        setIsSearching(true);
+        searchDebounce.current = setTimeout(async () => {
+            try {
+                const found = await searchProductsAutocomplete(query.trim(), 20);
+                setSearchResults(found);
+            } catch (error) {
+                console.error('Chyba při vyhledávání produktů:', error);
+                setSearchResults([]);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+    };
+
+    return (
+        <div className="p-4 flex flex-col h-full">
+            {/* Vyhledávací pole */}
+            <div className="mb-4">
+                <div className="relative">
+                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input
+                        type="text"
+                        value={searchInput}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        placeholder="Např. Aloe Vera, esenciální olej..."
+                        className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-bewit-blue/50 focus:border-bewit-blue transition-colors"
+                    />
+                </div>
+            </div>
+
+            {/* Loading indikátor */}
+            {isSearching && (
+                <div className="flex items-center justify-center py-8 gap-2">
+                    {[0, 1, 2].map(i => (
+                        <div key={i} className="w-2 h-2 bg-bewit-blue rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                    <span className="text-sm text-slate-400 ml-2">Hledám produkty...</span>
+                </div>
+            )}
+
+            {/* Výsledky */}
+            {!isSearching && searchResults.length === 0 && searchInput.trim().length > 0 && (
+                <div className="text-center py-8 text-slate-500">
+                    <p className="text-sm">Žádné produkty nebyly nalezeny</p>
+                </div>
+            )}
+
+            {!isSearching && searchResults.length > 0 && (
+                <div className="space-y-2">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
+                        Nalezeno {searchResults.length} produktů
+                    </p>
+                    {searchResults.map((product) => (
+                        <a
+                            key={product.product_code}
+                            href={product.url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-bewit-blue hover:bg-blue-50 transition-all duration-200 group no-underline"
+                        >
+                            {product.thumbnail ? (
+                                <img
+                                    src={product.thumbnail}
+                                    alt={product.product_name}
+                                    className="w-12 h-12 rounded-lg object-contain flex-shrink-0 bg-gray-50"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                            ) : (
+                                <div className="w-12 h-12 rounded-lg bg-slate-100 flex-shrink-0 flex items-center justify-center text-lg">📦</div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-slate-800 group-hover:text-bewit-blue transition-colors truncate">
+                                    {product.product_name}
+                                </p>
+                                {product.category && (
+                                    <p className="text-xs text-slate-400 truncate">{product.category}</p>
+                                )}
+                            </div>
+                            <svg className="w-4 h-4 text-slate-300 group-hover:text-bewit-blue flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                        </a>
+                    ))}
+                </div>
+            )}
+
+            {/* Prázdný stav */}
+            {!isSearching && searchInput.trim().length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500">
+                    <svg className="w-12 h-12 mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <p className="text-sm font-medium mb-1">Začněte zadáním vyhledávacího termínu</p>
+                    <p className="text-xs text-slate-400">Hledejte názvy produktů nebo kategorií</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const Message: React.FC<{ 
     message: ChatMessage; 
     onSilentPrompt: (prompt: string) => void; 
-    onProblemSelect?: (problem: string) => void;  // 🔍 Callback pro výběr problému (EO Směsi)
+    onProblemSelect?: (problem: string) => void;  // SEARCH Callback pro výběr problému (EO Směsi)
     chatbotSettings?: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;
-        inline_product_links?: boolean;  // 🆕 Inline produktové linky
+        inline_product_links?: boolean;  // NEW Inline produktové linky
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
-        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
-        enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
-        enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
-        group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
-        show_sources?: boolean;  // 🆕 Zobrazování zdrojů
-        enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
+        webhook_url?: string;  // NEW N8N webhook URL pro tento chatbot
+        enable_product_router?: boolean;  // NEW Zapnutí/vypnutí produktového routeru
+        enable_manual_funnel?: boolean;   // NEW Zapnutí manuálního funnel spouštěče
+        group_products_by_category?: boolean;  // NEW Grupování produktů podle kategorií
+        show_sources?: boolean;  // NEW Zobrazování zdrojů
+        enable_product_pairing?: boolean;  // NEW Párování kombinací produktů
     };
     sessionId?: string;
-    token?: string;  // 🆕 Token z externalUserInfo
+    token?: string;  // NEW Token z externalUserInfo
     lastUserQuery?: string;
-    chatbotId?: string;  // 🆕 Pro rozlišení Sana 2 (markdown rendering)
-    // 🆕 Props pro manuální funnel
+    chatbotId?: string;  // NEW Pro rozlišení Sana 2 (markdown rendering)
+    // NEW Props pro manuální funnel
     recommendedProducts?: RecommendedProduct[];  // Produkty extrahované z historie
     chatHistory?: Array<{ id: string; role: string; text: string; }>;  // Historie konverzace
     metadata?: { categories: string[]; labels: string[]; publication_types: string[]; };  // Metadata
@@ -1064,26 +1185,29 @@ const Message: React.FC<{
     onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
 }> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] }, onAddMessage, onSwitchToUniversal }) => {
     const isUser = message.role === 'user';
-    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local' || chatbotId === 'universal_chat' || chatbotId === 'universal';  // 🆕 Sana Local Format, Vany Chat, EO-Smesi, Wany.Chat Local, Universal Chat a Universal používají markdown
+    const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local' || chatbotId === 'universal_chat' || chatbotId === 'universal';  // NEW Sana Local Format, Vany Chat, EO-Smesi, Wany.Chat Local, Universal Chat a Universal používají markdown
     
-    // 🆕 State pro obohacené produkty (obsahují category pro seskupení v ProductPills)
+    // NEW State pro obohacené produkty (obsahují category pro seskupení v ProductPills)
     const [enrichedProducts, setEnrichedProducts] = useState<RecommendedProduct[]>([]);
     const [productsLoading, setProductsLoading] = useState(false);
     
-    // 🆕 State pro Aloe/Merkaba doporučení z párování
+    // NEW State pro Aloe/Merkaba doporučení z párování
     const [pairingRecommendations, setPairingRecommendations] = useState<{
         aloe: boolean;
         merkaba: boolean;
     }>({ aloe: false, merkaba: false });
     
-    // 🆕 Prioritní kategorie pro řazení produktů BEWIT
+    // SEARCH State pro otevření drawer vyhledávače
+    const [isSearchDrawerOpen, setIsSearchDrawerOpen] = useState(false);
+    
+    // NEW Prioritní kategorie pro řazení produktů BEWIT
     const PRIORITY_CATEGORIES = [
         'Směsi esenciálních olejů',
         'PRAWTEIN® – superpotravinové směsi',
         'TČM - Tradiční čínská medicína'
     ];
     
-    // 🆕 Funkce pro získání priority kategorie
+    // NEW Funkce pro získání priority kategorie
     const getCategoryPriority = (category: string | undefined): number => {
         if (!category) return 999;
         
@@ -1097,7 +1221,7 @@ const Message: React.FC<{
         return index === -1 ? 999 : index;
     };
     
-    // 🆕 Funkce pro řazení produktů podle prioritních kategorií
+    // NEW Funkce pro řazení produktů podle prioritních kategorií
     const sortProductsByPriorityCategories = (products: RecommendedProduct[]): RecommendedProduct[] => {
         return [...products].sort((a, b) => {
             const priorityA = getCategoryPriority(a.category);
@@ -1113,11 +1237,11 @@ const Message: React.FC<{
         });
     };
     
-    // 🆕 State pro inline produktové linky
+    // NEW State pro inline produktové linky
     
     // Vylepšené zpracování HTML pro lepší zobrazení obrázků a formátování
     
-    // 🆕 useEffect pro načtení obohacených produktů z databáze
+    // NEW useEffect pro načtení obohacených produktů z databáze
     useEffect(() => {
         const loadEnrichedProducts = async () => {
             // Načíst pouze pokud:
@@ -1139,13 +1263,13 @@ const Message: React.FC<{
             setProductsLoading(true);
             
             try {
-                // ✅ JEDNODUCHÉ ŘEŠENÍ: Použij enrichFunnelProductsFromDatabase pro VŠECHNY produkty
+                // OK JEDNODUCHÉ ŘEŠENÍ: Použij enrichFunnelProductsFromDatabase pro VŠECHNY produkty
                 // Tato funkce už umí pracovat s produkty z Product Extractor i z párování
                 const enriched = await enrichFunnelProductsFromDatabase(products);
                 
                 console.log('✅ Obohaceno produktů:', enriched.length);
                 
-                // 🆕 Seřadíme produkty podle prioritních kategorií
+                // NEW Seřadíme produkty podle prioritních kategorií
                 const sortedProducts = sortProductsByPriorityCategories(enriched);
                 
                 setEnrichedProducts(sortedProducts);
@@ -1160,7 +1284,7 @@ const Message: React.FC<{
         loadEnrichedProducts();
     }, [message.matchedProducts, message.role, chatbotSettings?.inline_product_links, chatbotSettings?.enable_product_pairing]);
     
-    // 🆕 Funkce pro extrakci všech product markerů z textu (pro horní sekci)
+    // NEW Funkce pro extrakci všech product markerů z textu (pro horní sekci)
     /**
      * Extrahuje všechny product markery z textu zprávy
      * @returns Array objektů s daty produktů
@@ -1189,7 +1313,7 @@ const Message: React.FC<{
         return products;
     };
     
-    // 🆕 Funkce pro rendering textu s inline produktovými linky + horní sekce
+    // NEW Funkce pro rendering textu s inline produktovými linky + horní sekce
     /**
      * 🆕 Renderuje text s inline product buttons
      * Parsuje text s product markery: <<<PRODUCT:code|||url|||name|||pinyin>>>
@@ -1227,7 +1351,7 @@ const Message: React.FC<{
             if (matchStart > lastIndex) {
                 const textSegment = text.substring(lastIndex, matchStart);
                 
-                // 🆕 Pokud máme produkty a ještě jsme je nevložili, zkontroluj, jestli jsme za prvním odstavcem
+                // NEW Pokud máme produkty a ještě jsme je nevložili, zkontroluj, jestli jsme za prvním odstavcem
                 // Pro n8n "vědět víc" odpovědi (hideProductCallout) sekci produktů NEZOBRAZUJEME - pills jsou přímo v textu
                 if (!productsSectionInserted && allProducts.length > 0 && !message.hideProductCallout && insertProductsSectionAt > 0 && lastIndex <= insertProductsSectionAt && matchStart > insertProductsSectionAt) {
                     // Rozdělíme text na dvě části: před a po konci prvního odstavce
@@ -1275,7 +1399,7 @@ const Message: React.FC<{
                         segmentIndex++;
                     }
                     
-                    // 🆕 VLOŽENÍ SEKCE "Související produkty BEWIT"
+                    // NEW VLOŽENÍ SEKCE "Související produkty BEWIT"
 
                     const useGroupedView = (chatbotSettings as any)?.group_products_by_category === true;
                     // 🔧 FIX: Zobraz produkty i když group_products_by_category není zapnuto
@@ -1292,7 +1416,7 @@ const Message: React.FC<{
                             return acc;
                         }, {});
                         
-                        // 🆕 Seřadíme kategorie podle priority
+                        // NEW Seřadíme kategorie podle priority
                         const categories = Object.keys(byCategory).sort((catA, catB) => {
                             const priorityA = getCategoryPriority(catA);
                             const priorityB = getCategoryPriority(catB);
@@ -1358,7 +1482,7 @@ const Message: React.FC<{
                                 {chatbotSettings?.enable_product_pairing && (pairingRecommendations.aloe || pairingRecommendations.merkaba) && (
                                     <div className="mt-4 pt-4 border-t border-blue-100">
                                         <p className="text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Doplňkové doporučení:</p>
-                                        <div className="flex flex-wrap gap-3">
+                                        <div className="flex flex-wrap gap-3 mb-3">
                                             {pairingRecommendations.aloe && (
                                                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm">
                                                     <span className="text-base leading-none">✅</span>
@@ -1372,6 +1496,16 @@ const Message: React.FC<{
                                                 </div>
                                             )}
                                         </div>
+                                        <button
+                                            onClick={() => setIsSearchDrawerOpen(true)}
+                                            className="w-full py-2 px-3 bg-bewit-blue text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-bewit-blue/50 flex items-center justify-center gap-2"
+                                            title="Otevřít vyhledávač produktů"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                            </svg>
+                                            Chci o produktech vědět víc
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -1608,7 +1742,8 @@ const Message: React.FC<{
     };
     
     return (
-        <div className={`flex items-start gap-3 max-w-4xl mx-auto group ${isUser ? 'justify-end ml-auto pl-12' : 'justify-start'}`}>
+        <>
+            <div className={`flex items-start gap-3 max-w-4xl mx-auto group ${isUser ? 'justify-end ml-auto pl-12' : 'justify-start'}`}>
             {!isUser && (
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-bewit-blue flex items-center justify-center text-white">
                     <BotIcon className="w-5 h-5" />
@@ -2013,6 +2148,40 @@ const Message: React.FC<{
                 </div>
             )}
         </div>
+        
+        {/* 🔍 SEARCH DRAWER - panel pro vyhledávání produktů vyjíždějící ze spodu */}
+        {isSearchDrawerOpen && (
+            <>
+                {/* Backdrop */}
+                <div 
+                    className="fixed inset-0 bg-black/30 z-40 transition-opacity duration-300"
+                    onClick={() => setIsSearchDrawerOpen(false)}
+                />
+                
+                {/* Drawer */}
+                <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col animate-slide-up">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-4 border-b border-slate-200">
+                        <h2 className="text-lg font-semibold text-bewit-dark">Vyhledejte produkty</h2>
+                        <button
+                            onClick={() => setIsSearchDrawerOpen(false)}
+                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            aria-label="Zavřít vyhledávač"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    {/* Obsah */}
+                    <div className="flex-1 overflow-y-auto">
+                        <ProductSearchDrawer />
+                    </div>
+                </div>
+            </>
+        )}
+        </>
     );
 };
 
@@ -2020,28 +2189,28 @@ const ChatWindow: React.FC<{
     messages: ChatMessage[]; 
     isLoading: boolean; 
     onSilentPrompt: (prompt: string) => void;
-    onProblemSelect?: (problem: string) => void;  // 🔍 Callback pro výběr problému
+    onProblemSelect?: (problem: string) => void;
     shouldAutoScroll?: boolean;
     chatbotSettings?: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;
-        inline_product_links?: boolean;  // 🆕 Inline produktové linky
+        inline_product_links?: boolean;
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
-        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
-        enable_product_router?: boolean;  // 🆕 Zapnutí/vypnutí produktového routeru
-        enable_manual_funnel?: boolean;   // 🆕 Zapnutí manuálního funnel spouštěče
-        show_sources?: boolean;  // 🆕 Zobrazování zdrojů
-        group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
-        enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
+        webhook_url?: string;  // NEW N8N webhook URL pro tento chatbot
+        enable_product_router?: boolean;  // NEW Zapnutí/vypnutí produktového routeru
+        enable_manual_funnel?: boolean;   // NEW Zapnutí manuálního funnel spouštěče
+        show_sources?: boolean;  // NEW Zobrazování zdrojů
+        group_products_by_category?: boolean;  // NEW Grupování produktů podle kategorií
+        enable_product_pairing?: boolean;  // NEW Párování kombinací produktů
     };
     sessionId?: string;
-    token?: string;  // 🆕 Token z externalUserInfo
-    chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
-    selectedCategories?: string[];  // 🆕 Pro manuální funnel metadata
-    selectedLabels?: string[];      // 🆕 Pro manuální funnel metadata
-    selectedPublicationTypes?: string[];  // 🆕 Pro manuální funnel metadata
+    token?: string;  // NEW Token z externalUserInfo
+    chatbotId?: string;  // NEW Pro Sana 2 markdown rendering
+    selectedCategories?: string[];  // NEW Pro manuální funnel metadata
+    selectedLabels?: string[];      // NEW Pro manuální funnel metadata
+    selectedPublicationTypes?: string[];  // NEW Pro manuální funnel metadata
     onAddMessage?: (message: ChatMessage) => void;  // Callback pro přidání zprávy z EO Směsi "vědět víc"
     onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
 }> = ({ messages, isLoading, onSilentPrompt, onProblemSelect, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [], onAddMessage, onSwitchToUniversal }) => {
@@ -2051,7 +2220,7 @@ const ChatWindow: React.FC<{
     const [showScrollButton, setShowScrollButton] = useState(false);
     
     useEffect(() => {
-        // ❌ AUTOMATICKÝ SCROLL ZAKÁZÁN - uživatel scrolluje pouze manuálně
+        // NO AUTOMATICKÝ SCROLL ZAKÁZÁN - uživatel scrolluje pouze manuálně
         // Pouze sledujeme změny zpráv pro potenciální zobrazení indikátoru
         const newMessageAdded = messages.length > lastMessageCount;
         
@@ -2126,7 +2295,7 @@ const ChatWindow: React.FC<{
                         .reverse()
                         .find(m => m.role === 'user')?.text || '';
                     
-                    // 🆕 Pro ManualFunnelButton - extrahujeme produkty z celé historie
+                    // NEW Pro ManualFunnelButton - extrahujeme produkty z celé historie
                     const historyForFunnel = messages.slice(0, index + 1).map(m => ({
                         id: m.id,
                         role: m.role,
@@ -2151,7 +2320,7 @@ const ChatWindow: React.FC<{
                             token={token}
                             lastUserQuery={lastUserQuery}
                             chatbotId={chatbotId}
-                            // 🆕 Props pro ManualFunnelButton
+                            // NEW Props pro ManualFunnelButton
                             recommendedProducts={recommendedProductsForFunnel}
                             chatHistory={chatHistoryForFunnel}
                             metadata={{
@@ -2372,13 +2541,13 @@ const Header: React.FC<{
     chatbotSettings?: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;
-        inline_product_links?: boolean;  // 🆕 Inline produktové linky
+        inline_product_links?: boolean;  // NEW Inline produktové linky
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
-        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
-        group_products_by_category?: boolean;  // 🆕 Grupování produktů podle kategorií
-        enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
+        webhook_url?: string;  // NEW N8N webhook URL pro tento chatbot
+        group_products_by_category?: boolean;  // NEW Grupování produktů podle kategorií
+        enable_product_pairing?: boolean;  // NEW Párování kombinací produktů
     };
     onClose?: () => void;
 }> = ({ onNewChat, onExportPdf, selectedLanguage, onLanguageChange, onToggleFilters, isFilterPanelVisible, onToggleProductRecommendations, chatbotSettings, onClose }) => (
@@ -2434,30 +2603,30 @@ const languageInstructions: { [key: string]: string } = {
 
 // Komponenta jen s obsahem chatu (bez headeru)
 const SanaChatContent: React.FC<SanaChatProps> = ({ 
-    currentUser,  // 🆕 Přihlášený uživatel
+    currentUser,  // NEW Přihlášený uživatel
     selectedCategories, 
     selectedLabels, 
     selectedPublicationTypes,
     chatbotSettings = { 
         product_recommendations: false, 
         product_button_recommendations: false, 
-        inline_product_links: false,  // 🆕 Inline produktové linky
+        inline_product_links: false,  // NEW Inline produktové linky
         book_database: true,
         use_feed_1: true,
         use_feed_2: true,
-        enable_product_router: true,   // 🆕 Defaultně zapnutý
-        enable_manual_funnel: false,    // 🆕 Defaultně vypnutý
-        summarize_history: false,       // 🆕 Defaultně vypnutá sumarizace
-        allowed_product_categories: []  // 🆕 Defaultně všechny kategorie povoleny
+        enable_product_router: true,   // NEW Defaultně zapnutý
+        enable_manual_funnel: false,    // NEW Defaultně vypnutý
+        summarize_history: false,       // NEW Defaultně vypnutá sumarizace
+        allowed_product_categories: []  // NEW Defaultně všechny kategorie povoleny
     },
-    chatbotId,  // 🆕 Pro Sana 2 markdown rendering
+    chatbotId,  // NEW Pro Sana 2 markdown rendering
     originalChatbotId, // 🆕 Původní ID chatbota před přepnutím
     onClose,
     onSessionReady,
     onSwitchToUniversal,
-    modeSwitch,  // 🔍 Toggle UI
-    searchMode,  // 🔍 Vyhledávací mód
-    externalUserInfo  // 🆕 External user data z iframe embedu
+    modeSwitch,  // SEARCH Toggle UI
+    searchMode,  // SEARCH Vyhledávací mód
+    externalUserInfo  // NEW External user data z iframe embedu
 }) => {
     console.log('📦 SanaChatContent RENDER. chatbotId:', chatbotId, 'originalChatbotId:', originalChatbotId);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -2469,9 +2638,9 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     // 🔗 Token z externalUserInfo pro prokliknutí produktů
     const userToken = externalUserInfo?.token_eshop;
     
-    // 🆕 State pro sumarizovanou historii (pro N8N webhook)
+    // NEW State pro sumarizovanou historii (pro N8N webhook)
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
-    // 🔥 useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
+    // HOT useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
     const summarizedHistoryRef = useRef<string[]>([]);
 
     useEffect(() => {
@@ -2500,7 +2669,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         }
     }, [chatbotSettings.product_recommendations]);
 
-    // 🔍 Callback pro výběr problému z formuláře (EO Směsi Chat)
+    // SEARCH Callback pro výběr problému z formuláře (EO Směsi Chat)
     const handleProblemSelection = useCallback(async (selectedProblem: string) => {
         setIsLoading(true);
         
@@ -2654,7 +2823,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 willUseCombinedSearch: chatbotSettings.book_database && chatbotSettings.product_recommendations,
                 webhook_url: chatbotSettings.webhook_url,
                 summarize_history: chatbotSettings.summarize_history,
-                enable_product_pairing: chatbotSettings.enable_product_pairing  // 🆕 DEBUG párování
+                enable_product_pairing: chatbotSettings.enable_product_pairing  // NEW DEBUG párování
             });
             
             // Připravíme metadata pro filtry
@@ -2682,7 +2851,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 try {
                     const eoSmesiResult = await processEoSmesiQuery(text.trim(), sessionId);
                     
-                    // 🔍 SITUACE A: Agent si NENÍ jistý → dotazník nebo přímé zpracování
+                    // SEARCH SITUACE A: Agent si NENÍ jistý → dotazník nebo přímé zpracování
                     if (eoSmesiResult.problemClassification.requiresUserSelection && 
                         eoSmesiResult.problemClassification.uncertainProblems &&
                         eoSmesiResult.problemClassification.uncertainProblems.length > 0) {
@@ -2742,7 +2911,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                             productName: p.name,
                             pinyinName: '', // EO Směsi nemají pinyin
                             productUrl: p.url || '',
-                            product_code: p.code,  // ✅ snake_case pro enrichFunnelProductsFromDatabase
+                            product_code: p.code,  // OK snake_case pro enrichFunnelProductsFromDatabase
                             category: p.category
                         }));
                         
@@ -2819,7 +2988,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             console.log(`🔍 Checking Intent Routing: chatbotId = "${chatbotId}" (type: ${typeof chatbotId})`);
             console.log(`🔍 Comparison: chatbotId === 'vany_chat' → ${chatbotId === 'vany_chat'}`);
             
-            // 🆕 Kontrola enable_product_router - pokud je false, přeskočíme intent routing
+            // NEW Kontrola enable_product_router - pokud je false, přeskočíme intent routing
             const enableProductRouter = chatbotSettings?.enable_product_router !== false;
             console.log(`🔀 Product Router enabled: ${enableProductRouter ? 'ANO' : 'NE'}`);
             
@@ -2832,7 +3001,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 const lastBotMessage = messages.filter(m => m.role === 'bot').pop();
                 const lastBotText = lastBotMessage?.text || '';
                 
-                // 🆕 KRITICKÉ: Intent routing se aktivuje POUZE pokud je žlutý callout v historii
+                // NEW KRITICKÉ: Intent routing se aktivuje POUZE pokud je žlutý callout v historii
                 // A ZÁROVEŇ není zapnutý manuální funnel (ten má vlastní logiku)
                 // Kontrolujeme FLAG hasCallout místo hledání textu!
                 const hasCallout = messages.some(m => m.role === 'bot' && m.hasCallout === true);
@@ -2843,7 +3012,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 // Pokud je zapnutý manuální funnel, nepouštíme automatický intent routing
                 // Uživatel musí použít tlačítko ManualFunnelButton
                 if (!hasCallout || enableManualFunnel) {
-                    // ❌ ŽÁDNÝ CALLOUT NEBO MANUÁLNÍ FUNNEL → Standardní chat, nepoužívat intent routing
+                    // NO ŽÁDNÝ CALLOUT NEBO MANUÁLNÍ FUNNEL → Standardní chat, nepoužívat intent routing
                     if (enableManualFunnel && hasCallout) {
                         console.log('%c🎯 Manuální funnel aktivní → PŘESKAKUJI AUTOMATICKÝ ROUTING', 'color: #F59E0B; font-weight: bold;');
                     } else {
@@ -2852,7 +3021,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                     console.log('%c═══════════════════════════════════════════════════════════════════', 'color: #8B5CF6; font-weight: bold;');
                     // Pokračujeme standardním flow níže (mimo tento blok)
                 } else {
-                    // ✅ CALLOUT DETEKOVÁN → Spustit intent routing
+                    // OK CALLOUT DETEKOVÁN → Spustit intent routing
                     console.log('%c🎯 Callout detekován → SPOUŠTÍM INTENT ROUTING', 'color: #F59E0B; font-weight: bold;');
                     
                     // Extrahujeme produkty z historie
@@ -2902,7 +3071,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 // ═══════════════════════════════════════════════════════════════
                 // 🎯 FUNNEL MODE: Spustit produktový funnel přes N8N webhook
                 // ═══════════════════════════════════════════════════════════════
-                // 🆕 Podporujeme jak 'funnel' tak 'update_funnel'!
+                // NEW Podporujeme jak 'funnel' tak 'update_funnel'!
                 if ((intentResult.intent === 'funnel' || intentResult.intent === 'update_funnel') && recommendedProducts.length > 0) {
                     // ═══════════════════════════════════════════════════════════════
                     // 🎯 PRODUCT FUNNEL MODE - PŘÍPRAVA DAT PRO N8N WEBHOOK
@@ -3100,7 +3269,7 @@ Symptomy zákazníka: ${symptomsList}
                         
                         setMessages(prev => [...prev, botMessage]);
                         
-                        // 💾 Uložíme PAR otázka-odpověď do historie
+                        // SAVE Uložíme PAR otázka-odpověď do historie
                         saveChatPairToHistory(
                             sessionId,
                             currentUser?.id,
@@ -3113,7 +3282,7 @@ Symptomy zákazníka: ${symptomsList}
                                 isFunnelMessage: true,
                                 funnelProducts: funnelProductsWithDetails,
                                 symptomList: symptoms,
-                                user_info: externalUserInfo  // 🆕 External user data z iframe
+                                user_info: externalUserInfo  // NEW External user data z iframe
                             }
                         );
                         
@@ -3205,7 +3374,7 @@ Symptomy zákazníka: ${symptomsList}
             else if (chatbotSettings.book_database) {
                 console.log('📚 Používám pouze webhook pro databázi knih - IGNORUJI produktová doporučení...');
                 
-                // 🔥 SUMARIZACE: Pokud je zapnutá, vytvoříme sumarizovanou historii MÍSTO plné historie
+                // HOT SUMARIZACE: Pokud je zapnutá, vytvoříme sumarizovanou historii MÍSTO plné historie
                 // Používáme REF protože React state je asynchronní!
                 console.log('🔍 DEBUG PŘED PODMÍNKOU:');
                 console.log('  - summarize_history:', chatbotSettings.summarize_history);
@@ -3304,18 +3473,18 @@ Symptomy zákazníka: ${symptomsList}
                 const webhookResult = await sendMessageToAPI(
                     promptForBackend, 
                     sessionId, 
-                    historyToSend,  // 🔥 BUĎTO sumarizace NEBO celá historie
+                    historyToSend,  // HOT BUĎTO sumarizace NEBO celá historie
                     currentMetadata, 
                     chatbotSettings.webhook_url, 
                     chatbotId,
                     undefined,  // intent
                     undefined,  // detectedSymptoms
-                    currentUser,  // 🆕 Přidáno: informace o uživateli
-                    externalUserInfo,  // 🆕 External user data z iframe
+                    currentUser,  // NEW Přidáno: informace o uživateli
+                    externalUserInfo,  // NEW External user data z iframe
                     undefined,  // Tenhle parametr už nepoužíváme - posíláme přímo v history
-                    chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
-                    pairedProductNames,  // 🆕 Názvy produktů z SQL párování
-                    !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // 🆕 Screening jen když je zapnutý
+                    chatbotSettings.allowed_product_categories,  // NEW Povolené produktové kategorie
+                    pairedProductNames,  // NEW Názvy produktů z SQL párování
+                    !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // NEW Screening jen když je zapnutý
                 );
                 
                 // 🔗 Přidáme párování metadata do výsledku (pokud existují)
@@ -3346,7 +3515,7 @@ Symptomy zákazníka: ${symptomsList}
                 
                 setMessages(prev => [...prev, botMessage]);
                 
-                // 💾 Uložíme PAR otázka-odpověď do historie
+                // SAVE Uložíme PAR otázka-odpověď do historie
                 saveChatPairToHistory(
                     sessionId,
                     currentUser?.id,
@@ -3362,7 +3531,7 @@ Symptomy zákazníka: ${symptomsList}
                     }
                 );
                 
-                // 🔥 OKAMŽITĚ vytvoříme sumarizaci AKTUÁLNÍ Q&A páru (na pozadí)
+                // HOT OKAMŽITĚ vytvoříme sumarizaci AKTUÁLNÍ Q&A páru (na pozadí)
                 // Sumarizace se přidá do REF i STATE - REF je okamžitě dostupný!
                 if (chatbotSettings.summarize_history) {
                     createSimpleSummary(text.trim(), webhookResult.text).then(summary => {
@@ -3509,12 +3678,12 @@ Symptomy zákazníka: ${symptomsList}
                 chatbotId,
                 undefined,  // intent
                 undefined,  // detectedSymptoms
-                currentUser,  // 🆕 Přidáno: informace o uživateli
-                externalUserInfo,  // 🆕 External user data z iframe
-                chatbotSettings.summarize_history ? summarizedHistory : undefined,  // 🆕 Sumarizovaná historie
-                chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
+                currentUser,  // NEW Přidáno: informace o uživateli
+                externalUserInfo,  // NEW External user data z iframe
+                chatbotSettings.summarize_history ? summarizedHistory : undefined,  // NEW Sumarizovaná historie
+                chatbotSettings.allowed_product_categories,  // NEW Povolené produktové kategorie
                 undefined,  // pairedProductNames
-                !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // 🆕 Screening jen když je zapnutý
+                !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // NEW Screening jen když je zapnutý
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
@@ -3526,7 +3695,7 @@ Symptomy zákazníka: ${symptomsList}
             };
             setMessages(prev => [...prev, botMessage]);
             
-            // 🔥 SUMARIZACE - pokud je zapnutá v nastavení - max 2 nejnovější
+            // HOT SUMARIZACE - pokud je zapnutá v nastavení - max 2 nejnovější
             if (chatbotSettings.summarize_history) {
                 const summary = await createSimpleSummary(text.trim(), botText);
                 if (summary) {
@@ -3627,28 +3796,28 @@ Symptomy zákazníka: ${symptomsList}
 };
 
 const SanaChat: React.FC<SanaChatProps> = ({ 
-    currentUser,  // 🆕 Přihlášený uživatel
+    currentUser,  // NEW Přihlášený uživatel
     selectedCategories, 
     selectedLabels, 
     selectedPublicationTypes,
     chatbotSettings = { 
         product_recommendations: false, 
         product_button_recommendations: false, 
-        inline_product_links: false,  // 🆕 Inline produktové linky
+        inline_product_links: false,  // NEW Inline produktové linky
         book_database: true,
         use_feed_1: true,
         use_feed_2: true,
-        enable_product_router: true,   // 🆕 Defaultně zapnutý
-        enable_manual_funnel: false,    // 🆕 Defaultně vypnutý
-        summarize_history: false       // 🆕 Defaultně vypnutá sumarizace
+        enable_product_router: true,   // NEW Defaultně zapnutý
+        enable_manual_funnel: false,    // NEW Defaultně vypnutý
+        summarize_history: false       // NEW Defaultně vypnutá sumarizace
     },
-    chatbotId,  // 🆕 Pro Sana 2 markdown rendering
+    chatbotId,  // NEW Pro Sana 2 markdown rendering
     originalChatbotId, // 🆕 Původní ID chatbota před přepnutím
     onClose,
     onSwitchToUniversal,
-    modeSwitch,  // 🔍 Toggle UI
-    searchMode,  // 🔍 Vyhledávací mód
-    externalUserInfo  // 🆕 External user data z iframe embedu
+    modeSwitch,  // SEARCH Toggle UI
+    searchMode,  // SEARCH Vyhledávací mód
+    externalUserInfo  // NEW External user data z iframe embedu
 }) => {
     // 🚨 EXTREME DIAGNOSTIKA #1 - SANACHAT WRAPPER
     console.log('%c═══════════════════════════════════════════════════════════════════', 'background: #0000FF; color: #FFFFFF; font-size: 20px; font-weight: bold;');
@@ -3868,7 +4037,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                     console.log('⏭️ [VĚTEV 2] Párování produktů VYPNUTO');
                 }
                 
-                // 🔥 SUMARIZACE: Pokud je zapnutá, vytvoříme sumarizovanou historii MÍSTO plné historie
+                // HOT SUMARIZACE: Pokud je zapnutá, vytvoříme sumarizovanou historii MÍSTO plné historie
                 // Používáme REF protože React state je asynchronní!
                 let historyToSend;
                 if (settings.summarize_history && summarizedHistoryRef.current.length > 0) {
@@ -3921,18 +4090,18 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 const webhookResult = await sendMessageToAPI(
                     promptForBackend, 
                     sessionId, 
-                    historyToSend,  // 🔥 BUĎTO sumarizace NEBO celá historie
+                    historyToSend,  // HOT BUĎTO sumarizace NEBO celá historie
                     currentMetadata, 
                     chatbotSettings.webhook_url, 
                     chatbotId,
                     undefined,  // intent
                     undefined,  // detectedSymptoms
-                    currentUser,  // 🆕 Přidáno: informace o uživateli
-                    externalUserInfo,  // 🆕 External user data z iframe
+                    currentUser,  // NEW Přidáno: informace o uživateli
+                    externalUserInfo,  // NEW External user data z iframe
                     undefined,  // Tenhle parametr už nepoužíváme
-                    chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
-                    pairedProductNames,  // 🆕 Názvy produktů z SQL párování
-                    !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // 🆕 Screening jen když je zapnutý
+                    chatbotSettings.allowed_product_categories,  // NEW Povolené produktové kategorie
+                    pairedProductNames,  // NEW Názvy produktů z SQL párování
+                    !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // NEW Screening jen když je zapnutý
                 );
                 
                 // 🔗 Přidáme párování metadata do výsledku (pokud existují)
@@ -3964,7 +4133,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 
                 setMessages(prev => [...prev, botMessage]);
                 
-                // 🔥 OKAMŽITĚ vytvoříme sumarizaci AKTUÁLNÍ Q&A páru (na pozadí) - max 2 nejnovější
+                // HOT OKAMŽITĚ vytvoříme sumarizaci AKTUÁLNÍ Q&A páru (na pozadí) - max 2 nejnovější
                 if (settings.summarize_history) {
                     createSimpleSummary(text.trim(), webhookResult.text).then(summary => {
                         if (summary) {
@@ -4111,12 +4280,12 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 chatbotId,
                 undefined,  // intent
                 undefined,  // detectedSymptoms
-                currentUser,  // 🆕 Přidáno: informace o uživateli
-                externalUserInfo,  // 🆕 External user data z iframe
-                chatbotSettings.summarize_history ? summarizedHistory : undefined,  // 🆕 Sumarizovaná historie
-                chatbotSettings.allowed_product_categories,  // 🆕 Povolené produktové kategorie
+                currentUser,  // NEW Přidáno: informace o uživateli
+                externalUserInfo,  // NEW External user data z iframe
+                chatbotSettings.summarize_history ? summarizedHistory : undefined,  // NEW Sumarizovaná historie
+                chatbotSettings.allowed_product_categories,  // NEW Povolené produktové kategorie
                 undefined,  // pairedProductNames
-                !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // 🆕 Screening jen když je zapnutý
+                !!(chatbotSettings.inline_product_links || chatbotSettings.enable_product_pairing)  // NEW Screening jen když je zapnutý
             );
             const botMessage: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
@@ -4128,7 +4297,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
             };
             setMessages(prev => [...prev, botMessage]);
             
-            // 🔥 SUMARIZACE - pokud je zapnutá v nastavení - max 2 nejnovější
+            // HOT SUMARIZACE - pokud je zapnutá v nastavení - max 2 nejnovější
             if (settings.summarize_history) {
                 const summary = await createSimpleSummary(text.trim(), botText);
                 if (summary) {
@@ -4164,7 +4333,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
 
     const handleNewChat = useCallback(() => {
         setMessages([]);
-        setSummarizedHistory([]);  // 🆕 Vyčistíme i sumarizace
+        setSummarizedHistory([]);  // NEW Vyčistíme i sumarizace
         summarizedHistoryRef.current = [];
         setSessionId(generateSessionId());
         startNewChatOnAPI();
@@ -4253,37 +4422,37 @@ const SanaChat: React.FC<SanaChatProps> = ({
 
 // --- KOMPONENTA S FILTERY ---
 interface FilteredSanaChatProps {
-    currentUser?: User;  // 🆕 Přihlášený uživatel
+    currentUser?: User;  // NEW Přihlášený uživatel
     chatbotSettings?: {
         product_recommendations: boolean;
         product_button_recommendations: boolean;
-        inline_product_links?: boolean;  // 🆕 Inline produktové linky
+        inline_product_links?: boolean;  // NEW Inline produktové linky
         book_database: boolean;
         use_feed_1?: boolean;
         use_feed_2?: boolean;
-        webhook_url?: string;  // 🆕 N8N webhook URL pro tento chatbot
-        allowed_categories?: string[];  // 🆕 Povolené kategorie (UUID)
-        allowed_labels?: string[];  // 🆕 Povolené štítky (UUID)
-        allowed_publication_types?: string[];  // 🆕 Povolené typy publikací (UUID)
-        enable_product_router?: boolean;  // 🆕 Produktový router
-        enable_manual_funnel?: boolean;   // 🆕 Manuální funnel
-        summarize_history?: boolean;  // 🆕 Sumarizace historie
-        allowed_product_categories?: string[];  // 🆕 Povolené produktové kategorie
-        group_products_by_category?: boolean;  // 🆕 Grupování produktů
-        show_sources?: boolean;  // 🆕 Zobrazování zdrojů
-        enable_product_pairing?: boolean;  // 🆕 Párování kombinací produktů
-        enable_product_search?: boolean;   // 🔍 Vyhledávač produktů (Feed Agent toggle)
+        webhook_url?: string;  // NEW N8N webhook URL pro tento chatbot
+        allowed_categories?: string[];  // NEW Povolené kategorie (UUID)
+        allowed_labels?: string[];  // NEW Povolené štítky (UUID)
+        allowed_publication_types?: string[];  // NEW Povolené typy publikací (UUID)
+        enable_product_router?: boolean;  // NEW Produktový router
+        enable_manual_funnel?: boolean;   // NEW Manuální funnel
+        summarize_history?: boolean;  // NEW Sumarizace historie
+        allowed_product_categories?: string[];  // NEW Povolené produktové kategorie
+        group_products_by_category?: boolean;  // NEW Grupování produktů
+        show_sources?: boolean;  // NEW Zobrazování zdrojů
+        enable_product_pairing?: boolean;  // NEW Párování kombinací produktů
+        enable_product_search?: boolean;   // SEARCH Vyhledávač produktů (Feed Agent toggle)
     };
-    chatbotId?: string;  // 🆕 Pro Sana 2 markdown rendering
+    chatbotId?: string;  // NEW Pro Sana 2 markdown rendering
     onClose?: () => void;
     onSessionReady?: (sessionId: string) => void;  // Callback při vytvoření session (pro feedback)
-    externalUserInfo?: {  // 🆕 External user data z iframe embedu
+    externalUserInfo?: {  // NEW External user data z iframe embedu
         external_user_id?: string;
         first_name?: string;
         last_name?: string;
         email?: string;
         position?: string;
-        token_eshop?: string;  // 🆕 E-shop token z Bewit webu
+        token_eshop?: string;  // NEW E-shop token z Bewit webu
         [key: string]: any;
     };
 }
@@ -4376,7 +4545,7 @@ const TripleModeSwitch: React.FC<TripleModeSwitchProps> = ({ mode, onChange }) =
 // ============================================================================
 
 const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({ 
-    currentUser,  // 🆕 Přihlášený uživatel
+    currentUser,  // NEW Přihlášený uživatel
     chatbotSettings = { 
         product_recommendations: false, 
         product_button_recommendations: false, 
@@ -4384,17 +4553,17 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
         book_database: true,
         use_feed_1: true,
         use_feed_2: true,
-        enable_product_router: true,   // 🆕 Defaultně zapnutý
-        enable_manual_funnel: false,   // 🆕 Defaultně vypnutý
-        summarize_history: false,      // 🆕 Defaultně vypnutá sumarizace
-        show_sources: true             // 🆕 Defaultně zapnuté zobrazování zdrojů
+        enable_product_router: true,   // NEW Defaultně zapnutý
+        enable_manual_funnel: false,   // NEW Defaultně vypnutý
+        summarize_history: false,      // NEW Defaultně vypnutá sumarizace
+        show_sources: true             // NEW Defaultně zapnuté zobrazování zdrojů
     },
-    chatbotId,  // 🆕 Pro Sana 2 markdown rendering
+    chatbotId,  // NEW Pro Sana 2 markdown rendering
     onClose,
     onSessionReady,
-    externalUserInfo  // 🆕 External user data z iframe embedu
+    externalUserInfo  // NEW External user data z iframe embedu
 }) => {
-    // 🔥 DEBUG: Log přijatých props při každém renderu
+    // HOT DEBUG: Log přijatých props při každém renderu
     console.log('🔍 FilteredSanaChat PROPS:', {
         chatbotId,
         chatbotSettings,
@@ -4408,7 +4577,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
     const [settings, setSettings] = useState(chatbotSettings);
     // chatKey slouží pro force remount SanaChatContent (nový chat)
     const [chatKey, setChatKey] = useState(0);
-    // 🔍 Trojitý mód: poradce Bewit produktů / vyhledávač / obecný poradce
+    // SEARCH Trojitý mód: poradce Bewit produktů / vyhledávač / obecný poradce
     const [tripleMode, setTripleMode] = useState<TripleMode>('problem');
     // activeChatbotId umožňuje přepnutí chatbota (např. na Universal)
     const [activeChatbotId, setActiveChatbotId] = useState(chatbotId);
@@ -4493,7 +4662,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
         }
     }, [activeChatbotId, handleSwitchToUniversal]);
     
-    // 🔥 KRITICKÉ: Aktualizujeme settings když se chatbotSettings změní
+    // HOT KRITICKÉ: Aktualizujeme settings když se chatbotSettings změní
     // Tento useEffect zajišťuje, že změny z databáze se VŽDY promítnou do chatu
     // ALE ignorujeme přepsání pokud uživatel přepnul na Universal (activeChatbotId === 'universal')
     useEffect(() => {
@@ -4843,7 +5012,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                     </div>
                   }
                   buttons={[
-                    // ❌ Ikona produktů (košík) byla odstraněna
+                    // NO Ikona produktů (košík) byla odstraněna
                     {
                       icon: 'plus',
                       onClick: handleNewChat,
