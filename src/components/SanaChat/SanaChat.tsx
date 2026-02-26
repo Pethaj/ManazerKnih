@@ -134,8 +134,9 @@ interface ChatMessage {
     aloe: boolean;
     aloeProductName?: string;  // Konkrétní název Aloe produktu (např. "Aloe Vera Immunity")
     merkaba: boolean;
-    aloeUrl?: string;    // NEW URL pro Aloe produkt (textový odkaz)
-    merkabaUrl?: string; // 🆕 URL pro Merkaba produkt (textový odkaz)
+    aloeUrl?: string;    // URL pro Aloe produkt (textový odkaz)
+    merkabaUrl?: string; // URL pro Merkaba produkt (textový odkaz)
+    companionProducts?: Array<{ name: string; url?: string | null; thumbnail?: string | null; category?: string }>;  // Doprovodné produkty (Panacea) - is_companion=true
   };
   // SEARCH Problem Selection Form (pro EO Směsi Chat - mezikrok)
   requiresProblemSelection?: boolean;  // Flag: zobrazit formulář pro výběr problému?
@@ -969,7 +970,18 @@ const ProductPill: React.FC<{
                     zIndex: 0,
                 }}
             />
-            <span className="relative z-10">{productName}</span>
+            <span className="relative z-10">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({node, ...props}) => <span {...props} />,
+                    strong: ({node, ...props}) => <strong style={{fontWeight: 'bold'}} {...props} />,
+                    em: ({node, ...props}) => <em style={{fontStyle: 'italic'}} {...props} />,
+                  }}
+                >
+                  {productName}
+                </ReactMarkdown>
+            </span>
         </a>
     );
 };
@@ -1001,11 +1013,29 @@ const ProductCalloutButton: React.FC<{
             </div>
             <div className="flex-grow min-w-0">
                 <div className="text-sm font-semibold text-gray-800 group-hover:text-bewit-blue truncate">
-                    {productName}
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({node, ...props}) => <span {...props} />,
+                        strong: ({node, ...props}) => <strong style={{fontWeight: 'bold'}} {...props} />,
+                        em: ({node, ...props}) => <em style={{fontStyle: 'italic'}} {...props} />,
+                      }}
+                    >
+                      {productName}
+                    </ReactMarkdown>
                 </div>
                 {pinyinName && pinyinName !== productName && (
                     <div className="text-[10px] text-gray-500 truncate mt-0.5">
-                        {pinyinName}
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            p: ({node, ...props}) => <span {...props} />,
+                            strong: ({node, ...props}) => <strong style={{fontWeight: 'bold'}} {...props} />,
+                            em: ({node, ...props}) => <em style={{fontStyle: 'italic'}} {...props} />,
+                          }}
+                        >
+                          {pinyinName}
+                        </ReactMarkdown>
                     </div>
                 )}
             </div>
@@ -1199,6 +1229,9 @@ const Message: React.FC<{
     
     // SEARCH State pro otevření drawer vyhledávače
     const [isSearchDrawerOpen, setIsSearchDrawerOpen] = useState(false);
+    
+    // State pro rozbalení sekce doprovodných produktů (Panacea / TČM wan)
+    const [isCompanionProductsOpen, setIsCompanionProductsOpen] = useState(false);
     
     // NEW Prioritní kategorie pro řazení produktů BEWIT
     const PRIORITY_CATEGORIES = [
@@ -1826,6 +1859,9 @@ const Message: React.FC<{
                                 {message.text || ''}
                             </ReactMarkdown>
                         </div>
+                    ) : isUser ? (
+                        /* User zprávy - obyčejný text bez Markdownu */
+                        <div>{message.text || ''}</div>
                     ) : null}
                     
                     {/* 🔍 EO SMĚSI: Formulář pro výběr problému (mezikrok) */}
@@ -1963,7 +1999,49 @@ const Message: React.FC<{
                                                 </div>
                                             )
                                         )}
+                                        {/* Tlačítko "Další doprovodné produkty" (Panacea) */}
+                                        {(message.pairingInfo.companionProducts?.length ?? 0) > 0 && (
+                                            <button
+                                                onClick={() => setIsCompanionProductsOpen(v => !v)}
+                                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-100 transition-colors"
+                                            >
+                                                <span>Další doprovodné produkty</span>
+                                                <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${isCompanionProductsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                        )}
                                     </div>
+
+                                    {/* Rozbalovací sekce s doprovodými produkty - skupinované podle kategorie */}
+                                    {isCompanionProductsOpen && (message.pairingInfo.companionProducts?.length ?? 0) > 0 && (
+                                        <div className="mt-3 pt-3 border-t border-blue-50 flex flex-col gap-4">
+                                            {(() => {
+                                                const byCategory: Record<string, typeof message.pairingInfo.companionProducts> = {};
+                                                message.pairingInfo.companionProducts!.forEach(p => {
+                                                    const cat = p.category || 'Ostatní';
+                                                    if (!byCategory[cat]) byCategory[cat] = [];
+                                                    byCategory[cat]!.push(p);
+                                                });
+                                                return Object.entries(byCategory).map(([cat, products]) => (
+                                                    <div key={cat}>
+                                                        <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
+                                                        <div className="flex flex-col gap-2.5">
+                                                            {products!.map((p, i) => (
+                                                                <ProductCalloutButton
+                                                                    key={`companion-${cat}-${i}`}
+                                                                    productName={p.name}
+                                                                    thumbnail={p.thumbnail || undefined}
+                                                                    url={p.url || ''}
+                                                                    token={token}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ));
+                                            })()}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -1974,6 +2052,19 @@ const Message: React.FC<{
                                     sessionId={sessionId}
                                     onAddMessage={onAddMessage}
                                 />
+                            )}
+                            
+                            {/* 🔍 Tlačítko pro otevření vyhledávače produktů */}
+                            {chatbotId !== 'eo_smesi' && (
+                                <button
+                                    onClick={() => setIsSearchDrawerOpen(true)}
+                                    className="mt-4 w-full py-2.5 px-3 bg-bewit-blue text-white rounded-xl text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none flex items-center justify-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                    </svg>
+                                    Vyhledat produkty
+                                </button>
                             )}
                         </div>
                     )}
@@ -2060,7 +2151,49 @@ const Message: React.FC<{
                                                     </div>
                                                 )
                                             )}
+                                            {/* Tlačítko "Další doprovodné produkty" - Panacea / TČM wan */}
+                                            {(message.pairingInfo.companionProducts?.length ?? 0) > 0 && (
+                                                <button
+                                                    onClick={() => setIsCompanionProductsOpen(v => !v)}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-full text-xs font-medium hover:bg-amber-100 transition-colors"
+                                                >
+                                                    <span>Další doprovodné produkty</span>
+                                                    <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${isCompanionProductsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                         </div>
+
+                                        {/* Rozbalovací sekce s doprovodými produkty - skupinované podle kategorie */}
+                                        {isCompanionProductsOpen && (message.pairingInfo.companionProducts?.length ?? 0) > 0 && (
+                                            <div className="mt-2 pt-2 border-t border-amber-100 flex flex-col gap-4">
+                                                {(() => {
+                                                    const byCategory: Record<string, typeof message.pairingInfo.companionProducts> = {};
+                                                    message.pairingInfo.companionProducts!.forEach(p => {
+                                                        const cat = p.category || 'Ostatní';
+                                                        if (!byCategory[cat]) byCategory[cat] = [];
+                                                        byCategory[cat]!.push(p);
+                                                    });
+                                                    return Object.entries(byCategory).map(([cat, products]) => (
+                                                        <div key={cat}>
+                                                            <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
+                                                            <div className="flex flex-col gap-2.5">
+                                                                {products!.map((p, i) => (
+                                                                    <ProductCalloutButton
+                                                                        key={`companion-${cat}-${i}`}
+                                                                        productName={p.name}
+                                                                        thumbnail={p.thumbnail || undefined}
+                                                                        url={p.url || ''}
+                                                                        token={token}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -2661,7 +2794,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         aloeProductName: eoSmesiResult.medicineTable.aloeProductName || undefined,
                         merkaba: eoSmesiResult.medicineTable.merkaba,
                         aloeUrl: eoSmesiResult.medicineTable.aloeUrl || undefined,
-                        merkabaUrl: eoSmesiResult.medicineTable.merkabaUrl || undefined
+                        merkabaUrl: eoSmesiResult.medicineTable.merkabaUrl || undefined,
+                        companionProducts: eoSmesiResult.medicineTable.companionProducts || []
                     }
                 };
                 
@@ -2840,7 +2974,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                         aloeProductName: directResult.medicineTable.aloeProductName || undefined,
                                         merkaba: directResult.medicineTable.merkaba,
                                         aloeUrl: directResult.medicineTable.aloeUrl || undefined,
-                                        merkabaUrl: directResult.medicineTable.merkabaUrl || undefined
+                                        merkabaUrl: directResult.medicineTable.merkabaUrl || undefined,
+                                        companionProducts: directResult.medicineTable.companionProducts || []
                                     }
                                 };
                                 setMessages(prev => [...prev, botMessage]);
@@ -2886,7 +3021,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                 aloeProductName: eoSmesiResult.medicineTable.aloeProductName || undefined,
                                 merkaba: eoSmesiResult.medicineTable.merkaba,
                                 aloeUrl: eoSmesiResult.medicineTable.aloeUrl || undefined,
-                                merkabaUrl: eoSmesiResult.medicineTable.merkabaUrl || undefined
+                                merkabaUrl: eoSmesiResult.medicineTable.merkabaUrl || undefined,
+                                companionProducts: eoSmesiResult.medicineTable.companionProducts || []
                             }
                         };
                         
@@ -3408,19 +3544,27 @@ Symptomy zákazníka: ${symptomsList}
                         if (pairingResult.products.length > 0) {
                             console.log('✅ SQL vrátilo produkty:', pairingResult.products.length);
                             
-                            // Extrahuj POUZE NÁZVY produktů (ne kódy, ne URL)
-                            pairedProductNames = pairingResult.products.map((p: any) => p.matched_product_name);
-                            console.log('📝 Názvy napárovaných produktů:', pairedProductNames);
+                            // Hlavní produkty jdou do N8N, companion (Panacea) se uloží zvlášť
+                            const mainProducts = pairingResult.products.filter((p: any) => !p.is_companion);
+                            const companionProducts = pairingResult.products.filter((p: any) => p.is_companion);
+                            pairedProductNames = mainProducts.map((p: any) => p.matched_product_name);
+                            console.log('📝 Hlavní párované produkty:', pairedProductNames);
                             
-                            // Uložíme metadata pro pozdější použití
                             pairingMetadata = {
                                 aloe: pairingResult.aloe,
                                 merkaba: pairingResult.merkaba,
-                                productCount: pairingResult.products.length
+                                productCount: mainProducts.length,
+                                companionProducts: companionProducts.map((p: any) => ({
+                                    name: p.matched_product_name,
+                                    url: p.matched_product_url,
+                                    thumbnail: p.matched_thumbnail,
+                                    category: p.matched_category
+                                }))
                             };
                             
                             console.log('💧 Aloe doporučeno:', pairingResult.aloe);
                             console.log('✨ Merkaba doporučeno:', pairingResult.merkaba);
+                            console.log('🔸 Doprovodné produkty:', companionProducts.length);
                         } else {
                             console.log('ℹ️ SQL nevrátilo žádné produkty pro problémy:', classifiedProblems);
                         }
@@ -4028,18 +4172,26 @@ const SanaChat: React.FC<SanaChatProps> = ({
                         if (pairingResult.products.length > 0) {
                             console.log('✅ SQL vrátilo produkty:', pairingResult.products.length);
                             
-                            // Extrahuj POUZE NÁZVY produktů
-                            pairedProductNames = pairingResult.products.map((p: any) => p.matched_product_name);
-                            console.log('📝 Názvy napárovaných produktů:', pairedProductNames);
+                            const mainProducts = pairingResult.products.filter((p: any) => !p.is_companion);
+                            const companionProducts = pairingResult.products.filter((p: any) => p.is_companion);
+                            pairedProductNames = mainProducts.map((p: any) => p.matched_product_name);
+                            console.log('📝 Hlavní párované produkty:', pairedProductNames);
                             
                             pairingMetadata = {
                                 aloe: pairingResult.aloe,
                                 merkaba: pairingResult.merkaba,
-                                productCount: pairingResult.products.length
+                                productCount: mainProducts.length,
+                                companionProducts: companionProducts.map((p: any) => ({
+                                    name: p.matched_product_name,
+                                    url: p.matched_product_url,
+                                    thumbnail: p.matched_thumbnail,
+                                    category: p.matched_category
+                                }))
                             };
                             
                             console.log('💧 Aloe doporučeno:', pairingResult.aloe);
                             console.log('✨ Merkaba doporučeno:', pairingResult.merkaba);
+                            console.log('🔸 Doprovodné produkty:', companionProducts.length);
                         }
                     } catch (pairingError) {
                         console.error('❌ Chyba při párování kombinací:', pairingError);

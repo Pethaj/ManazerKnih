@@ -29,6 +29,17 @@ export interface PairedProduct {
   aloe_product: string | null;  // Konkrétní název/kód Aloe produktu z leceni (např. "Aloe Vera Immunity")
   merkaba_recommended: string;  // TEXT: "ano" nebo "ne" nebo null
   combination_name: string;
+  is_companion: boolean;  // true = doprovodný produkt (Panacea), false = hlavní (Prawtein, TČM wan)
+}
+
+/**
+ * Doprovodný produkt z tabulky leceni (Panacea / TČM wan)
+ * @deprecated Panacea jsou nyní součástí PairedProduct s is_companion=true
+ */
+export interface CompanionProduct {
+  name: string;
+  url: string | null;
+  thumbnail: string | null;
 }
 
 /**
@@ -36,10 +47,12 @@ export interface PairedProduct {
  * (pokud alespoň jedna kombinace doporučuje, zobrazíme)
  */
 export interface PairingRecommendations {
-  products: PairedProduct[];
+  products: PairedProduct[];        // Všechny produkty (hlavní i doprovodné)
   aloe: boolean;
-  aloeProduct: string | null;  // Konkrétní název/kód Aloe produktu (z leceni."Aloe")
+  aloeProduct: string | null;       // Konkrétní název/kód Aloe produktu (z leceni."Aloe")
   merkaba: boolean;
+  panaceaProducts: CompanionProduct[];  // @deprecated - zachováno pro zpětnou kompatibilitu
+  tcmWanProducts: CompanionProduct[];   // @deprecated - zachováno pro zpětnou kompatibilitu
 }
 
 /**
@@ -57,18 +70,16 @@ export async function matchProductCombinationsWithProblems(
   // Validace vstupu
   if (!problems || problems.length === 0) {
     console.log('🔗 Párování: Žádné problémy k napárování');
-    return { products: [], aloe: false, aloeProduct: null, merkaba: false };
+    return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
   }
 
   console.log('🔗 Párování kombinací produktů POUZE podle problému...');
   console.log('🔍 Problémy:', problems);
 
   try {
-    // Volání SQL funkce přes RPC - BEZ product_codes!
+    // Jedno volání SQL funkce - vrátí hlavní i doprovodné produkty najednou
     const { data, error } = await supabase
-      .rpc('match_product_combinations_with_problems', {
-        problems: problems
-      });
+      .rpc('match_product_combinations_with_problems', { problems });
 
     if (error) {
       console.error('❌ Chyba při párování produktů s problémy:', error);
@@ -77,10 +88,9 @@ export async function matchProductCombinationsWithProblems(
 
     if (!data || data.length === 0) {
       console.log('ℹ️ Žádné napárované produkty nenalezeny pro problémy:', problems);
-      return { products: [], aloe: false, aloeProduct: null, merkaba: false };
+      return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
     }
 
-    // Typovaný výsledek
     const pairedProducts = data as PairedProduct[];
 
     // Agreguj Aloe/Merkaba doporučení
@@ -89,25 +99,27 @@ export async function matchProductCombinationsWithProblems(
     const aloeProduct = aloeProductEntry?.aloe_product ?? null;
     const merkaba = pairedProducts.some(p => p.merkaba_recommended?.toLowerCase() === 'ano');
 
-    console.log('✅ Napárováno produktů z SQL:', pairedProducts.length);
-    console.log('💧 Aloe doporučeno:', aloe);
-    console.log('💧 Aloe produkt (z leceni):', aloeProduct);
-    console.log('✨ Merkaba doporučeno:', merkaba);
-    
+    const mainProducts = pairedProducts.filter(p => !p.is_companion);
+    const companionProducts = pairedProducts.filter(p => p.is_companion);
+
+    console.log('✅ Napárováno produktů celkem:', pairedProducts.length, `(${mainProducts.length} hlavních, ${companionProducts.length} doprovodných)`);
+    console.log('💧 Aloe doporučeno:', aloe, '| ✨ Merkaba:', merkaba);
     pairedProducts.forEach(p => {
-      console.log(`   - ${p.matched_product_name} (${p.matched_category}) [Problém: ${(p as any).matched_problem}]`);
+      console.log(`   ${p.is_companion ? '🔸' : '🔹'} ${p.matched_product_name} (${p.matched_category})`);
     });
 
     return {
       products: pairedProducts,
       aloe,
       aloeProduct,
-      merkaba
+      merkaba,
+      panaceaProducts: [],  // @deprecated
+      tcmWanProducts: []    // @deprecated
     };
 
   } catch (error) {
     console.error('❌ Kritická chyba při párování s problémy:', error);
-    return { products: [], aloe: false, aloeProduct: null, merkaba: false };
+    return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
   }
 }
 
@@ -127,7 +139,7 @@ export async function matchProductCombinations(
   // Validace vstupu
   if (!productCodes || productCodes.length === 0) {
     console.log('🔗 Párování: Žádné produkty k napárování');
-    return { products: [], aloe: false, aloeProduct: null, merkaba: false };
+    return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
   }
 
   console.log('🔗 Párování kombinací produktů...');
@@ -147,7 +159,7 @@ export async function matchProductCombinations(
 
     if (!data || data.length === 0) {
       console.log('ℹ️ Žádné napárované produkty nenalezeny');
-      return { products: [], aloe: false, aloeProduct: null, merkaba: false };
+      return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
     }
 
     // Typovaný výsledek
@@ -173,12 +185,14 @@ export async function matchProductCombinations(
       products: pairedProducts,
       aloe,
       aloeProduct,
-      merkaba
+      merkaba,
+      panaceaProducts: [],
+      tcmWanProducts: []
     };
 
   } catch (error) {
     console.error('❌ Kritická chyba při párování:', error);
-    return { products: [], aloe: false, aloeProduct: null, merkaba: false };
+    return { products: [], aloe: false, aloeProduct: null, merkaba: false, panaceaProducts: [], tcmWanProducts: [] };
   }
 }
 

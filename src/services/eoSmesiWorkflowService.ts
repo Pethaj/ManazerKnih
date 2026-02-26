@@ -39,6 +39,7 @@ export interface MedicineTable {
   merkaba: boolean;        // Doporučit Merkaba?
   aloeUrl: string | null;  // 🆕 URL pro Aloe produkt (pokud je doporučen)
   merkabaUrl: string | null; // 🆕 URL pro Merkaba produkt (pokud je doporučen)
+  companionProducts: Array<{ name: string; url: string | null; thumbnail: string | null; category: string }>;  // Doprovodné produkty (Panacea, is_companion=true)
   
   // Metadata
   problemName: string;     // Název problému z tabulky leceni
@@ -101,6 +102,15 @@ async function extractMedicineTable(
   problemName: string
 ): Promise<MedicineTable | null> {
   const { products, aloe, aloeProduct, merkaba } = pairingResults;
+  // Companion = Panacea (is_companion=true) + TČM wan (is_companion=false, ale EO Směsi flow ho nezobrazuje standardně)
+  const companionProducts = products
+    .filter(p => p.is_companion || p.matched_category === 'TČM - Tradiční čínská medicína')
+    .map(p => ({
+      name: p.matched_product_name,
+      url: p.matched_product_url,
+      thumbnail: p.matched_thumbnail,
+      category: p.matched_category
+    }));
   
   if (products.length === 0) {
     return null;
@@ -163,6 +173,7 @@ async function extractMedicineTable(
     merkaba,
     aloeUrl,
     merkabaUrl,
+    companionProducts,
     problemName,
     combinationName,
     products: allProducts  // Zatím prázdné nebo jen ze SQL - doplní se v processEoSmesiQuery
@@ -206,9 +217,11 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
       eo2: null,
       prawtein: null,
       aloe: false,
+      aloeProductName: null,
       merkaba: false,
       aloeUrl: null,
       merkabaUrl: null,
+      companionProducts: [],
       problemName,
       combinationName: 'Kombinace produktů',
       products: []

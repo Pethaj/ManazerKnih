@@ -5,6 +5,8 @@
 
 import React from 'react';
 import { openBewitProductLink } from '../services/productLinkService';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export interface ProductPillProps {
     productName: string;
@@ -54,13 +56,33 @@ export const ProductPill: React.FC<ProductPillProps> = ({
             
             {/* Název produktu */}
             <span className="font-semibold">
-                {productName}
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({node, ...props}) => <span {...props} />,
+                    strong: ({node, ...props}) => <strong style={{fontWeight: 'bold'}} {...props} />,
+                    em: ({node, ...props}) => <em style={{fontStyle: 'italic'}} {...props} />,
+                  }}
+                >
+                  {productName}
+                </ReactMarkdown>
             </span>
             
             {/* Pinyin název (menší) */}
             {pinyinName && pinyinName !== productName && (
-                <span className="text-xs opacity-90 font-normal">
-                    ({pinyinName})
+                <span className="text-xs opacity-90 font-normal" style={{display: 'flex', alignItems: 'center', gap: '0.25rem'}}>
+                    (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({node, ...props}) => <span {...props} />,
+                        strong: ({node, ...props}) => <strong style={{fontWeight: 'bold'}} {...props} />,
+                        em: ({node, ...props}) => <em style={{fontStyle: 'italic'}} {...props} />,
+                      }}
+                    >
+                      {pinyinName}
+                    </ReactMarkdown>
+                    )
                 </span>
             )}
         </button>
