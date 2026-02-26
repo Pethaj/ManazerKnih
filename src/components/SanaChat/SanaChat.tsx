@@ -739,7 +739,9 @@ const EoSmesiLearnMoreButton: React.FC<{
     matchedProducts: any[];
     sessionId?: string;
     onAddMessage?: (message: ChatMessage) => void;
-}> = ({ matchedProducts, sessionId, onAddMessage }) => {
+    companionProducts?: Array<{ name: string; url?: string | null; thumbnail?: string | null; category?: string }>;
+    isCompanionOpen?: boolean;
+}> = ({ matchedProducts, sessionId, onAddMessage, companionProducts, isCompanionOpen }) => {
     const [isLoading, setIsLoading] = React.useState(false);
     const [isDone, setIsDone] = React.useState(false);
 
@@ -747,11 +749,14 @@ const EoSmesiLearnMoreButton: React.FC<{
         if (isLoading || isDone) return;
         setIsLoading(true);
         try {
-            const productNames = matchedProducts
+            const mainNames = matchedProducts
                 .map((p: any) => p.product_name || p.productName)
                 .filter(Boolean)
                 .join(', ');
-            const chatInput = `najdi mi informace k těmto produktům: ${productNames}. Odpověz v češtině.`;
+            const companionNames = isCompanionOpen && companionProducts?.length
+                ? ', ' + companionProducts.map(p => p.name).join(', ')
+                : '';
+            const chatInput = `najdi mi informace k těmto produktům: ${mainNames}${companionNames}. Odpověz v češtině.`;
 
             let userData = { id: '', email: '', firstName: '', lastName: '', role: '', tokenEshop: '' };
             try {
@@ -2051,6 +2056,8 @@ const Message: React.FC<{
                                     matchedProducts={enrichedProducts}
                                     sessionId={sessionId}
                                     onAddMessage={onAddMessage}
+                                    companionProducts={message.pairingInfo?.companionProducts}
+                                    isCompanionOpen={isCompanionProductsOpen}
                                 />
                             )}
                             
@@ -2202,6 +2209,8 @@ const Message: React.FC<{
                                     matchedProducts={message.matchedProducts || []}
                                     sessionId={sessionId}
                                     onAddMessage={onAddMessage}
+                                    companionProducts={message.pairingInfo?.companionProducts}
+                                    isCompanionOpen={isCompanionProductsOpen}
                                 />
                             </div>
                         )
