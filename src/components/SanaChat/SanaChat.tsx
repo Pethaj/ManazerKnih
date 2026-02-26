@@ -689,6 +689,8 @@ const EoSmesiLearnMoreButton: React.FC<{
                 user: userData
             };
 
+            console.log('📤 N8N Webhook Payload (EO Směsi):', payload);
+
             const response = await fetch(EO_SMESI_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3110,6 +3112,8 @@ Symptomy zákazníka: ${symptomsList}
                     };
                     // === 6. VOLÁNÍ N8N WEBHOOKU ===
                     try {
+                        console.log('📤 N8N Webhook Payload (Wany Chat):', funnelPayload);
+                        
                         const response = await fetch(WANY_WEBHOOK_URL, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
