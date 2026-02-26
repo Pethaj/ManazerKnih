@@ -1127,8 +1127,26 @@ const Message: React.FC<{
         merkaba: boolean;
     }>({ aloe: false, merkaba: false });
     
-    // SEARCH State pro otevření drawer vyhledávače
-    const [isSearchDrawerOpen, setIsSearchDrawerOpen] = useState(false);
+    // SEARCH State pro inline vyhledávač
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<Array<{product_code: string; product_name: string; category?: string; url?: string; thumbnail?: string}>>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleInlineSearch = (query: string) => {
+        setSearchQuery(query);
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        if (query.trim().length < 2) { setSearchResults([]); return; }
+        setIsSearching(true);
+        searchDebounceRef.current = setTimeout(async () => {
+            try {
+                const found = await searchProductsAutocomplete(query.trim(), 20);
+                setSearchResults(found);
+            } catch { setSearchResults([]); }
+            finally { setIsSearching(false); }
+        }, 300);
+    };
     
     // State pro rozbalení sekce doprovodných produktů (Panacea / TČM wan)
     const [isCompanionProductsOpen, setIsCompanionProductsOpen] = useState(false);
@@ -1424,7 +1442,7 @@ const Message: React.FC<{
                                             )}
                                         </div>
                                         <button
-                                            onClick={() => setIsSearchDrawerOpen(true)}
+                                            onClick={() => setIsSearchOpen(true)}
                                             className="w-full py-2 px-3 bg-bewit-blue text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-bewit-blue/50 flex items-center justify-center gap-2"
                                             title="Otevřít vyhledávač produktů"
                                         >
@@ -1480,7 +1498,7 @@ const Message: React.FC<{
                                             )}
                                         </div>
                                         <button
-                                            onClick={() => setIsSearchDrawerOpen(true)}
+                                            onClick={() => setIsSearchOpen(true)}
                                             className="w-full py-2 px-3 bg-bewit-blue text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-bewit-blue/50 flex items-center justify-center gap-2"
                                             title="Otevřít vyhledávač produktů"
                                         >
@@ -1679,8 +1697,7 @@ const Message: React.FC<{
     };
     
     return (
-        <>
-            <div className={`flex items-start gap-3 max-w-4xl mx-auto group ${isUser ? 'justify-end ml-auto pl-12' : 'justify-start'}`}>
+        <div className={`flex items-start gap-3 max-w-4xl mx-auto group ${isUser ? 'justify-end ml-auto pl-12' : 'justify-start'}`}>
             {!isUser && (
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-bewit-blue flex items-center justify-center text-white">
                     <BotIcon className="w-5 h-5" />
@@ -1950,17 +1967,65 @@ const Message: React.FC<{
                                 />
                             )}
                             
-                            {/* 🔍 Tlačítko pro otevření vyhledávače produktů */}
+                            {/* 🔍 Inline vyhledávač produktů */}
                             {chatbotId !== 'eo_smesi' && (
-                                <button
-                                    onClick={() => setIsSearchDrawerOpen(true)}
-                                    className="mt-4 w-full py-2.5 px-3 bg-bewit-blue text-white rounded-xl text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none flex items-center justify-center gap-2"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                                    </svg>
-                                    Vyhledat produkty
-                                </button>
+                                <div className="mt-4">
+                                    {!isSearchOpen ? (
+                                        <button
+                                            onClick={() => setIsSearchOpen(true)}
+                                            className="w-full py-2.5 px-3 bg-bewit-blue text-white rounded-xl text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none flex items-center justify-center gap-2"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                            </svg>
+                                            Vyhledat produkty
+                                        </button>
+                                    ) : (
+                                        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50">
+                                                <svg className="w-4 h-4 text-bewit-blue flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                                </svg>
+                                                <input
+                                                    autoFocus
+                                                    type="text"
+                                                    value={searchQuery}
+                                                    onChange={e => handleInlineSearch(e.target.value)}
+                                                    placeholder="Hledejte produkty..."
+                                                    className="flex-1 bg-transparent text-sm focus:outline-none text-slate-800 placeholder-slate-400"
+                                                />
+                                                <button onClick={() => { setIsSearchOpen(false); setSearchQuery(''); setSearchResults([]); }} className="text-slate-400 hover:text-slate-600">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            {isSearching && (
+                                                <div className="flex items-center justify-center gap-2 py-4 text-slate-400 text-sm">
+                                                    {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 bg-bewit-blue rounded-full animate-bounce" style={{animationDelay: `${i*0.15}s`}} />)}
+                                                    <span>Hledám...</span>
+                                                </div>
+                                            )}
+                                            {!isSearching && searchResults.length > 0 && (
+                                                <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
+                                                    {searchResults.map(p => (
+                                                        <a key={p.product_code} href={p.url || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors no-underline group">
+                                                            {p.thumbnail ? <img src={p.thumbnail} alt={p.product_name} className="w-9 h-9 rounded-lg object-contain flex-shrink-0 bg-gray-50" onError={e => (e.target as HTMLImageElement).style.display='none'} /> : <div className="w-9 h-9 rounded-lg bg-slate-100 flex-shrink-0 flex items-center justify-center text-sm">📦</div>}
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-medium text-slate-800 truncate group-hover:text-bewit-blue">{p.product_name}</p>
+                                                                {p.category && <p className="text-xs text-slate-400 truncate">{p.category}</p>}
+                                                            </div>
+                                                            <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-bewit-blue flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {!isSearching && searchQuery.length >= 2 && searchResults.length === 0 && (
+                                                <p className="text-center text-sm text-slate-400 py-4">Žádné produkty nenalezeny</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     )}
@@ -2139,39 +2204,6 @@ const Message: React.FC<{
             )}
         </div>
         
-        {/* 🔍 SEARCH DRAWER - panel pro vyhledávání produktů vyjíždějící ze spodu */}
-        {isSearchDrawerOpen && (
-            <>
-                {/* Backdrop */}
-                <div 
-                    className="fixed inset-0 bg-black/30 z-40 transition-opacity duration-300"
-                    onClick={() => setIsSearchDrawerOpen(false)}
-                />
-                
-                {/* Drawer */}
-                <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col animate-slide-up">
-                    {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-4 border-b border-slate-200">
-                        <h2 className="text-lg font-semibold text-bewit-dark">Vyhledejte produkty</h2>
-                        <button
-                            onClick={() => setIsSearchDrawerOpen(false)}
-                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                            aria-label="Zavřít vyhledávač"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    {/* Obsah */}
-                    <div className="flex-1 overflow-y-auto">
-                        <ProductSearchDrawer />
-                    </div>
-                </div>
-            </>
-        )}
-        </>
     );
 };
 
