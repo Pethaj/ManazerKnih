@@ -6,6 +6,8 @@
 import React from 'react';
 import { ProductRecommendation } from '../services/productSearchService';
 import { openBewitProductLink } from '../services/productLinkService';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface CategorizedProductTableProps {
   products: ProductRecommendation[];
@@ -102,11 +104,20 @@ export const CategorizedProductTable: React.FC<CategorizedProductTableProps> = (
                   <div style={styles.nameCell}>
                     <span style={styles.productName}>{product.product_name}</span>
                     {product.description && (
-                      <span style={styles.productDescription}>
-                        {product.description.length > 100 
-                          ? `${product.description.substring(0, 100)}...` 
-                          : product.description}
-                      </span>
+                      <div style={styles.productDescription}>
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            p: ({node, ...props}) => <span {...props} />,
+                            strong: ({node, ...props}) => <strong style={{fontWeight: 'bold'}} {...props} />,
+                            em: ({node, ...props}) => <em style={{fontStyle: 'italic'}} {...props} />,
+                          }}
+                        >
+                          {product.description.length > 100 
+                            ? `${product.description.substring(0, 100)}...` 
+                            : product.description}
+                        </ReactMarkdown>
+                      </div>
                     )}
                   </div>
 
