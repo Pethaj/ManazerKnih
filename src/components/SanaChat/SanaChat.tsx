@@ -1967,69 +1967,191 @@ const Message: React.FC<{
                                 />
                             )}
                             
-                            {/* 🔍 Inline vyhledávač produktů */}
-                            {chatbotId !== 'eo_smesi' && (
-                                <div className="mt-4">
-                                    {!isSearchOpen ? (
-                                        <button
+                            {/* 🔍 Animovaný search box */}
+                            <div className="mt-3">
+                                <style>{`
+                                    .psw-wrap {
+                                        position: relative;
+                                        height: 38px;
+                                        width: 100%;
+                                    }
+                                    .psw-box {
+                                        position: absolute;
+                                        left: 0;
+                                        top: 0;
+                                        height: 38px;
+                                        width: 200px;
+                                        background: transparent;
+                                        transition: width 0.5s cubic-bezier(.73,.14,.4,1.58);
+                                        display: flex;
+                                        align-items: center;
+                                        overflow: hidden;
+                                    }
+                                    .psw-wrap.open .psw-box {
+                                        width: 100%;
+                                    }
+                                    .psw-border {
+                                        position: absolute;
+                                        inset: 0;
+                                        border: 1.5px solid #cbd5e1;
+                                        border-radius: 12px;
+                                        pointer-events: none;
+                                        transition: border-color 0.3s;
+                                    }
+                                    .psw-wrap.open .psw-border {
+                                        border-color: #005b96;
+                                    }
+                                    .psw-label-init {
+                                        position: absolute;
+                                        inset: 0;
+                                        display: flex;
+                                        align-items: center;
+                                        padding: 0 12px;
+                                        gap: 8px;
+                                        cursor: pointer;
+                                        z-index: 2;
+                                        color: #94a3b8;
+                                        opacity: 1;
+                                        transition: opacity 0.2s 0.2s; /* Zpoždění při zavírání, aby se nepletl do inputu */
+                                    }
+                                    .psw-wrap.open .psw-label-init {
+                                        opacity: 0;
+                                        pointer-events: none;
+                                        transition: opacity 0.1s 0s; /* Okamžité skrytí při otevírání */
+                                    }
+                                    .psw-label-init span {
+                                        font-size: 13px;
+                                        white-space: nowrap;
+                                    }
+                                    .psw-input {
+                                        width: 100%;
+                                        height: 100%;
+                                        padding: 0 35px 0 35px;
+                                        background: transparent;
+                                        border: none;
+                                        outline: none;
+                                        font-size: 14px;
+                                        color: #1e293b;
+                                        opacity: 0;
+                                        transition: opacity 0.1s 0s; /* Okamžité skrytí při zavírání */
+                                    }
+                                    .psw-wrap.open .psw-input {
+                                        opacity: 1;
+                                        transition: opacity 0.3s 0.3s; /* Zpožděné zobrazení při otevírání */
+                                    }
+                                    .psw-icon-active {
+                                        position: absolute;
+                                        left: 12px;
+                                        top: 50%;
+                                        transform: translateY(-50%);
+                                        color: #005b96;
+                                        opacity: 0;
+                                        transition: opacity 0.1s 0s;
+                                    }
+                                    .psw-wrap.open .psw-icon-active {
+                                        opacity: 1;
+                                        transition: opacity 0.3s 0.3s;
+                                    }
+                                    .psw-close {
+                                        position: absolute;
+                                        right: 10px;
+                                        top: 50%;
+                                        transform: translateY(-50%);
+                                        width: 20px;
+                                        height: 20px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        cursor: pointer;
+                                        color: #94a3b8;
+                                        opacity: 0;
+                                        transition: opacity 0.1s 0s;
+                                        z-index: 3;
+                                    }
+                                    .psw-wrap.open .psw-close {
+                                        opacity: 1;
+                                        transition: opacity 0.3s 0.4s;
+                                    }
+                                `}</style>
+
+                                <div className={`psw-wrap ${isSearchOpen ? 'open' : ''}`}>
+                                    <div className="psw-box">
+                                        <div className="psw-border" />
+                                        
+                                        <div 
+                                            className="psw-label-init"
                                             onClick={() => setIsSearchOpen(true)}
-                                            className="w-full py-2.5 px-3 bg-bewit-blue text-white rounded-xl text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none flex items-center justify-center gap-2"
                                         >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                                             </svg>
-                                            Vyhledat produkty
-                                        </button>
-                                    ) : (
-                                        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                                            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50">
-                                                <svg className="w-4 h-4 text-bewit-blue flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                                                </svg>
-                                                <input
-                                                    autoFocus
-                                                    type="text"
-                                                    value={searchQuery}
-                                                    onChange={e => handleInlineSearch(e.target.value)}
-                                                    placeholder="Hledejte produkty..."
-                                                    className="flex-1 bg-transparent text-sm focus:outline-none text-slate-800 placeholder-slate-400"
-                                                />
-                                                <button onClick={() => { setIsSearchOpen(false); setSearchQuery(''); setSearchResults([]); }} className="text-slate-400 hover:text-slate-600">
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                            {isSearching && (
-                                                <div className="flex items-center justify-center gap-2 py-4 text-slate-400 text-sm">
-                                                    {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 bg-bewit-blue rounded-full animate-bounce" style={{animationDelay: `${i*0.15}s`}} />)}
-                                                    <span>Hledám...</span>
-                                                </div>
-                                            )}
-                                            {!isSearching && searchResults.length > 0 && (
-                                                <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
-                                                    {searchResults.map(p => (
-                                                        <a key={p.product_code} href={p.url || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors no-underline group">
-                                                            {p.thumbnail ? <img src={p.thumbnail} alt={p.product_name} className="w-9 h-9 rounded-lg object-contain flex-shrink-0 bg-gray-50" onError={e => (e.target as HTMLImageElement).style.display='none'} /> : <div className="w-9 h-9 rounded-lg bg-slate-100 flex-shrink-0 flex items-center justify-center text-sm">📦</div>}
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-medium text-slate-800 truncate group-hover:text-bewit-blue">{p.product_name}</p>
-                                                                {p.category && <p className="text-xs text-slate-400 truncate">{p.category}</p>}
-                                                            </div>
-                                                            <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-bewit-blue flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                                        </a>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            {!isSearching && searchQuery.length >= 2 && searchResults.length === 0 && (
-                                                <p className="text-center text-sm text-slate-400 py-4">Žádné produkty nenalezeny</p>
-                                            )}
+                                            <span>Vyhledat další produkty</span>
                                         </div>
-                                    )}
+
+                                        <div className="psw-icon-active">
+                                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                            </svg>
+                                        </div>
+
+                                        <input
+                                            className="psw-input"
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={e => handleInlineSearch(e.target.value)}
+                                            placeholder="Vyhledat další produkty..."
+                                            ref={el => { if (el && isSearchOpen) el.focus(); }}
+                                        />
+
+                                        <div 
+                                            className="psw-close"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsSearchOpen(false);
+                                                setSearchQuery('');
+                                                setSearchResults([]);
+                                            }}
+                                        >
+                                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
+                                {isSearchOpen && (
+                                    <div className="mt-1 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                                        {isSearching && (
+                                            <div className="flex items-center justify-center gap-2 py-3 text-slate-400 text-sm">
+                                                {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 bg-bewit-blue rounded-full animate-bounce" style={{animationDelay: `${i*0.15}s`}} />)}
+                                                <span>Hledám...</span>
+                                            </div>
+                                        )}
+                                        {!isSearching && searchResults.length > 0 && (
+                                            <div className="max-h-56 overflow-y-auto divide-y divide-slate-50">
+                                                {searchResults.map(p => (
+                                                    <a key={p.product_code} href={p.url || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors no-underline group">
+                                                        {p.thumbnail
+                                                            ? <img src={p.thumbnail} alt={p.product_name} className="w-9 h-9 rounded-lg object-contain flex-shrink-0 bg-gray-50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                                            : <div className="w-9 h-9 rounded-lg bg-slate-100 flex-shrink-0 flex items-center justify-center text-sm">📦</div>
+                                                        }
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-slate-800 truncate group-hover:text-bewit-blue">{p.product_name}</p>
+                                                            {p.category && <p className="text-xs text-slate-400 truncate">{p.category}</p>}
+                                                        </div>
+                                                        <span className="text-slate-300 group-hover:text-bewit-blue flex-shrink-0 text-sm">→</span>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {!isSearching && searchQuery.length >= 2 && searchResults.length === 0 && (
+                                            <p className="text-center text-sm text-slate-400 py-3">Žádné produkty nenalezeny</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
-                    
+
                     {/* Produktová doporučení - zobrazí se pokud jsou zapnutá v nastavení chatbotu */}
                     {!isUser && message.productRecommendations && message.productRecommendations.length > 0 && 
                      chatbotSettings?.product_recommendations && (
