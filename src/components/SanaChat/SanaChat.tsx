@@ -1848,7 +1848,7 @@ const Message: React.FC<{
                                     <div className="flex flex-wrap gap-3">
                                         {message.pairingInfo.aloe && (
                                             message.pairingInfo.aloeUrl ? (
-                                                <a href={message.pairingInfo.aloeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm hover:bg-green-100 transition-colors">
+                                                <a href={`${message.pairingInfo.aloeUrl}${message.pairingInfo.aloeUrl?.includes('?') ? '&' : '?'}utm_source=chatbot`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm hover:bg-green-100 transition-colors">
                                                     <span className="text-base leading-none">✅</span>
                                                     <span>{message.pairingInfo.aloeProductName || 'Aloe Vera gel'}</span>
                                                 </a>
@@ -1861,7 +1861,7 @@ const Message: React.FC<{
                                         )}
                                         {message.pairingInfo.merkaba && (
                                             message.pairingInfo.merkabaUrl ? (
-                                                <a href={message.pairingInfo.merkabaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-100/50 shadow-sm hover:bg-purple-100 transition-colors">
+                                                <a href={`${message.pairingInfo.merkabaUrl}${message.pairingInfo.merkabaUrl?.includes('?') ? '&' : '?'}utm_source=chatbot`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-100/50 shadow-sm hover:bg-purple-100 transition-colors">
                                                     <span className="text-base leading-none">✅</span>
                                                     <span>Merkaba</span>
                                                 </a>
@@ -1945,7 +1945,7 @@ const Message: React.FC<{
                                         <div className="flex flex-wrap gap-2">
                                             {message.pairingInfo.aloe && (
                                                 message.pairingInfo.aloeUrl ? (
-                                                    <a href={message.pairingInfo.aloeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium hover:bg-green-200 transition-colors">
+                                                    <a href={`${message.pairingInfo.aloeUrl}${message.pairingInfo.aloeUrl?.includes('?') ? '&' : '?'}utm_source=chatbot`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-medium hover:bg-green-200 transition-colors">
                                                         <span className="text-base">💧</span>
                                                         <span>{message.pairingInfo.aloeProductName || 'Aloe Vera gel'}</span>
                                                     </a>
@@ -1958,7 +1958,7 @@ const Message: React.FC<{
                                             )}
                                             {message.pairingInfo.merkaba && (
                                                 message.pairingInfo.merkabaUrl ? (
-                                                    <a href={message.pairingInfo.merkabaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium hover:bg-purple-200 transition-colors">
+                                                    <a href={`${message.pairingInfo.merkabaUrl}${message.pairingInfo.merkabaUrl?.includes('?') ? '&' : '?'}utm_source=chatbot`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium hover:bg-purple-200 transition-colors">
                                                         <span className="text-base">✨</span>
                                                         <span>Merkaba doporučeno</span>
                                                     </a>

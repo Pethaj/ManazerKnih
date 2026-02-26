@@ -26,11 +26,13 @@ export function openBewitProductLink(
     let finalUrl = productUrl;
 
     if (token) {
-      // Přidáme token do URL
       const separator = productUrl.includes('?') ? '&' : '?';
       finalUrl = `${productUrl}${separator}t=${encodeURIComponent(token)}`;
-    } else {
     }
+
+    // Přidáme utm_source pro sledování prokliků z chatbota v Google Analytics
+    const separator = finalUrl.includes('?') ? '&' : '?';
+    finalUrl = `${finalUrl}${separator}utm_source=chatbot`;
 
     // Otevřeme URL
     window.open(finalUrl, target, 'noopener,noreferrer');

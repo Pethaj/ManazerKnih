@@ -350,10 +350,7 @@ const EmbedEOSmesi = () => {
         </div>
       )}
 
-      {/* 
-        Modální wrapper - stejný jako v ChatWidget.tsx 
-        Ale místo fixed inset-0 používáme celou obrazovku (w-full h-screen)
-      */}
+
       <div className="w-full h-full">
         <FilteredSanaChat 
           key={userContext.id || userContext.email || 'anonymous'}
