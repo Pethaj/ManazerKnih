@@ -5,6 +5,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { generateEmbedding, saveEmbedding } from '../services/embeddingService';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Product {
   id: number;
@@ -773,7 +775,16 @@ export const ProductEmbeddingManagerFeed2: React.FC<ProductEmbeddingManagerFeed2
                         <div style={styles.productName}>{product.product_name}</div>
                         {product.description_short && (
                           <div style={styles.productDescription}>
-                            {product.description_short.substring(0, 100)}...
+                            <ReactMarkdown 
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                p: ({node, ...props}) => <span {...props} />,
+                                strong: ({node, ...props}) => <strong style={{fontWeight: 'bold'}} {...props} />,
+                                em: ({node, ...props}) => <em style={{fontStyle: 'italic'}} {...props} />,
+                              }}
+                            >
+                              {product.description_short.substring(0, 100)}...
+                            </ReactMarkdown>
                           </div>
                         )}
                       </td>
