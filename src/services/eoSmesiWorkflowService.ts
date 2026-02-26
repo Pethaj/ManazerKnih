@@ -241,6 +241,8 @@ export async function processEoSmesiQueryWithKnownProblem(
   problemName: string
 ): Promise<EoSmesiResult> {
   try {
+    console.log('🔍 Processing EO Směsi with Known Problem:', problemName);
+    
     const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problemName);
     const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
 
@@ -286,6 +288,11 @@ export async function processEoSmesiQuery(
   sessionId?: string
 ): Promise<EoSmesiResult> {
   try {
+    console.log('🔍 Processing EO Směsi Query:', {
+      userQuery: userQuery.substring(0, 100),
+      sessionId: sessionId
+    });
+    
     // KROK 1: DEFINICE PROBLÉMU
     const problemClassification = await classifyProblemFromUserMessage(userQuery);
     

@@ -377,6 +377,9 @@ const sendMessageToAPI = async (
     enableProductScreening?: boolean  // NEW Pokud false, přeskočí screening produktů z textu
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
+        // Log message info
+        console.log('📤 Sending message:', message.substring(0, 100) + (message.length > 100 ? '...' : ''));
+        
         // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
         const N8N_WEBHOOK_URL = webhookUrl || DEFAULT_N8N_WEBHOOK_URL;
         
@@ -2627,6 +2630,27 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         const newSessionId = generateSessionId();
         setSessionId(newSessionId);
         onSessionReady?.(newSessionId);
+        
+        // Log chatbot info
+        console.group('🚀 Chat Session Started');
+        console.log('Session ID:', newSessionId);
+        console.log('Chatbot ID:', chatbotId);
+        console.log('Chatbot Settings:', {
+            product_recommendations: chatbotSettings?.product_recommendations,
+            product_button_recommendations: chatbotSettings?.product_button_recommendations,
+            enable_product_router: chatbotSettings?.enable_product_router,
+            enable_manual_funnel: chatbotSettings?.enable_manual_funnel,
+            summarize_history: chatbotSettings?.summarize_history,
+            show_sources: chatbotSettings?.show_sources
+        });
+        console.log('User Info:', {
+            userId: currentUser?.id || externalUserInfo?.external_user_id || 'anonymous',
+            email: currentUser?.email || externalUserInfo?.email || 'N/A',
+            firstName: currentUser?.firstName || externalUserInfo?.first_name || 'N/A',
+            lastName: currentUser?.lastName || externalUserInfo?.last_name || 'N/A',
+            role: currentUser?.role || externalUserInfo?.position || 'N/A'
+        });
+        console.groupEnd();
         
         // Spustíme KOMPLETNÍ diagnostiku vektorové databáze při prvním načtení
         if (chatbotSettings.product_recommendations) {
