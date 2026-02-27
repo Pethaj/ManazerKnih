@@ -2,10 +2,10 @@
 // Edge Function pro bezpečné operace s Qdrant vektorovou databází
 // Podporuje: delete, search, upsert operace
 
-const QDRANT_API_KEY = Deno.env.get("QDRANT_API_KEY_cloud");
+const QDRANT_API_KEY = Deno.env.get("QDRANT_API_KEY_cloud") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.jgFpWFXJQxYpPgAZ-GKZfur_ujJVtsQK7khx8j0xmlU";
 const QDRANT_URL = Deno.env.get("QDRANT_URL") || 
-  "https://9aaad106-c442-4dba-b072-3fb8ad4da051.us-west-2-0.aws.cloud.qdrant.io:6333";
-const QDRANT_COLLECTION = "documents";
+  "https://7afbc640-e2e8-4617-b1e4-bca057b1d038.europe-west3-0.gcp.cloud.qdrant.io";
+const QDRANT_COLLECTION = "MedBase_A";
 
 Deno.serve(async (req) => {
   // CORS headers

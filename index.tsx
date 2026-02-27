@@ -18,6 +18,7 @@ import { logout, User } from './src/services/customAuthService';
 import { supabase as supabaseClient, supabaseUrl, supabaseKey } from './src/lib/supabase';
 // Feed Agent
 import FeedAgentPage from './src/pages/FeedAgentPage';
+import type { Database } from './src/types/database';
 
 // PDF.js worker je již nastaven v index.html - neměníme ho zde
 
@@ -70,6 +71,7 @@ interface Book {
     // Nové sloupce pro tracking jednotlivých databází
     qdrantLocalStatus?: 'none' | 'success' | 'error';
     qdrantCloudStatus?: 'none' | 'success' | 'error';
+    qdrantCloudCollection?: string; // Název kolekce v Qdrant Cloud (prázdné = není nahráno)
     supabaseVectorStatus?: 'none' | 'success' | 'error';
     vectorUploadDetails?: any;
     lastVectorUploadAt?: string;
@@ -266,179 +268,6 @@ const sanitizeFilePath = (filename: string): string => {
 };
 
 
-// --- Supabase Type Definition ---
-export interface Database {
-  public: {
-    Tables: {
-      books: {
-        Row: {
-          id: string
-          created_at: string
-          title: string
-          author: string
-          publication_year: number | null
-          publisher: string
-          summary: string
-          keywords: string[]
-          language: string
-          format: string
-          file_size: number
-          cover_image_url: string
-          publication_types: string[]
-          labels: string[]
-          categories: string[]
-          file_path: string
-          OCR: boolean
-          Vdtb: string
-        }
-        Insert: {
-          id?: string
-          created_at?: string
-          title: string
-          author?: string
-          publication_year?: number | null
-          publisher?: string
-          summary?: string
-          keywords?: string[]
-          language?: string
-          format: string
-          file_size: number
-          cover_image_url: string
-          publication_types?: string[]
-          labels?: string[]
-          categories?: string[]
-          file_path: string
-          OCR?: boolean
-          Vdtb?: string
-        }
-        Update: {
-          id?: string
-          created_at?: string
-          title?: string
-          author?: string
-          publication_year?: number | null
-          publisher?: string
-          summary?: string
-          keywords?: string[]
-          language?: string
-          format?: string
-          file_size?: number
-          cover_image_url?: string
-          publication_types?: string[]
-          labels?: string[]
-          categories?: string[]
-          file_path?: string
-          OCR?: boolean
-          Vdtb?: string
-        }
-        Relationships: []
-      }
-      labels: {
-        Row: {
-          id: string
-          name: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      categories: {
-        Row: {
-          id: string
-          name: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      languages: {
-        Row: {
-          id: string
-          name: string
-          code: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          code?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          code?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      publication_types: {
-        Row: {
-          id: string
-          name: string
-          description: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-}
-
 // --- Supabase Client Setup ---
 // POUŽÍVÁME CENTRÁLNÍ INSTANCI ze /src/lib/supabase.ts
 // supabaseClient je importován jako alias "supabase as supabaseClient"
@@ -498,6 +327,7 @@ const mapSupabaseToBook = (data: Database['public']['Tables']['books']['Row']): 
         // Nové sloupce pro tracking jednotlivých databází
         qdrantLocalStatus: ((data as any).qdrant_local_status as 'none' | 'success' | 'error') || 'none',
         qdrantCloudStatus: ((data as any).qdrant_cloud_status as 'none' | 'success' | 'error') || 'none',
+        qdrantCloudCollection: ((data as any).qdrant_cloud_collection as string) || undefined,
         supabaseVectorStatus: ((data as any).supabase_vector_status as 'none' | 'success' | 'error') || 'none',
         vectorUploadDetails: (data as any).vector_upload_details || undefined,
         lastVectorUploadAt: (data as any).last_vector_upload_at || undefined,
@@ -2282,6 +2112,65 @@ const api = {
             return false;
         }
         return true;
+    },
+
+    // Audit Qdrant Cloud - projde všechny knihy, zkontroluje přítomnost v Qdrant Cloud, zapíše výsledek
+    async auditQdrantCloud(
+        onProgress?: (current: number, total: number, bookTitle: string) => void
+    ): Promise<{checked: number, found: number, notFound: number, errors: number}> {
+        const edgeUrl = `${supabaseUrl}/functions/v1/qdrant-proxy`;
+
+        const { data: allBooks, error } = await supabaseClient
+            .from('books')
+            .select('id, title')
+            .order('title');
+
+        if (error || !allBooks) {
+            console.error('❌ Chyba při načítání knih:', error);
+            return { checked: 0, found: 0, notFound: 0, errors: 1 };
+        }
+
+        let found = 0, notFound = 0, errors = 0;
+
+        for (let i = 0; i < allBooks.length; i++) {
+            const book = allBooks[i];
+            onProgress?.(i + 1, allBooks.length, book.title);
+
+            try {
+                const response = await fetch(edgeUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${supabaseKey}`,
+                        'apikey': supabaseKey,
+                    },
+                    body: JSON.stringify({
+                        operation: 'count',
+                        filter: { must: [{ key: 'file_id', match: { value: book.id } }] }
+                    })
+                });
+
+                const data = await response.json();
+                const count = data?.result?.count ?? 0;
+
+                if (count > 0) {
+                    found++;
+                    await supabaseClient
+                        .from('books')
+                        .update({ qdrant_cloud_status: 'success' })
+                        .eq('id', book.id);
+                    console.log(`✅ ${book.title}: ${count} vektorů v Qdrant Cloud`);
+                } else {
+                    notFound++;
+                    console.log(`⬜ ${book.title}: není v Qdrant Cloud`);
+                }
+            } catch (err) {
+                console.error(`❌ Chyba pro knihu ${book.title}:`, err);
+                errors++;
+            }
+        }
+
+        return { checked: allBooks.length, found, notFound, errors };
     },
 
     // Funkce pro aktualizaci metadata v Qdrant přes n8n webhook
@@ -5077,6 +4966,51 @@ const App = ({ currentUser }: { currentUser: User }) => {
         }
     };
     
+    const handleCheckQdrantCloud = async (bookId: string, bookTitle: string) => {
+        console.log('🔵 handleCheckQdrantCloud START', bookId);
+        try {
+            console.log('🔵 volám fetch na', `${supabaseUrl}/functions/v1/qdrant-proxy`);
+            const response = await fetch(`${supabaseUrl}/functions/v1/qdrant-proxy`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`,
+                    'apikey': supabaseKey,
+                },
+                body: JSON.stringify({
+                    operation: 'scroll',
+                    limit: 1,
+                    filter: {
+                        must: [{ key: 'metadata.file_id', match: { value: bookId } }]
+                    }
+                })
+            });
+
+            console.log('🔵 response status:', response.status);
+            const result = await response.json();
+            console.log('🔵 result:', result);
+
+            const found = result.success && result.result?.result?.points?.length > 0;
+            const collectionValue = found ? 'MedBase_A' : null;
+
+            console.log({ bookId, found, collectionValue });
+
+            const { error } = await supabaseClient
+                .from('books')
+                .update({ qdrant_cloud_collection: collectionValue })
+                .eq('id', bookId);
+
+            console.log('🔵 supabase update error:', error);
+
+            if (!error) {
+                setBooks(prev => prev.map(b => b.id === bookId ? { ...b, qdrantCloudCollection: collectionValue || undefined } : b));
+            }
+
+        } catch (err) {
+            console.error('❌ Chyba v handleCheckQdrantCloud:', err);
+        }
+    };
+
     const handleVideoSubmit = async () => {
         if (!videoUrl.trim()) {
             alert('Prosím, zadejte URL videa');
@@ -5453,6 +5387,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                             onUpdate={handleUpdateBook} 
                             onDelete={handleDeleteBook}
                             onTestWebhook={testWebhook}
+                            onCheckQdrantCloud={handleCheckQdrantCloud}
                             onDebugStorage={debugStoragePaths}
                             onTestDeleteImages={testDeleteImages}
                             onReadClick={() => handleReadBook(selectedBook)}
@@ -6864,6 +6799,7 @@ interface BookDetailPanelProps {
     onUpdate: (book: Book) => void;
     onDelete: (id: string) => void;
     onTestWebhook: (id: string) => void;
+    onCheckQdrantCloud: (id: string, title: string) => void;
     onDebugStorage: (id: string, title: string) => void;
     onTestDeleteImages: (id: string) => void;
     onReadClick: () => void;
@@ -6878,7 +6814,7 @@ interface BookDetailPanelProps {
     onDeletePublicationType: (typeName: string) => void;
     allAvailableLanguages: string[]; // Všechny jazyky z databáze pro dropdown
 }
-const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStorage, onTestDeleteImages, onReadClick, allLabels, onAddNewLabel, onDeleteLabel, allCategories, onAddNewCategory, onDeleteCategory, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, allAvailableLanguages }: BookDetailPanelProps) => {
+const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onCheckQdrantCloud, onDebugStorage, onTestDeleteImages, onReadClick, allLabels, onAddNewLabel, onDeleteLabel, allCategories, onAddNewCategory, onDeleteCategory, allPublicationTypes, onAddNewPublicationType, onDeletePublicationType, allAvailableLanguages }: BookDetailPanelProps) => {
     const [isEditing, setIsEditing] = useState(false);
     const [localBook, setLocalBook] = useState(book);
     const [isGenerating, setIsGenerating] = useState<Partial<Record<keyof Book, boolean>>>({});
@@ -6904,13 +6840,14 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
     }, []);
 
     useEffect(() => {
-        // Pouze aktualizuj localBook pokud se změnilo ID knihy (vybrali jsme jinou knihu)
-        // nebo při prvním načtení (když localBook ještě není inicializovaná)
         if (!localBook.id || localBook.id !== book.id) {
             setLocalBook(book);
             setIsEditing(false);
+        } else if (localBook.qdrantCloudCollection !== book.qdrantCloudCollection) {
+            setLocalBook(prev => ({ ...prev, qdrantCloudCollection: book.qdrantCloudCollection }));
         }
-    }, [book.id, localBook.id]); // Reaguje pouze na změnu ID knihy
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [book.id, book.qdrantCloudCollection]);
 
     // Otevření OCR dialogu
     const handleTestOCR = () => {
@@ -7915,6 +7852,46 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                 </div>
             )}
             
+            {/* ID knihy */}
+            <div style={{
+                marginTop: '1.5rem',
+                borderTop: '1px solid var(--border-color)',
+                paddingTop: '1rem'
+            }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    ID knihy
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    {book.id}
+                </div>
+            </div>
+
+            {/* Databáze Qdrant */}
+            <div style={{
+                marginTop: '1.5rem',
+                borderTop: '1px solid var(--border-color)',
+                paddingTop: '1rem'
+            }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                    Databáze Qdrant
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {localBook.qdrantCloudCollection ? (
+                        <>
+                            <span style={{ color: '#22c55e', fontSize: '1rem' }}>🗄️</span>
+                            <span style={{ color: '#22c55e', fontSize: '0.9rem', fontWeight: 500 }}>
+                                {localBook.qdrantCloudCollection} - Cloud
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>🗄️</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>N/A</span>
+                        </>
+                    )}
+                </div>
+            </div>
+
             {/* Vývojářská roleta */}
             <div style={{ 
                 marginTop: '2rem', 
@@ -7972,6 +7949,21 @@ const BookDetailPanel = ({ book, onUpdate, onDelete, onTestWebhook, onDebugStora
                             Testovat webhook
                         </button>
                         
+                        <button 
+                            style={{
+                                ...styles.button,
+                                fontSize: '0.85rem',
+                                padding: '6px 12px',
+                                backgroundColor: '#8b5cf6',
+                                color: 'white',
+                                border: 'none'
+                            }} 
+                            onClick={() => onCheckQdrantCloud(book.id, book.title)} 
+                            title="Zkontroluje zda je kniha v Qdrant Cloud a zapíše výsledek do Supabase"
+                        >
+                            🔎 Zkontrolovat v Qdrant
+                        </button>
+
                         <button 
                             style={{
                                 ...styles.button,

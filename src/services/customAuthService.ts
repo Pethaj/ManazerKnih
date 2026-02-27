@@ -189,8 +189,22 @@ export async function getCurrentUser(): Promise<{ user: User | null; error: stri
             .eq('id', session.userId)
             .single();
 
-        if (fetchError || !userData) {
-            clearSession(); // Session je neplatná
+        if (fetchError) {
+            // Při síťové/DB chybě neodhlašujeme - session v localStorage zůstane platná
+            // Vrátíme základní user objekt ze session
+            const fallbackUser: User = {
+                id: session.userId,
+                email: session.email,
+                firstName: '',
+                lastName: '',
+                role: session.role,
+                createdAt: ''
+            };
+            return { user: fallbackUser, error: null };
+        }
+
+        if (!userData) {
+            clearSession(); // Uživatel opravdu neexistuje v DB
             return { user: null, error: 'Uživatel nenalezen' };
         }
 
@@ -205,6 +219,19 @@ export async function getCurrentUser(): Promise<{ user: User | null; error: stri
 
         return { user, error: null };
     } catch (err) {
+        // Při neočekávané chybě se pokusíme zachovat session ze localStorage
+        const session = getCurrentSession();
+        if (session) {
+            const fallbackUser: User = {
+                id: session.userId,
+                email: session.email,
+                firstName: '',
+                lastName: '',
+                role: session.role,
+                createdAt: ''
+            };
+            return { user: fallbackUser, error: null };
+        }
         return { user: null, error: 'Chyba při načítání uživatele' };
     }
 }
