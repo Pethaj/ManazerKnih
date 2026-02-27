@@ -7,6 +7,23 @@
 
 import React, { useState } from 'react';
 
+// --- Icons ---
+const SparklesIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="m12 3 1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3Z" />
+    <path d="M5 3v4" />
+    <path d="M19 17v4" />
+    <path d="M3 5h4" />
+    <path d="M17 19h4" />
+  </svg>
+);
+
+const CheckIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
 interface ProblemSelectionFormProps {
   problems: string[];
   onSelect: (selectedProblem: string) => void;
@@ -34,10 +51,7 @@ export function ProblemSelectionForm({
     <div className="my-6 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 border border-blue-100 rounded-2xl p-6 shadow-sm backdrop-blur-sm">
       {/* Heading - stejný styl jako v callout */}
       <h4 className="text-sm font-semibold text-bewit-blue mb-5 flex items-center gap-2">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8"></circle>
-          <path d="m21 21-4.35-4.35"></path>
-        </svg>
+        <SparklesIcon className="w-4 h-4" />
         Upřesněte prosím váš problém
       </h4>
 
@@ -87,27 +101,23 @@ export function ProblemSelectionForm({
         <button
           onClick={handleConfirm}
           disabled={!selected || isLocked}
-          className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl text-sm font-bold transition-all duration-300 ${
+          className={`w-full flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 shadow-lg border border-blue-400/20 group relative overflow-hidden ${
             isLocked
-              ? 'bg-green-500 text-white cursor-not-allowed opacity-80'
+              ? 'bg-green-600 text-white cursor-not-allowed shadow-green-200/50'
               : selected
-                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200 hover:shadow-blue-300 transform active:scale-[0.98]'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+                ? 'bg-gradient-to-r from-bewit-blue to-blue-600 text-white hover:from-blue-700 hover:to-blue-500 hover:shadow-blue-200/50 transform active:scale-[0.98]'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 shadow-none opacity-60'
           }`}
         >
           {isLocked ? (
             <>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
+              <CheckIcon className="w-5 h-5" />
               <span>Odesláno</span>
             </>
           ) : (
             <>
+              <SparklesIcon className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" />
               <span>Potvrdit</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={selected ? 'animate-pulse' : ''}>
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
             </>
           )}
         </button>

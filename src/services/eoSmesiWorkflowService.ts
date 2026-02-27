@@ -193,12 +193,13 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
 }> {
   const pairingResults = await matchProductCombinationsWithProblems([problemName]);
 
-  const [eoProducts, prawteinProducts] = await Promise.all([
+  const [eoProducts, prawteinProducts, tcmProducts] = await Promise.all([
     getEOProductsForProblem(problemName),
-    getPrawteinProductsForProblem(problemName)
+    getPrawteinProductsForProblem(problemName),
+    getTCMProductsForProblem(problemName)
   ]);
 
-  const hasAnyProducts = eoProducts.length > 0 || prawteinProducts.length > 0 || pairingResults.products.length > 0;
+  const hasAnyProducts = eoProducts.length > 0 || prawteinProducts.length > 0 || tcmProducts.length > 0 || pairingResults.products.length > 0;
 
   if (!hasAnyProducts) {
     return { medicineTable: null, pairingResults };
@@ -230,6 +231,21 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
   if (eoProducts[1]) medicineTable.eo2 = eoProducts[1].name;
   if (prawteinProducts[0]) medicineTable.prawtein = prawteinProducts[0].name;
 
+  // TČM wan produkty – přidáme do companionProducts (pokud ještě nejsou ze SQL RPC)
+  if (tcmProducts.length > 0) {
+    const existingCompanionNames = new Set(medicineTable.companionProducts.map(p => p.name?.toLowerCase()));
+    for (const tcm of tcmProducts) {
+      if (!existingCompanionNames.has(tcm.name.toLowerCase())) {
+        medicineTable.companionProducts.push({
+          name: tcm.name,
+          url: tcm.url,
+          thumbnail: tcm.thumbnail,
+          category: tcm.category
+        });
+      }
+    }
+  }
+
   return { medicineTable, pairingResults };
 }
 
@@ -245,6 +261,16 @@ export async function processEoSmesiQueryWithKnownProblem(
     
     const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problemName);
     const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
+
+    console.log('🎯 EO Směsi – klasifikovaný problém:', problemName);
+    console.log('🛒 EO Směsi – nalezené produkty:', medicineTable ? {
+      eoSměsi: medicineTable.products.map(p => `${p.name} (${p.code})`),
+      prawtein: medicineTable.prawtein || '–',
+      aloe: medicineTable.aloe ? `✅ ${medicineTable.aloeProductName || 'Aloe'}` : '–',
+      merkaba: medicineTable.merkaba ? '✅ Merkaba' : '–',
+      companionProducts: medicineTable.companionProducts?.map(p => p.name) || [],
+      shouldShowTable
+    } : '⚠️ Žádná tabulka nebyla sestavena');
 
     return {
       success: true,
@@ -296,6 +322,15 @@ export async function processEoSmesiQuery(
     // KROK 1: DEFINICE PROBLÉMU
     const problemClassification = await classifyProblemFromUserMessage(userQuery);
     
+    console.log('📊 EO Směsi – výsledek klasifikace:', {
+      success: problemClassification.success,
+      certain: problemClassification.problems,
+      uncertain: problemClassification.uncertainProblems,
+      requiresUserSelection: problemClassification.requiresUserSelection,
+      multipleProblems: problemClassification.multipleProblems,
+      shouldShowTable: !problemClassification.requiresUserSelection && (problemClassification.problems?.length ?? 0) > 0
+    });
+    
     if (!problemClassification.success) {
       return {
         success: false,
@@ -320,6 +355,16 @@ export async function processEoSmesiQuery(
     // KROK 2-5: Sestavení medicine table pro nalezené problémy
     const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problems[0]);
     const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
+    
+    console.log('🎯 EO Směsi – klasifikovaný problém:', problems[0]);
+    console.log('🛒 EO Směsi – nalezené produkty:', medicineTable ? {
+      eoSměsi: medicineTable.products.map(p => `${p.name} (${p.code})`),
+      prawtein: medicineTable.prawtein || '–',
+      aloe: medicineTable.aloe ? `✅ ${medicineTable.aloeProductName || 'Aloe'}` : '–',
+      merkaba: medicineTable.merkaba ? '✅ Merkaba' : '–',
+      companionProducts: medicineTable.companionProducts?.map(p => p.name) || [],
+      shouldShowTable
+    } : '⚠️ Žádná tabulka nebyla sestavena');
     
     return {
       success: true,
@@ -475,6 +520,113 @@ export async function getPrawteinProductsForProblem(
     return enrichedProducts;
     
   } catch (error) {
+    return [];
+  }
+}
+
+/**
+ * Načte TČM wan produkty pro daný problém z tabulky leceni
+ * Načte sloupec "TČM wan" a vyhledá produkt v product_feed_2 podle kódu nebo názvu.
+ *
+ * @param problemName - Název problému
+ * @returns Pole product info pro TČM wan produkty
+ */
+export async function getTCMProductsForProblem(
+  problemName: string
+): Promise<Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }>> {
+  try {
+    const { data: leceniData, error: leceniError } = await supabase
+      .from('leceni')
+      .select('"TČM wan"')
+      .eq('Problém', problemName)
+      .limit(1);
+
+    if (leceniError || !leceniData || leceniData.length === 0) {
+      return [];
+    }
+
+    const record = leceniData[0];
+    const tcmRaw = record['TČM wan'];
+
+    if (!tcmRaw || tcmRaw.trim() === '' || tcmRaw.trim() === '–') {
+      return [];
+    }
+
+    const tcmNames: string[] = tcmRaw.includes(',')
+      ? tcmRaw.split(',').map((p: string) => p.trim()).filter(Boolean)
+      : [tcmRaw.trim()];
+
+    const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
+
+    for (const tcmName of tcmNames) {
+      try {
+        let product = null;
+        const isNumeric = /^\d+$/.test(tcmName);
+
+        if (isNumeric) {
+          // Wany produkty mají v product_feed_2 product_name ve formátu "063 - Klidné dřevo"
+          // Číslo je součástí názvu, NE product_code → hledáme přes LIKE na product_name
+          const result = await supabase
+            .from('product_feed_2')
+            .select('product_code, product_name, category, url, thumbnail')
+            .ilike('product_name', `${tcmName}%`)
+            .limit(1);
+
+          if (!result.error && result.data && result.data.length > 0) {
+            product = result.data[0];
+          }
+
+          // Fallback: exact match na product_code (pro jiné typy produktů)
+          if (!product) {
+            const result2 = await supabase
+              .from('product_feed_2')
+              .select('product_code, product_name, category, url, thumbnail')
+              .eq('product_code', tcmName)
+              .limit(1);
+
+            if (!result2.error && result2.data && result2.data.length > 0) {
+              product = result2.data[0];
+            }
+          }
+        } else {
+          // Textový match – stejná logika jako SQL RPC (exact, pak LIKE)
+          const result1 = await supabase
+            .from('product_feed_2')
+            .select('product_code, product_name, category, url, thumbnail')
+            .ilike('product_name', tcmName)
+            .limit(1);
+
+          if (!result1.error && result1.data && result1.data.length > 0) {
+            product = result1.data[0];
+          } else {
+            const result2 = await supabase
+              .from('product_feed_2')
+              .select('product_code, product_name, category, url, thumbnail')
+              .ilike('product_name', `%${tcmName}%`)
+              .limit(1);
+
+            if (!result2.error && result2.data && result2.data.length > 0) {
+              product = result2.data[0];
+            }
+          }
+        }
+
+        if (product) {
+          enrichedProducts.push({
+            code: product.product_code,
+            name: product.product_name,
+            category: product.category,
+            url: product.url,
+            thumbnail: product.thumbnail
+          });
+        }
+      } catch (_err) {
+        // pokračuj na další produkt
+      }
+    }
+
+    return enrichedProducts;
+  } catch (_error) {
     return [];
   }
 }

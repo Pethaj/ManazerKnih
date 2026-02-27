@@ -1009,6 +1009,21 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                     </>
                                                 )}
                                             </div>
+
+                                            {/* 🛠️ Pro vývojáře */}
+                                            <div style={styles.devSection}>
+                                                <div style={styles.devSectionTitle}>🛠️ Pro vývojáře</div>
+                                                <a
+                                                    href={`${window.location.origin}/${
+                                                        chatbot.chatbot_id === 'eo_smesi' ? 'embed-eo-smesi.html' : 'embed.html'
+                                                    }?chatbot_id=${chatbot.chatbot_id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={styles.devLink}
+                                                >
+                                                    🔗 Testovací stránka
+                                                </a>
+                                            </div>
                                         </div>
                                     ))}
                                     
@@ -1582,6 +1597,34 @@ const styles: { [key: string]: React.CSSProperties } = {
         color: '#666',
         margin: 0,
         fontStyle: 'italic',
+    },
+
+    devSection: {
+        marginTop: '12px',
+        paddingTop: '12px',
+        borderTop: '1px solid #e0e0e0',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+    },
+
+    devSectionTitle: {
+        fontSize: '12px',
+        fontWeight: '600',
+        color: '#6c757d',
+        whiteSpace: 'nowrap' as const,
+    },
+
+    devLink: {
+        fontSize: '12px',
+        color: '#6c757d',
+        textDecoration: 'none',
+        padding: '4px 10px',
+        borderRadius: '4px',
+        border: '1px solid #dee2e6',
+        backgroundColor: '#f8f9fa',
+        fontFamily: 'monospace',
+        transition: 'all 0.2s',
     },
 };
 

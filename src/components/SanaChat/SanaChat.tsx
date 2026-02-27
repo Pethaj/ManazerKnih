@@ -315,6 +315,22 @@ const ProductIcon: React.FC<IconProps> = (props) => (
     </svg>
 );
 
+const SparklesIcon: React.FC<IconProps> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="m12 3 1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3Z" />
+        <path d="M5 3v4" />
+        <path d="M19 17v4" />
+        <path d="M3 5h4" />
+        <path d="M17 19h4" />
+    </svg>
+);
+
+const CheckIcon: React.FC<IconProps> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <polyline points="20 6 9 17 4 12" />
+    </svg>
+);
+
 const FilterIcon: React.FC<IconProps> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
@@ -797,7 +813,7 @@ const EoSmesiLearnMoreButton: React.FC<{
             <button
                 onClick={handleClick}
                 disabled={isLoading || isDone}
-                className="w-full inline-flex items-center justify-center gap-2.5 px-6 py-3 bg-bewit-blue text-white rounded-xl text-sm font-bold hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
+                className="w-full inline-flex items-center justify-center gap-2.5 px-6 py-3 bg-gradient-to-r from-bewit-blue to-blue-600 text-white rounded-xl text-sm font-bold hover:from-blue-700 hover:to-blue-500 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-blue-200/50 active:scale-[0.98] border border-blue-400/20 group"
             >
                 {isLoading ? (
                     <>
@@ -809,12 +825,12 @@ const EoSmesiLearnMoreButton: React.FC<{
                     </>
                 ) : isDone ? (
                     <>
-                        <span className="text-base">✓</span>
+                        <CheckIcon className="w-5 h-5" />
                         <span>Informace zobrazeny níže</span>
                     </>
                 ) : (
                     <>
-                        <span className="text-base">🔍</span>
+                        <SparklesIcon className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" />
                         <span>Chci o těchto produktech vědět více</span>
                     </>
                 )}
@@ -1133,6 +1149,7 @@ const Message: React.FC<{
     const [searchResults, setSearchResults] = useState<Array<{product_code: string; product_name: string; category?: string; url?: string; thumbnail?: string}>>([]);
     const [isSearching, setIsSearching] = useState(false);
     const searchDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchResultsRef = React.useRef<HTMLDivElement>(null);
 
     const handleInlineSearch = (query: string) => {
         setSearchQuery(query);
@@ -1147,6 +1164,13 @@ const Message: React.FC<{
             finally { setIsSearching(false); }
         }, 300);
     };
+
+    // Scroll na výsledky vyhledávání jakmile se načtou
+    React.useEffect(() => {
+        if (searchResults.length > 0 && searchResultsRef.current) {
+            searchResultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }, [searchResults]);
     
     // State pro rozbalení sekce doprovodných produktů (Panacea / TČM wan)
     const [isCompanionProductsOpen, setIsCompanionProductsOpen] = useState(false);
@@ -1443,12 +1467,10 @@ const Message: React.FC<{
                                         </div>
                                         <button
                                             onClick={() => setIsSearchOpen(true)}
-                                            className="w-full py-2 px-3 bg-bewit-blue text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-bewit-blue/50 flex items-center justify-center gap-2"
+                                            className="w-full py-2.5 px-4 bg-gradient-to-r from-bewit-blue to-blue-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-blue-500 transition-all duration-300 shadow-md hover:shadow-blue-200/50 flex items-center justify-center gap-2 group border border-blue-400/20"
                                             title="Otevřít vyhledávač produktů"
                                         >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                                            </svg>
+                                            <SparklesIcon className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" />
                                             Chci o těchto produktech vědět více
                                         </button>
                                     </div>
@@ -1499,12 +1521,10 @@ const Message: React.FC<{
                                         </div>
                                         <button
                                             onClick={() => setIsSearchOpen(true)}
-                                            className="w-full py-2 px-3 bg-bewit-blue text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-bewit-blue/50 flex items-center justify-center gap-2"
+                                            className="w-full py-2.5 px-4 bg-gradient-to-r from-bewit-blue to-blue-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-blue-500 transition-all duration-300 shadow-md hover:shadow-blue-200/50 flex items-center justify-center gap-2 group border border-blue-400/20"
                                             title="Otevřít vyhledávač produktů"
                                         >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                                            </svg>
+                                            <SparklesIcon className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" />
                                             Chci o těchto produktech vědět více
                                         </button>
                                     </div>
@@ -2119,7 +2139,7 @@ const Message: React.FC<{
                                     </div>
                                 </div>
                                 {isSearchOpen && (
-                                    <div className="mt-1 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                                    <div ref={searchResultsRef} className="mt-1 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
                                         {isSearching && (
                                             <div className="flex items-center justify-center gap-2 py-3 text-slate-400 text-sm">
                                                 {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 bg-bewit-blue rounded-full animate-bounce" style={{animationDelay: `${i*0.15}s`}} />)}
@@ -2827,6 +2847,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
 
     // SEARCH Callback pro výběr problému z formuláře (EO Směsi Chat)
     const handleProblemSelection = useCallback(async (selectedProblem: string) => {
+        console.log('🎯 handleProblemSelection:', selectedProblem);
         setIsLoading(true);
         
         // Zablokuj formulář výběru – zabráníme opakovanému odeslání při rerenderu
@@ -2835,7 +2856,9 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         ));
 
         try {
+            console.log('🔄 Volám processEoSmesiQueryWithKnownProblem...');
             const eoSmesiResult = await processEoSmesiQueryWithKnownProblem(selectedProblem);
+            console.log('✅ eoSmesiResult:', eoSmesiResult);
             
             if (eoSmesiResult.shouldShowTable && eoSmesiResult.medicineTable) {
                 const matchedProducts = eoSmesiResult.medicineTable.products.map(p => ({
@@ -2849,7 +2872,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 const botMessage: ChatMessage = {
                     id: Date.now().toString(),
                     role: 'bot',
-                    text: `Našel jsem vhodnou kombinaci produktů pro: ${selectedProblem}`,
+                    text: `Doporučili bychom vám tyto produkty:`,
                     matchedProducts: matchedProducts,
                     pairingInfo: {
                         prawteins: eoSmesiResult.medicineTable.prawtein ? [eoSmesiResult.medicineTable.prawtein] : [],
@@ -2885,6 +2908,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 setMessages(prev => [...prev, botMessage]);
             }
         } catch (error) {
+            console.error('❌ handleProblemSelection error:', error);
             const errorMessage: ChatMessage = {
                 id: Date.now().toString(),
                 role: 'bot',
@@ -3000,7 +3024,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                 const botMessage: ChatMessage = {
                                     id: Date.now().toString(),
                                     role: 'bot',
-                                    text: `Našel jsem vhodnou kombinaci produktů pro: ${uncertainProblems[0]}`,
+                                    text: `Doporučili bychom vám tyto produkty:`,
                                     matchedProducts,
                                     pairingInfo: {
                                         prawteins: directResult.medicineTable.prawtein ? [directResult.medicineTable.prawtein] : [],
@@ -3047,7 +3071,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         const botMessage: ChatMessage = {
                             id: Date.now().toString(),
                             role: 'bot',
-                            text: `Našel jsem vhodnou kombinaci produktů pro váš problém.`,
+                            text: `Doporučili bychom vám tyto produkty:`,
                             matchedProducts: matchedProducts,
                             pairingInfo: {
                                 prawteins: eoSmesiResult.medicineTable.prawtein ? [eoSmesiResult.medicineTable.prawtein] : [],
@@ -3505,7 +3529,7 @@ Symptomy zákazníka: ${symptomsList}
                 const botMessage: ChatMessage = { 
                     id: (Date.now() + 1).toString(), 
                     role: 'bot', 
-                    text: webhookResult.text, 
+                    text: shouldShowCallout ? 'Doporučili bychom vám tyto produkty:' : webhookResult.text, 
                     sources: webhookResult.sources || [],
                     productRecommendations: undefined,
                     matchedProducts: webhookResult.matchedProducts || [],
@@ -4040,7 +4064,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                 const botMessage: ChatMessage = { 
                     id: (Date.now() + 1).toString(), 
                     role: 'bot', 
-                    text: webhookResult.text, 
+                    text: shouldShowCallout ? 'Doporučili bychom vám tyto produkty:' : webhookResult.text, 
                     sources: webhookResult.sources || [],
                     productRecommendations: undefined,
                     matchedProducts: webhookResult.matchedProducts || [],

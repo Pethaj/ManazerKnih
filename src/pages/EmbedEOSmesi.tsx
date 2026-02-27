@@ -314,38 +314,104 @@ const EmbedEOSmesi = () => {
               background: '#f8f9fb',
               borderRadius: '12px',
               padding: '20px',
-              marginBottom: '28px',
+              marginBottom: '20px',
               fontSize: '14px',
               color: '#333',
               lineHeight: '1.7'
             }}>
+              <p style={{ margin: 0, marginBottom: '12px' }}>
+                <strong>BEWIT ACADEMY</strong> je vzdělávací platforma zaměřená na studium přírodních přístupů, aromaterapie a tradičních systémů péče o rovnováhu člověka.
+              </p>
+              <p style={{ margin: 0, marginBottom: '12px' }}>
+                Obsah neslouží jako náhrada lékařské péče ani jako návod k léčbě onemocnění.
+              </p>
               <p style={{ margin: 0 }}>
-                Tento nástroj slouží výhradně k vzdělávacím a orientačním účelům a nenahrazuje odborné lékařské doporučení ani individuální posouzení. V případě obtíží se vždy obraťte na kvalifikovaného odborníka. Chatbot je v testovací verzi a může obsahovat nepřesnosti.
+                Vstupem potvrzujete, že informace využíváte výhradně pro vzdělávací účely a osobní rozvoj.
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleAcceptDisclaimer}
-              style={{
-                width: '100%',
-                padding: '14px 24px',
-                fontSize: '16px',
-                fontWeight: '700',
-                color: 'white',
-                background: 'linear-gradient(135deg, #5d7fa3 0%, #3b5f85 100%)',
-                border: 'none',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                fontFamily: 'Inter, sans-serif',
-                transition: 'opacity 0.2s',
-                boxShadow: '0 4px 16px rgba(93,127,163,0.4)'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-            >
-              Rozumím a pokračuji
-            </button>
+            <div style={{
+              marginBottom: '20px',
+              textAlign: 'center',
+              fontSize: '13px'
+            }}>
+              <a 
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  // TODO: Odkaz na plné znění upozornění
+                }}
+                style={{
+                  color: '#5d7fa3',
+                  textDecoration: 'none',
+                  fontWeight: '500',
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+              >
+                (Plné znění upozornění)
+              </a>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              width: '100%'
+            }}>
+              <button
+                type="button"
+                onClick={handleAcceptDisclaimer}
+                style={{
+                  flex: 1,
+                  padding: '14px 24px',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  color: 'white',
+                  background: 'linear-gradient(135deg, #5d7fa3 0%, #3b5f85 100%)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontFamily: 'Inter, sans-serif',
+                  transition: 'opacity 0.2s',
+                  boxShadow: '0 4px 16px rgba(93,127,163,0.4)'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+              >
+                Rozumím a pokračuji
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDisclaimer(false);
+                  if (window.parent !== window) {
+                    window.parent.postMessage({ type: 'WIDGET_CLOSE' }, '*');
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: '14px 24px',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  color: '#5d7fa3',
+                  background: 'white',
+                  border: '2px solid #5d7fa3',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontFamily: 'Inter, sans-serif',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => { 
+                  e.currentTarget.style.background = '#f8f9fb';
+                }}
+                onMouseLeave={(e) => { 
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                Zavřít chat
+              </button>
+            </div>
           </div>
         </div>
       )}

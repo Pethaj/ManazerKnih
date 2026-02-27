@@ -215,6 +215,7 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
     
     try {
       const responseText = data.response || '';
+      console.log('🧠 Raw response od agenta:', responseText);
       
       // Odstranit markdown code blocks pokud jsou
       let jsonText = responseText.trim();
@@ -259,27 +260,34 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
         }
 
         if (multipleProblems) {
+          console.log('🔀 Více problémů zmíněno:', allMentionedProblems);
         }
         if (problems.length > 0) {
+          console.log('✅ Jisté problémy (certain):', problems);
         }
         if (uncertainProblems.length > 0) {
+          console.log('❓ Nejisté problémy (uncertain):', uncertainProblems);
         }
         
         if (invalidCertain.length > 0) {
+          console.warn('⚠️ Neplatné certain kategorie (nenalezeny v DB):', invalidCertain);
         }
         if (invalidUncertain.length > 0) {
+          console.warn('⚠️ Neplatné uncertain kategorie (nenalezeny v DB):', invalidUncertain);
         }
       }
     } catch (parseError) {
+      console.error('❌ Chyba parsování JSON odpovědi agenta:', parseError);
       problems = [];
       uncertainProblems = [];
     }
     
     const requiresUserSelection = uncertainProblems.length > 0 && problems.length === 0;
     if (uncertainProblems.length > 0) {
+      console.log('📋 Vyžaduje výběr uživatele (requiresUserSelection):', requiresUserSelection);
     }
     
-    return {
+    const result = {
       success: true,
       problems: problems,
       uncertainProblems: uncertainProblems,
@@ -288,6 +296,17 @@ export async function classifyProblemFromUserMessage(userMessage: string): Promi
       allMentionedProblems: allMentionedProblems,
       rawResponse: data.response
     };
+    
+    console.log('🤖 Výsledek klasifikace agenta:', {
+      certain: problems,
+      uncertain: uncertainProblems,
+      requiresUserSelection,
+      multipleProblems,
+      allMentioned: allMentionedProblems,
+      rawResponse: data.response
+    });
+    
+    return result;
     
   } catch (error) {
     return {
