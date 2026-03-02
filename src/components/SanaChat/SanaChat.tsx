@@ -140,6 +140,7 @@ interface ChatMessage {
   problemSelectionSubmitted?: boolean; // Flag: formulář byl odeslán, tlačítko se zablokuje
   uncertainProblems?: string[];        // Seznam problémů k výběru
   hideProductCallout?: boolean;        // Skryje "Související produkty BEWIT" callout (produkty jsou jen jako pills v textu)
+  eoIngredients?: string[];            // Složky EO směsí (deduplikované z EO1_slozeni + EO2_slozeni)
 }
 
 // Rozhraní pro metadata filtrace
@@ -286,7 +287,7 @@ const LinkIcon: React.FC<IconProps> = (props) => (
 
 const SanaAILogo: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = (props) => (
     <img 
-        src="https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/Generated_Image_September_08__2025_-_3_09PM-removebg-preview.png"
+        src="https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/IMG_1258%20(1).PNG"
         alt="Sana AI Logo" 
         style={{ objectFit: 'contain' }}
         {...props}
@@ -1848,6 +1849,53 @@ const Message: React.FC<{
                         </div>
                     )}
 
+                    {/* 🌿 EO SMĚSI: Blok se složkami EO směsí (mini dlaždice) */}
+                    {!isUser && chatbotId === 'eo_smesi' && !message.hideProductCallout && message.eoIngredients && message.eoIngredients.length > 0 && (
+                        <div className="mt-4 rounded-2xl overflow-hidden border border-emerald-100 shadow-sm">
+                            {/* Disclaimer */}
+                            <div className="bg-amber-50 border-b border-amber-100 px-4 py-2.5 flex items-start gap-2">
+                                <svg className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <p className="text-[11px] text-amber-700 leading-relaxed">
+                                    <span className="font-semibold">Upozornění:</span> Informace slouží pro vzdělávací účely. Produkty BEWIT nejsou určeny k léčbě ani diagnostice onemocnění. V případě zdravotních potíží se obraťte na svého lékaře.
+                                </p>
+                            </div>
+
+                            {/* Aromaterapeutický text */}
+                            <div className="px-4 py-3 border-b border-emerald-100">
+                                <p className="text-[12px] text-slate-600 leading-relaxed">
+                                    Společnost BEWIT neposkytuje léčebná doporučení. V situacích spojených s výrazným svalovým napětím nebo fyzickým diskomfortem se v aromaterapeutické literatuře pracuje s vybranými esenciálními oleji, jejichž složky jsou zkoumány pro svůj vliv na vnímání nepohodlí a napětí.
+                                </p>
+                            </div>
+
+                            {/* Složky EO směsí */}
+                            <div className="bg-white px-4 py-3">
+                                <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider mb-2.5">
+                                    Složení těchto směsí zahrnuje:
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {message.eoIngredients.map((ingredient, idx) => (
+                                        <span
+                                            key={idx}
+                                            className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-100 shadow-sm"
+                                        >
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 flex-shrink-0" />
+                                            {ingredient}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Intro text před produkty */}
+                            <div className="bg-white px-4 pb-3">
+                                <p className="text-[12px] text-slate-500">
+                                    Níže uvádíme produkty BEWIT, které řadu těchto složek obsahují:
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* 🌿 EO SMĚSI: Callout box "Související produkty BEWIT" - pouze pro první odpověď (bez hideProductCallout) */}
                     {!isUser && usesMarkdown && !message.hideProductCallout && !message.text?.includes('<<<PRODUCT:') && enrichedProducts.length > 0 && (
                         <div className={`mt-4 border rounded-2xl p-4 shadow-sm ${
@@ -1931,12 +1979,12 @@ const Message: React.FC<{
                                         {message.pairingInfo.aloe && (
                                             message.pairingInfo.aloeUrl ? (
                                                 <a href={`${message.pairingInfo.aloeUrl}${message.pairingInfo.aloeUrl?.includes('?') ? '&' : '?'}utm_source=chatbot`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm hover:bg-green-100 transition-colors">
-                                                    <span className="text-base leading-none">✅</span>
+                                                    <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                                     <span>{message.pairingInfo.aloeProductName || 'Aloe Vera gel'}</span>
                                                 </a>
                                             ) : (
                                                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm">
-                                                    <span className="text-base leading-none">✅</span>
+                                                    <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                                     <span>{message.pairingInfo.aloeProductName || 'Aloe Vera gel'}</span>
                                                 </div>
                                             )
@@ -1944,12 +1992,12 @@ const Message: React.FC<{
                                         {message.pairingInfo.merkaba && (
                                             message.pairingInfo.merkabaUrl ? (
                                                 <a href={`${message.pairingInfo.merkabaUrl}${message.pairingInfo.merkabaUrl?.includes('?') ? '&' : '?'}utm_source=chatbot`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-100/50 shadow-sm hover:bg-purple-100 transition-colors">
-                                                    <span className="text-base leading-none">✅</span>
+                                                    <svg className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                                     <span>Merkaba</span>
                                                 </a>
                                             ) : (
                                                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-100/50 shadow-sm">
-                                                    <span className="text-base leading-none">✅</span>
+                                                    <svg className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                                     <span>Merkaba</span>
                                                 </div>
                                             )
@@ -2739,7 +2787,7 @@ const Header: React.FC<{
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
                 <div className="flex items-center space-x-3">
-                    <SanaAILogo className="h-10 w-10 text-white" />
+                    <SanaAILogo className="h-10 w-10 text-white saturate-200" />
                     <span className="text-xl font-bold">SANA AI</span>
                 </div>
                 <div className="flex items-center space-x-2 sm:space-x-4">
@@ -2893,11 +2941,17 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                     category: p.category
                 }));
                 
+                const eoIngredients = Array.from(new Set([
+                    ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
+                    ...(eoSmesiResult.medicineTable.eo2Slozeni || [])
+                ]));
+
                 const botMessage: ChatMessage = {
                     id: Date.now().toString(),
                     role: 'bot',
                     text: `Doporučili bychom vám tyto produkty:`,
                     matchedProducts: matchedProducts,
+                    eoIngredients: eoIngredients.length > 0 ? eoIngredients : undefined,
                     pairingInfo: {
                         prawteins: eoSmesiResult.medicineTable.prawtein ? [eoSmesiResult.medicineTable.prawtein] : [],
                         tcmWans: [],
@@ -3045,11 +3099,16 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                     product_code: p.code,
                                     category: p.category
                                 }));
+                                const directIngredients = Array.from(new Set([
+                                    ...(directResult.medicineTable.eo1Slozeni || []),
+                                    ...(directResult.medicineTable.eo2Slozeni || [])
+                                ]));
                                 const botMessage: ChatMessage = {
                                     id: Date.now().toString(),
                                     role: 'bot',
                                     text: `Doporučili bychom vám tyto produkty:`,
                                     matchedProducts,
+                                    eoIngredients: directIngredients.length > 0 ? directIngredients : undefined,
                                     pairingInfo: {
                                         prawteins: directResult.medicineTable.prawtein ? [directResult.medicineTable.prawtein] : [],
                                         tcmWans: [],
@@ -3091,12 +3150,18 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                             product_code: p.code,  // OK snake_case pro enrichFunnelProductsFromDatabase
                             category: p.category
                         }));
+
+                        const mainIngredients = Array.from(new Set([
+                            ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
+                            ...(eoSmesiResult.medicineTable.eo2Slozeni || [])
+                        ]));
                         
                         const botMessage: ChatMessage = {
                             id: Date.now().toString(),
                             role: 'bot',
                             text: `Doporučili bychom vám tyto produkty:`,
                             matchedProducts: matchedProducts,
+                            eoIngredients: mainIngredients.length > 0 ? mainIngredients : undefined,
                             pairingInfo: {
                                 prawteins: eoSmesiResult.medicineTable.prawtein ? [eoSmesiResult.medicineTable.prawtein] : [],
                                 tcmWans: [],
@@ -4852,7 +4917,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                         <div className="relative w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/40"></div>
                       </label>
                       <div className="h-6 w-px bg-white/20"></div>
-                      <SanaAILogo className="h-10 w-auto object-contain" />
+                      <SanaAILogo className="h-10 w-auto object-contain saturate-200" />
                     </div>
                   }
                   buttons={[

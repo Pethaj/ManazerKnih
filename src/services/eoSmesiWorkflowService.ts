@@ -33,6 +33,8 @@ import { supabase } from '../lib/supabase';
 export interface MedicineTable {
   eo1: string | null;      // Esenciální olej 1 (product_name)
   eo2: string | null;      // Esenciální olej 2 (product_name)
+  eo1Slozeni: string[];    // Složky EO1 (z tabulky leceni sloupec EO1_slozeni)
+  eo2Slozeni: string[];    // Složky EO2 (z tabulky leceni sloupec EO2_slozeni)
   prawtein: string | null; // Prawtein product (product_name)
   aloe: boolean;           // Doporučit Aloe?
   aloeProductName: string | null;  // Konkrétní název Aloe produktu (např. "Aloe Vera Immunity")
@@ -164,6 +166,8 @@ async function extractMedicineTable(
   const medicineTable: MedicineTable = {
     eo1: null,
     eo2: null,
+    eo1Slozeni: [],
+    eo2Slozeni: [],
     prawtein: null,  // Prawtein se načítá v getPrawteinProductsForProblem()
     aloe,
     aloeProductName,
@@ -193,10 +197,11 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
 }> {
   const pairingResults = await matchProductCombinationsWithProblems([problemName]);
 
-  const [eoProducts, prawteinProducts, tcmProducts] = await Promise.all([
+  const [eoProducts, prawteinProducts, tcmProducts, slozeniData] = await Promise.all([
     getEOProductsForProblem(problemName),
     getPrawteinProductsForProblem(problemName),
-    getTCMProductsForProblem(problemName)
+    getTCMProductsForProblem(problemName),
+    getEOSlozeniForProblem(problemName)
   ]);
 
   const hasAnyProducts = eoProducts.length > 0 || prawteinProducts.length > 0 || tcmProducts.length > 0 || pairingResults.products.length > 0;
@@ -213,6 +218,8 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
     medicineTable = {
       eo1: null,
       eo2: null,
+      eo1Slozeni: [],
+      eo2Slozeni: [],
       prawtein: null,
       aloe: false,
       aloeProductName: null,
@@ -230,6 +237,8 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
   if (eoProducts[0]) medicineTable.eo1 = eoProducts[0].name;
   if (eoProducts[1]) medicineTable.eo2 = eoProducts[1].name;
   if (prawteinProducts[0]) medicineTable.prawtein = prawteinProducts[0].name;
+  medicineTable.eo1Slozeni = slozeniData.eo1Slozeni;
+  medicineTable.eo2Slozeni = slozeniData.eo2Slozeni;
 
   // TČM wan produkty – přidáme do companionProducts (pokud ještě nejsou ze SQL RPC)
   if (tcmProducts.length > 0) {
@@ -743,5 +752,49 @@ export async function getEOProductsForProblem(
     
   } catch (error) {
     return [];
+  }
+}
+
+// ============================================================================
+// HELPER: Načtení složení EO1 a EO2 z tabulky leceni
+// ============================================================================
+
+/**
+ * Načte složení (ingredience) pro EO1 a EO2 pro daný problém z tabulky leceni.
+ * Sloupce EO1_slozeni a EO2_slozeni obsahují složky oddělené čárkou.
+ *
+ * @param problemName - Název problému
+ * @returns Objekt s poli složek pro eo1 a eo2
+ */
+async function getEOSlozeniForProblem(
+  problemName: string
+): Promise<{ eo1Slozeni: string[]; eo2Slozeni: string[] }> {
+  try {
+    const { data, error } = await supabase
+      .from('leceni')
+      .select('"EO1_slozeni", "EO2_slozeni"')
+      .eq('Problém', problemName)
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      return { eo1Slozeni: [], eo2Slozeni: [] };
+    }
+
+    const record = data[0];
+
+    const parseSlozeni = (raw: string | null): string[] => {
+      if (!raw || raw.trim() === '' || raw.trim() === '–') return [];
+      return raw
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+    };
+
+    return {
+      eo1Slozeni: parseSlozeni(record['EO1_slozeni']),
+      eo2Slozeni: parseSlozeni(record['EO2_slozeni'])
+    };
+  } catch (_error) {
+    return { eo1Slozeni: [], eo2Slozeni: [] };
   }
 }
