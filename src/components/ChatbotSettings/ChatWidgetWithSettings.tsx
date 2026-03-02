@@ -111,7 +111,7 @@ const ChatWidgetWithSettings: React.FC<ChatWidgetWithSettingsProps> = ({
     <>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
+          <div className="w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
             {/* Header s výběrem chatbota */}
             {allowChatbotSelection && availableChatbots.length > 1 && (
               <div className="flex items-center justify-between p-4 border-b border-gray-200">

@@ -2500,7 +2500,7 @@ const ChatWindow: React.FC<{
     }, [messages.length]);
     
     return (
-        <div className="relative flex flex-col h-full">
+        <div className="relative flex flex-col h-full overflow-hidden rounded-3xl">
             {/* Scrollovatelná oblast pro zprávy - fixní výška */}
             <div 
                 ref={chatContainerRef}
@@ -2515,8 +2515,8 @@ const ChatWindow: React.FC<{
             >
                 {messages.length === 0 && !isLoading && (
                     <div className="text-center text-slate-500 flex flex-col items-center justify-center min-h-96">
-                        <SanaAILogo className="h-45 w-45 text-bewit-blue opacity-20 mb-4" />
-                        <h2 className="text-2xl font-semibold text-bewit-blue">Vítejte v Sana AI!</h2>
+                        <SanaAILogo className="h-[250px] w-[600px] text-bewit-blue opacity-20 mb-0 object-contain" />
+                        <h2 className="text-2xl font-semibold text-bewit-blue">Vítejte v Navigatoru!</h2>
                         <p>Jak vám dnes mohu pomoci?</p>
                     </div>
                 )}
@@ -4938,7 +4938,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                 />
                 
                 {/* Chat komponenta nebo ProductSync nebo Vyhledávač */}
-                <div className="flex-1 bg-bewit-gray min-h-0">
+                <div className="flex-1 bg-bewit-gray min-h-0 rounded-3xl overflow-hidden">
                     {isProductSyncVisible ? (
                         <div className="w-full h-full flex-1 overflow-y-auto p-6">
                             <ProductSyncAdmin />

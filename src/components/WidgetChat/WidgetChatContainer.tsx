@@ -123,7 +123,7 @@ export const WidgetChatContainer: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="relative w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] rounded-xl shadow-2xl transition-all duration-300 ease-in-out overflow-hidden">
+      <div className="relative w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] rounded-3xl shadow-2xl transition-all duration-300 ease-in-out overflow-hidden">
         <FilteredSanaChat 
           currentUser={currentUser}
           chatbotId="vany_chat"

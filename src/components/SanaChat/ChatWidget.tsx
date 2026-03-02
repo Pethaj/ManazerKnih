@@ -219,7 +219,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             {/* Chat okno */}
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                    <div className="relative w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
+                    <div className="relative w-[1200px] h-[700px] max-w-[95vw] max-h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out">
                         <FilteredSanaChat 
                             currentUser={currentUser}
                             chatbotId={chatbotId}
