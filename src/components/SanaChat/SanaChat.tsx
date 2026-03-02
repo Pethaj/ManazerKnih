@@ -393,9 +393,6 @@ const sendMessageToAPI = async (
     enableProductScreening?: boolean  // NEW Pokud false, přeskočí screening produktů z textu
 ): Promise<{ text: string; sources: Source[]; productRecommendations?: ProductRecommendation[]; matchedProducts?: any[] }> => {
     try {
-        // Log message info
-        console.log('📤 Sending message:', message.substring(0, 100) + (message.length > 100 ? '...' : ''));
-        
         // Použij webhook URL z nastavení chatbota (pokud je nastavený), jinak fallback na default
         const N8N_WEBHOOK_URL = webhookUrl || DEFAULT_N8N_WEBHOOK_URL;
         
@@ -462,9 +459,36 @@ const sendMessageToAPI = async (
             tokenEshop: ""  // Prázdný pro anonymní
         };
         
-        
+        const response = await fetch(N8N_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorDetails = '';
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorDetails = `<pre style="background-color: #fff0f0; color: #b91c1c; border: 1px solid #fecaca; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; word-wrap: break-word;"><code>${JSON.stringify(errorJson, null, 2)}</code></pre>`;
+            } catch (e) {
+                errorDetails = `<pre style="background-color: #fff0f0; color: #b91c1c; border: 1px solid #fecaca; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; word-wrap: break-word;"><code>${errorText}</code></pre>`;
+            }
+            if (response.status === 500) {
+                throw new Error(`🔧 N8N workflow selhalo (500 error). Zkontrolujte prosím N8N workflow konfiguraci.<br/><br/>Detaily chyby:<br/>${errorDetails}`);
+            }
+            throw new Error(`Chyba serveru: ${response.status} ${response.statusText}.<br/><br/>Odpověď ze serveru:<br/>${errorDetails}`);
+        }
+
+        const data = await response.json();
+
         let responsePayload;
-        
+        if (Array.isArray(data)) {
+            responsePayload = data[0];
+        } else {
+            responsePayload = data;
+        }
+
         // N8N může vracet data v různých formátech, zkusíme několik možností
         if (responsePayload && typeof responsePayload.json === 'object' && responsePayload.json !== null) {
             responsePayload = responsePayload.json;
@@ -4391,7 +4415,7 @@ const UNIVERSAL_CHATBOT_SETTINGS = {
     book_database: true,
     use_feed_1: false,
     use_feed_2: false,
-    webhook_url: 'https://n8n.srv980546.hstgr.cloud/webhook/ca8f84c6-f3af-4a98-ae34-f8b1e031a481/chat',
+    webhook_url: 'https://n8n.srv980546.hstgr.cloud/webhook/c81c17bc-4cb6-4845-961b-52dc28e40686/chat',
     enable_product_router: false,
     enable_manual_funnel: false,
     summarize_history: false,
@@ -4492,7 +4516,8 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
 
 
     // Přepnutí na Universal chatbot nebo zpět na původní (podle aktuálního stavu)
-    const handleSwitchToUniversal = useCallback(async () => {
+    // Synchronní přístup - bez DB dotazu, okamžité nastavení (žádná race condition)
+    const handleSwitchToUniversal = useCallback(() => {
         if (activeChatbotId === 'universal') {
             isSwitchedToUniversal.current = false;
             setSettings(chatbotSettings);
@@ -4500,60 +4525,19 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
             setChatKey(k => k + 1);
         } else {
             isSwitchedToUniversal.current = true;
-            
-            // 🚀 UI FLIP OKAMŽITĚ (pro lepší UX)
+            setSettings(UNIVERSAL_CHATBOT_SETTINGS);
             setActiveChatbotId('universal');
             setChatKey(k => k + 1);
-            
-            try {
-                // Rychlá kontrola jestli 'universal' existuje, abychom se vyhnuli 406 chybě z .single()
-                const { data: universalExists, error: checkError } = await supabaseClient
-                    .from('chatbot_settings')
-                    .select('chatbot_id')
-                    .eq('chatbot_id', 'universal')
-                    .maybeSingle();
-
-                if (checkError) {
-                }
-
-                if (universalExists) {
-                    const universalSettings = await ChatbotSettingsService.getChatbotSettings('universal');
-                    if (universalSettings) {
-                        setSettings({
-                            product_recommendations: universalSettings.product_recommendations,
-                            product_button_recommendations: universalSettings.product_button_recommendations,
-                            inline_product_links: universalSettings.inline_product_links ?? false,
-                            book_database: universalSettings.book_database,
-                            use_feed_1: universalSettings.use_feed_1 ?? false,
-                            use_feed_2: universalSettings.use_feed_2 ?? false,
-                            webhook_url: universalSettings.webhook_url,
-                            enable_product_router: universalSettings.enable_product_router ?? false,
-                            enable_manual_funnel: universalSettings.enable_manual_funnel ?? false,
-                            summarize_history: universalSettings.summarize_history ?? false,
-                            show_sources: universalSettings.show_sources ?? false,
-                            allowed_product_categories: universalSettings.allowed_product_categories ?? [],
-                            enable_product_pairing: universalSettings.enable_product_pairing ?? false,
-                            allowed_labels: [] // V embedu schováváme štítky i pro universal
-                        });
-                    } else {
-                        setSettings(UNIVERSAL_CHATBOT_SETTINGS);
-                    }
-                } else {
-                    setSettings(UNIVERSAL_CHATBOT_SETTINGS);
-                }
-            } catch (err) {
-                setSettings(UNIVERSAL_CHATBOT_SETTINGS);
-            }
         }
     }, [activeChatbotId, chatbotSettings, chatbotId]);
 
     // Handler pro TripleModeSwitch - přepíná mód a synchronizuje chatbota
-    const handleTripleModeChange = useCallback(async (newMode: TripleMode) => {
+    const handleTripleModeChange = useCallback((newMode: TripleMode) => {
         setTripleMode(newMode);
         if (newMode === 'universal' && activeChatbotId !== 'universal') {
-            await handleSwitchToUniversal();
+            handleSwitchToUniversal();
         } else if (newMode !== 'universal' && activeChatbotId === 'universal') {
-            await handleSwitchToUniversal();
+            handleSwitchToUniversal();
         }
     }, [activeChatbotId, handleSwitchToUniversal]);
     
