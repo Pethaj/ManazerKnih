@@ -2516,7 +2516,7 @@ const ChatWindow: React.FC<{
                 {messages.length === 0 && !isLoading && (
                     <div className="text-center text-slate-500 flex flex-col items-center justify-center min-h-96">
                         <SanaAILogo className="h-[250px] w-[600px] text-bewit-blue opacity-20 mb-0 object-contain" />
-                        <h2 className="text-2xl font-semibold text-bewit-blue">Vítejte v Navigatoru!</h2>
+                        <h2 className="text-2xl font-semibold text-bewit-blue">Vítejte v Navigátoru!</h2>
                         <p>Jak vám dnes mohu pomoci?</p>
                     </div>
                 )}
