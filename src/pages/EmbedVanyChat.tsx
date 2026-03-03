@@ -88,6 +88,7 @@ const EmbedVanyChat = () => {
     tokenEshop?: string;  // 🆕 E-shop token z Bewit webu
   }>({});
   const [showFeedback, setShowFeedback] = useState(false);
+  const [chatKey, setChatKey] = useState(0);
   const sessionIdRef = useRef<string>('');
 
   useEffect(() => {
@@ -151,7 +152,7 @@ const EmbedVanyChat = () => {
 
   // 🔥 SAMOSTATNÝ useEffect PRO LISTENER - běží pořád, ne jen při mount
   useEffect(() => {
-    // 🆕 Listener pro postMessage - přijímá USER_DATA kdykoliv
+    // 🆕 Listener pro postMessage - přijímá USER_DATA a REQUEST_CLOSE
     const handleMessage = (event: MessageEvent) => {
       // Validace struktury dat
       if (event.data.type === 'USER_DATA' && event.data.user) {
@@ -170,6 +171,12 @@ const EmbedVanyChat = () => {
           position: event.data.user.position || '',
           tokenEshop: event.data.user.tokenEshop || ''
         });
+      }
+
+      // Klient žádá zavření přes svůj křížek — resetuj chat a zobraz dotazník
+      if (event.data.type === 'REQUEST_CLOSE') {
+        setChatKey(k => k + 1);
+        setShowFeedback(true);
       }
     };
     
@@ -262,7 +269,7 @@ const EmbedVanyChat = () => {
     <div className="w-full h-screen overflow-hidden relative">
       <div className="w-full h-full">
         <FilteredSanaChat 
-          key={userContext.id || userContext.email || 'anonymous'}
+          key={chatKey}
           chatbotId="vany_chat"
           chatbotSettings={chatbotSettings}
           onClose={handleClose}
