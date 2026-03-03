@@ -83,7 +83,9 @@ const EmbedEOSmesi = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [chatKey, setChatKey] = useState(0);
   const sessionIdRef = useRef<string>('');
+  const feedbackSessionIdRef = useRef<string>(''); // ID session před resetem chatu
   const [userContext, setUserContext] = useState<{
     id?: string;
     email?: string;
@@ -156,8 +158,11 @@ const EmbedEOSmesi = () => {
   useEffect(() => {
     // 🆕 Listener pro postMessage - přijímá USER_DATA a REQUEST_CLOSE
     const handleMessage = (event: MessageEvent) => {
-      // Otevři feedback při REQUEST_CLOSE (klik na černý křížek mimo iframe)
+      // Otevři feedback při REQUEST_CLOSE (klik na černý křížek mimo iframe) + resetuj chat
       if (event.data?.type === 'REQUEST_CLOSE') {
+        // Uložíme session ID PŘED resetem chatu, aby feedback mohl zapsat do správné session
+        feedbackSessionIdRef.current = sessionIdRef.current;
+        setChatKey(k => k + 1);
         setShowFeedback(true);
         // Potvrd parentovi že zpráva dorazila - zruší 6s fallback timeout
         if (window.parent !== window) {
@@ -419,7 +424,7 @@ const EmbedEOSmesi = () => {
 
       <div className="w-full h-full">
         <FilteredSanaChat 
-          key={userContext.id || userContext.email || 'anonymous'}
+          key={chatKey}
           chatbotId="eo_smesi"
           chatbotSettings={chatbotSettings}
           onClose={() => {
@@ -435,7 +440,7 @@ const EmbedEOSmesi = () => {
       {showFeedback && (
         <ChatFeedback
           onClose={async (feedback: ChatFeedbackData) => {
-            const sid = sessionIdRef.current;
+            const sid = feedbackSessionIdRef.current || sessionIdRef.current;
             if (sid) {
               await saveChatFeedback(sid, feedback.smiley, feedback.feedbackText);
             }

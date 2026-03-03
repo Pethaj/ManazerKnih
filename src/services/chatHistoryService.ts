@@ -409,10 +409,14 @@ export async function saveChatFeedback(
       .eq('session_id', sessionId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !lastRecord) {
-      return { error: fetchError?.message || 'Záznam nenalezen' };
+    if (fetchError) {
+      return { error: fetchError.message };
+    }
+    if (!lastRecord) {
+      // Session neobsahuje žádné zprávy - feedback nelze uložit k záznamu
+      return { error: null };
     }
 
     const { error } = await supabase
