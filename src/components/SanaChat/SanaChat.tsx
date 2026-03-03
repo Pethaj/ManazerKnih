@@ -2974,7 +2974,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         chatbotId || 'eo_smesi',
                         selectedProblem,
                         botMessage.text,
-                        { categories: selectedCategories, labels: selectedLabels, publication_types: selectedPublicationTypes }
+                        { categories: selectedCategories, labels: selectedLabels, publication_types: selectedPublicationTypes },
+                        { user_info: externalUserInfo }
                     );
                 }
             } else {
@@ -3179,11 +3180,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         if (currentUser?.id || externalUserInfo?.external_user_id) {
                             const userId = currentUser?.id || externalUserInfo?.external_user_id!;
                             await saveChatPairToHistory(
+                                sessionId,
                                 userId,
                                 chatbotId,
                                 text.trim(),
                                 botMessage.text,
-                                currentMetadataForHistory
+                                currentMetadataForHistory,
+                                { user_info: externalUserInfo }
                             );
                         }
                     } else {
@@ -3198,11 +3201,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         if (currentUser?.id || externalUserInfo?.external_user_id) {
                             const userId = currentUser?.id || externalUserInfo?.external_user_id!;
                             await saveChatPairToHistory(
+                                sessionId,
                                 userId,
                                 chatbotId,
                                 text.trim(),
                                 botMessage.text,
-                                currentMetadataForHistory
+                                currentMetadataForHistory,
+                                { user_info: externalUserInfo }
                             );
                         }
                     }
