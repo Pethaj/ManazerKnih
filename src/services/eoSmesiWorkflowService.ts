@@ -280,20 +280,7 @@ export async function processEoSmesiQueryWithKnownProblem(
   problemName: string
 ): Promise<EoSmesiResult> {
   try {
-    console.log('🔍 Processing EO Směsi with Known Problem:', problemName);
-    
     const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problemName);
-    const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
-
-    console.log('🎯 EO Směsi – klasifikovaný problém:', problemName);
-    console.log('🛒 EO Směsi – nalezené produkty:', medicineTable ? {
-      eoSměsi: medicineTable.products.map(p => `${p.name} (${p.code})`),
-      prawtein: medicineTable.prawtein || '–',
-      aloe: medicineTable.aloe ? `✅ ${medicineTable.aloeProductName || 'Aloe'}` : '–',
-      merkaba: medicineTable.merkaba ? '✅ Merkaba' : '–',
-      companionProducts: medicineTable.companionProducts?.map(p => p.name) || [],
-      shouldShowTable
-    } : '⚠️ Žádná tabulka nebyla sestavena');
 
     return {
       success: true,
@@ -337,11 +324,6 @@ export async function processEoSmesiQuery(
   sessionId?: string
 ): Promise<EoSmesiResult> {
   try {
-    console.log('🔍 Processing EO Směsi Query:', {
-      userQuery: userQuery.substring(0, 100),
-      sessionId: sessionId
-    });
-    
     // KROK 1: DEFINICE PROBLÉMU
     const problemClassification = await classifyProblemFromUserMessage(userQuery);
     
@@ -378,16 +360,6 @@ export async function processEoSmesiQuery(
     // KROK 2-5: Sestavení medicine table pro nalezené problémy
     const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problems[0]);
     const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
-    
-    console.log('🎯 EO Směsi – klasifikovaný problém:', problems[0]);
-    console.log('🛒 EO Směsi – nalezené produkty:', medicineTable ? {
-      eoSměsi: medicineTable.products.map(p => `${p.name} (${p.code})`),
-      prawtein: medicineTable.prawtein || '–',
-      aloe: medicineTable.aloe ? `✅ ${medicineTable.aloeProductName || 'Aloe'}` : '–',
-      merkaba: medicineTable.merkaba ? '✅ Merkaba' : '–',
-      companionProducts: medicineTable.companionProducts?.map(p => p.name) || [],
-      shouldShowTable
-    } : '⚠️ Žádná tabulka nebyla sestavena');
     
     return {
       success: true,
@@ -802,8 +774,6 @@ async function getEOSlozeniForProblem(
     const eo2Name: string | null = record['EO 2'] || null;
     const prawteinName: string | null = record['Prawtein'] || null;
 
-    console.log('🔍 [SLOZENI DEBUG] Načteno z leceni pro problém:', problemName, { eo1Name, eo2Name, prawteinName });
-
     // Helper: načte účinné látky z tabulky slozeni (case-insensitive)
     // Vrací POUZE PRVNÍ 3 LÁTKY z každého produktu (bez duplikátů)
     const fetchIngredients = async (productName: string | null): Promise<string[]> => {
@@ -813,7 +783,6 @@ async function getEOSlozeniForProblem(
         .select('ingredients')
         .ilike('blend_name', productName.trim())
         .limit(1);
-      console.log(`🧬 [SLOZENI DEBUG] fetchIngredients('${productName}'):`, { nalezeno: data?.length ?? 0, error: error?.message });
       if (error || !data || data.length === 0) return [];
       const raw: string = data[0].ingredients || '';
       const allIngredients = raw
