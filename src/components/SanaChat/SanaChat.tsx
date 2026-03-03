@@ -140,7 +140,7 @@ interface ChatMessage {
   problemSelectionSubmitted?: boolean; // Flag: formulář byl odeslán, tlačítko se zablokuje
   uncertainProblems?: string[];        // Seznam problémů k výběru
   hideProductCallout?: boolean;        // Skryje "Související produkty BEWIT" callout (produkty jsou jen jako pills v textu)
-  eoIngredients?: string[];            // Složky EO směsí (deduplikované z EO1_slozeni + EO2_slozeni)
+  eoIngredients?: string[];            // Účinné látky (EO1 + EO2 + Prawtein, z tabulky slozeni)
 }
 
 // Rozhraní pro metadata filtrace
@@ -1869,20 +1869,20 @@ const Message: React.FC<{
                                 </p>
                             </div>
 
-                            {/* Složky EO směsí */}
+                            {/* Účinné látky - z tabulky slozeni */}
                             <div className="bg-white px-4 py-3">
                                 <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider mb-2.5">
-                                    Složení těchto směsí zahrnuje:
+                                    Účinné látky:
                                 </p>
-                                <div className="flex flex-wrap gap-1.5">
+                                <div className="flex flex-col gap-2">
                                     {message.eoIngredients.map((ingredient, idx) => (
-                                        <span
+                                        <div
                                             key={idx}
-                                            className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-100 shadow-sm"
+                                            className="flex items-center px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-100 shadow-sm"
                                         >
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 flex-shrink-0" />
-                                            {ingredient}
-                                        </span>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2 flex-shrink-0" />
+                                            <span>{ingredient}</span>
+                                        </div>
                                     ))}
                                 </div>
                             </div>
@@ -2943,8 +2943,26 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 
                 const eoIngredients = Array.from(new Set([
                     ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
-                    ...(eoSmesiResult.medicineTable.eo2Slozeni || [])
+                    ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
+                    ...(eoSmesiResult.medicineTable.prawteinSlozeni || [])
                 ]));
+
+                console.log('💊 [SANACHAT DEBUG] eoIngredients sestaveny:', {
+                    eo1: eoSmesiResult.medicineTable.eo1,
+                    eo2: eoSmesiResult.medicineTable.eo2,
+                    prawtein: eoSmesiResult.medicineTable.prawtein,
+                    eo1Slozeni: eoSmesiResult.medicineTable.eo1Slozeni,
+                    eo2Slozeni: eoSmesiResult.medicineTable.eo2Slozeni,
+                    prawteinSlozeni: eoSmesiResult.medicineTable.prawteinSlozeni,
+                    finalEoIngredients: eoIngredients
+                });
+
+                // DIAGNÓZA: Overeni ze data pochazi ze spravne tabulky
+                if (eoSmesiResult.medicineTable.eo2Slozeni?.length === 1 && 
+                    eoSmesiResult.medicineTable.eo2Slozeni[0]?.includes('|')) {
+                    console.error('❌ [BUG] eo2Slozeni obsahuje nerozdělený string - Vite servíruje starý bundle!', 
+                        'Restartuj Vite server na portu 5173!');
+                }
 
                 const botMessage: ChatMessage = {
                     id: Date.now().toString(),
@@ -3102,7 +3120,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                 }));
                                 const directIngredients = Array.from(new Set([
                                     ...(directResult.medicineTable.eo1Slozeni || []),
-                                    ...(directResult.medicineTable.eo2Slozeni || [])
+                                    ...(directResult.medicineTable.eo2Slozeni || []),
+                                    ...(directResult.medicineTable.prawteinSlozeni || [])
                                 ]));
                                 const botMessage: ChatMessage = {
                                     id: Date.now().toString(),
@@ -3154,7 +3173,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
 
                         const mainIngredients = Array.from(new Set([
                             ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
-                            ...(eoSmesiResult.medicineTable.eo2Slozeni || [])
+                            ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
+                            ...(eoSmesiResult.medicineTable.prawteinSlozeni || [])
                         ]));
                         
                         const botMessage: ChatMessage = {

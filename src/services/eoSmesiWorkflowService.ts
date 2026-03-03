@@ -33,8 +33,9 @@ import { supabase } from '../lib/supabase';
 export interface MedicineTable {
   eo1: string | null;      // Esenciální olej 1 (product_name)
   eo2: string | null;      // Esenciální olej 2 (product_name)
-  eo1Slozeni: string[];    // Složky EO1 (z tabulky leceni sloupec EO1_slozeni)
-  eo2Slozeni: string[];    // Složky EO2 (z tabulky leceni sloupec EO2_slozeni)
+  eo1Slozeni: string[];    // Účinné látky EO1 (z tabulky slozeni)
+  eo2Slozeni: string[];    // Účinné látky EO2 (z tabulky slozeni)
+  prawteinSlozeni: string[];  // Účinné látky Prawtein (z tabulky slozeni)
   prawtein: string | null; // Prawtein product (product_name)
   aloe: boolean;           // Doporučit Aloe?
   aloeProductName: string | null;  // Konkrétní název Aloe produktu (např. "Aloe Vera Immunity")
@@ -168,6 +169,7 @@ async function extractMedicineTable(
     eo2: null,
     eo1Slozeni: [],
     eo2Slozeni: [],
+    prawteinSlozeni: [],
     prawtein: null,  // Prawtein se načítá v getPrawteinProductsForProblem()
     aloe,
     aloeProductName,
@@ -220,6 +222,7 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
       eo2: null,
       eo1Slozeni: [],
       eo2Slozeni: [],
+      prawteinSlozeni: [],
       prawtein: null,
       aloe: false,
       aloeProductName: null,
@@ -239,6 +242,17 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
   if (prawteinProducts[0]) medicineTable.prawtein = prawteinProducts[0].name;
   medicineTable.eo1Slozeni = slozeniData.eo1Slozeni;
   medicineTable.eo2Slozeni = slozeniData.eo2Slozeni;
+  medicineTable.prawteinSlozeni = slozeniData.prawteinSlozeni;
+
+  console.log('🧪 [SLOZENI DEBUG] Účinné látky přiřazeny do medicineTable:', {
+    eo1: medicineTable.eo1,
+    eo2: medicineTable.eo2,
+    prawtein: medicineTable.prawtein,
+    eo1Slozeni: slozeniData.eo1Slozeni,
+    eo2Slozeni: slozeniData.eo2Slozeni,
+    prawteinSlozeni: slozeniData.prawteinSlozeni,
+    celkem: slozeniData.eo1Slozeni.length + slozeniData.eo2Slozeni.length + slozeniData.prawteinSlozeni.length
+  });
 
   // TČM wan produkty – přidáme do companionProducts (pokud ještě nejsou ze SQL RPC)
   if (tcmProducts.length > 0) {
@@ -760,41 +774,64 @@ export async function getEOProductsForProblem(
 // ============================================================================
 
 /**
- * Načte složení (ingredience) pro EO1 a EO2 pro daný problém z tabulky leceni.
- * Sloupce EO1_slozeni a EO2_slozeni obsahují složky oddělené čárkou.
+ * Načte účinné látky pro EO1, EO2 a Prawtein přímo z tabulky slozeni.
+ * Párování je case-insensitive podle blend_name.
+ * Ingredience jsou odděleny " | " a zobrazují se pouze PRVNÍ 3 látky z každého produktu.
+ * Výsledné pole obsahuje POUZE UNIKÁTNÍ látky (bez duplikátů).
  *
- * @param problemName - Název problému
- * @returns Objekt s poli složek pro eo1 a eo2
+ * @param problemName - Název problému (pro načtení EO 1, EO 2, Prawtein z leceni)
+ * @returns Objekt s poli látek pro eo1, eo2 a prawtein (max 3 látky z každého)
  */
 async function getEOSlozeniForProblem(
   problemName: string
-): Promise<{ eo1Slozeni: string[]; eo2Slozeni: string[] }> {
+): Promise<{ eo1Slozeni: string[]; eo2Slozeni: string[]; prawteinSlozeni: string[] }> {
   try {
-    const { data, error } = await supabase
+    // Načti názvy EO 1, EO 2 a Prawtein z tabulky leceni
+    const { data: leceniData, error: leceniError } = await supabase
       .from('leceni')
-      .select('"EO1_slozeni", "EO2_slozeni"')
+      .select('"EO 1", "EO 2", "Prawtein"')
       .eq('Problém', problemName)
       .limit(1);
 
-    if (error || !data || data.length === 0) {
-      return { eo1Slozeni: [], eo2Slozeni: [] };
+    if (leceniError || !leceniData || leceniData.length === 0) {
+      return { eo1Slozeni: [], eo2Slozeni: [], prawteinSlozeni: [] };
     }
 
-    const record = data[0];
+    const record = leceniData[0];
+    const eo1Name: string | null = record['EO 1'] || null;
+    const eo2Name: string | null = record['EO 2'] || null;
+    const prawteinName: string | null = record['Prawtein'] || null;
 
-    const parseSlozeni = (raw: string | null): string[] => {
-      if (!raw || raw.trim() === '' || raw.trim() === '–') return [];
-      return raw
-        .split(',')
+    console.log('🔍 [SLOZENI DEBUG] Načteno z leceni pro problém:', problemName, { eo1Name, eo2Name, prawteinName });
+
+    // Helper: načte účinné látky z tabulky slozeni (case-insensitive)
+    // Vrací POUZE PRVNÍ 3 LÁTKY z každého produktu (bez duplikátů)
+    const fetchIngredients = async (productName: string | null): Promise<string[]> => {
+      if (!productName || productName.trim() === '' || productName === 'null') return [];
+      const { data, error } = await supabase
+        .from('slozeni')
+        .select('ingredients')
+        .ilike('blend_name', productName.trim())
+        .limit(1);
+      console.log(`🧬 [SLOZENI DEBUG] fetchIngredients('${productName}'):`, { nalezeno: data?.length ?? 0, error: error?.message });
+      if (error || !data || data.length === 0) return [];
+      const raw: string = data[0].ingredients || '';
+      const allIngredients = raw
+        .split('|')
         .map((s: string) => s.trim())
         .filter(Boolean);
+      // Vrátíme POUZE PRVNÍ 3 LÁTKY
+      return allIngredients.slice(0, 3);
     };
 
-    return {
-      eo1Slozeni: parseSlozeni(record['EO1_slozeni']),
-      eo2Slozeni: parseSlozeni(record['EO2_slozeni'])
-    };
+    const [eo1Slozeni, eo2Slozeni, prawteinSlozeni] = await Promise.all([
+      fetchIngredients(eo1Name),
+      fetchIngredients(eo2Name),
+      fetchIngredients(prawteinName)
+    ]);
+
+    return { eo1Slozeni, eo2Slozeni, prawteinSlozeni };
   } catch (_error) {
-    return { eo1Slozeni: [], eo2Slozeni: [] };
+    return { eo1Slozeni: [], eo2Slozeni: [], prawteinSlozeni: [] };
   }
 }
