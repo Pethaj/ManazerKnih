@@ -27,15 +27,23 @@ import { supabase } from '../lib/supabase';
 // ============================================================================
 
 /**
+ * Ingredience s popisem z tabulky ingredients_description
+ */
+export interface IngredientWithDescription {
+  name: string;
+  description: string | null;
+}
+
+/**
  * Struktura léčebné tabulky (Medicine Table)
  * Obsahuje extrahované produkty z tabulky leceni
  */
 export interface MedicineTable {
   eo1: string | null;      // Esenciální olej 1 (product_name)
   eo2: string | null;      // Esenciální olej 2 (product_name)
-  eo1Slozeni: string[];    // Účinné látky EO1 (z tabulky slozeni)
-  eo2Slozeni: string[];    // Účinné látky EO2 (z tabulky slozeni)
-  prawteinSlozeni: string[];  // Účinné látky Prawtein (z tabulky slozeni)
+  eo1Slozeni: IngredientWithDescription[];    // Účinné látky EO1 (z tabulky slozeni + popis)
+  eo2Slozeni: IngredientWithDescription[];    // Účinné látky EO2 (z tabulky slozeni + popis)
+  prawteinSlozeni: IngredientWithDescription[];  // Účinné látky Prawtein (z tabulky slozeni + popis)
   prawtein: string | null; // Prawtein product (product_name)
   aloe: boolean;           // Doporučit Aloe?
   aloeProductName: string | null;  // Konkrétní název Aloe produktu (např. "Aloe Vera Immunity")
@@ -281,6 +289,8 @@ export async function processEoSmesiQueryWithKnownProblem(
 ): Promise<EoSmesiResult> {
   try {
     const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problemName);
+
+    const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
 
     return {
       success: true,
@@ -746,19 +756,19 @@ export async function getEOProductsForProblem(
 // ============================================================================
 
 /**
- * Načte účinné látky pro EO1, EO2 a Prawtein přímo z tabulky slozeni.
+ * Načte účinné látky pro EO1, EO2 a Prawtein přímo z tabulky slozeni
+ * a doplní jejich popis z tabulky ingredients_description.
  * Párování je case-insensitive podle blend_name.
- * Ingredience jsou odděleny " | " a zobrazují se pouze PRVNÍ 3 látky z každého produktu.
- * Výsledné pole obsahuje POUZE UNIKÁTNÍ látky (bez duplikátů).
+ * Zobrazují se pouze PRVNÍ 3 látky z každého produktu.
+ * Látky bez záznamu v ingredients_description mají description: null a nezobrazí se.
  *
  * @param problemName - Název problému (pro načtení EO 1, EO 2, Prawtein z leceni)
- * @returns Objekt s poli látek pro eo1, eo2 a prawtein (max 3 látky z každého)
+ * @returns Objekt s poli látek (s popisem) pro eo1, eo2 a prawtein
  */
 async function getEOSlozeniForProblem(
   problemName: string
-): Promise<{ eo1Slozeni: string[]; eo2Slozeni: string[]; prawteinSlozeni: string[] }> {
+): Promise<{ eo1Slozeni: IngredientWithDescription[]; eo2Slozeni: IngredientWithDescription[]; prawteinSlozeni: IngredientWithDescription[] }> {
   try {
-    // Načti názvy EO 1, EO 2 a Prawtein z tabulky leceni
     const { data: leceniData, error: leceniError } = await supabase
       .from('leceni')
       .select('"EO 1", "EO 2", "Prawtein"')
@@ -774,9 +784,8 @@ async function getEOSlozeniForProblem(
     const eo2Name: string | null = record['EO 2'] || null;
     const prawteinName: string | null = record['Prawtein'] || null;
 
-    // Helper: načte účinné látky z tabulky slozeni (case-insensitive)
-    // Vrací POUZE PRVNÍ 3 LÁTKY z každého produktu (bez duplikátů)
-    const fetchIngredients = async (productName: string | null): Promise<string[]> => {
+    // Načte názvy látek z tabulky slozeni (max 3 z každého produktu)
+    const fetchRawIngredients = async (productName: string | null): Promise<string[]> => {
       if (!productName || productName.trim() === '' || productName === 'null') return [];
       const { data, error } = await supabase
         .from('slozeni')
@@ -785,21 +794,54 @@ async function getEOSlozeniForProblem(
         .limit(1);
       if (error || !data || data.length === 0) return [];
       const raw: string = data[0].ingredients || '';
-      const allIngredients = raw
+      return raw
         .split('|')
         .map((s: string) => s.trim())
-        .filter(Boolean);
-      // Vrátíme POUZE PRVNÍ 3 LÁTKY
-      return allIngredients.slice(0, 3);
+        .filter(Boolean)
+        .slice(0, 3);
     };
 
-    const [eo1Slozeni, eo2Slozeni, prawteinSlozeni] = await Promise.all([
-      fetchIngredients(eo1Name),
-      fetchIngredients(eo2Name),
-      fetchIngredients(prawteinName)
+    const [eo1Names, eo2Names, prawteinNames] = await Promise.all([
+      fetchRawIngredients(eo1Name),
+      fetchRawIngredients(eo2Name),
+      fetchRawIngredients(prawteinName)
     ]);
 
-    return { eo1Slozeni, eo2Slozeni, prawteinSlozeni };
+    // Všechny unikátní názvy látek
+    const allUniqueNames = Array.from(new Set([...eo1Names, ...eo2Names, ...prawteinNames]));
+
+    // Paralelní dotazy – každá látka zvlášť (PostgREST .in() selhává na názvech se závorkami)
+    let descriptionMap: Record<string, string> = {};
+    if (allUniqueNames.length > 0) {
+      const results = await Promise.all(
+        allUniqueNames.map(name =>
+          supabase
+            .from('ingredients_description')
+            .select('Ingredient, Description')
+            .eq('Ingredient', name)
+            .limit(1)
+        )
+      );
+      
+      for (let i = 0; i < results.length; i++) {
+        const { data, error } = results[i];
+        if (data && data.length > 0 && data[0].Ingredient && data[0].Description) {
+          descriptionMap[data[0].Ingredient] = data[0].Description;
+        }
+      }
+    }
+
+    // Sestaví IngredientWithDescription[] – pouze látky s existujícím popisem
+    const toEnriched = (names: string[]): IngredientWithDescription[] =>
+      names
+        .filter(name => descriptionMap[name] != null)
+        .map(name => ({ name, description: descriptionMap[name] }));
+
+    return {
+      eo1Slozeni: toEnriched(eo1Names),
+      eo2Slozeni: toEnriched(eo2Names),
+      prawteinSlozeni: toEnriched(prawteinNames)
+    };
   } catch (_error) {
     return { eo1Slozeni: [], eo2Slozeni: [], prawteinSlozeni: [] };
   }

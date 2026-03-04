@@ -42,7 +42,7 @@ import { openBewitProductLink } from '../../services/productLinkService';
 import { classifyProblemFromUserMessage } from '../../services/problemClassificationService';
 import { matchProductCombinationsWithProblems } from '../../services/productPairingService';
 // 🌿 EO Směsi Workflow Service - zpracování EO Směsi dotazů
-import { processEoSmesiQuery, processEoSmesiQueryWithKnownProblem } from '../../services/eoSmesiWorkflowService';
+import { processEoSmesiQuery, processEoSmesiQueryWithKnownProblem, IngredientWithDescription } from '../../services/eoSmesiWorkflowService';
 // 🔍 Problem Selection Form - formulář pro výběr problému (EO Směsi Chat)
 import { ProblemSelectionForm } from './ProblemSelectionForm';
 // 🔍 Feed Agent - vyhledávač produktů
@@ -140,7 +140,7 @@ interface ChatMessage {
   problemSelectionSubmitted?: boolean; // Flag: formulář byl odeslán, tlačítko se zablokuje
   uncertainProblems?: string[];        // Seznam problémů k výběru
   hideProductCallout?: boolean;        // Skryje "Související produkty BEWIT" callout (produkty jsou jen jako pills v textu)
-  eoIngredients?: string[];            // Účinné látky (EO1 + EO2 + Prawtein, z tabulky slozeni)
+  eoIngredients?: IngredientWithDescription[];  // Účinné látky (EO1 + EO2 + Prawtein, z tabulky slozeni + popis)
 }
 
 // Rozhraní pro metadata filtrace
@@ -967,7 +967,7 @@ const ProductCalloutButton: React.FC<{
                     </ReactMarkdown>
                 </div>
                 {pinyinName && pinyinName !== productName && (
-                    <div className="text-[10px] text-gray-500 truncate mt-0.5">
+                    <div className="text-xs text-gray-500 truncate mt-0.5">
                         <ReactMarkdown 
                           remarkPlugins={[remarkGfm]}
                           components={{
@@ -1475,7 +1475,7 @@ const Message: React.FC<{
                                 {/* 🆕 Aloe/Merkaba indikátory (pokud je zapnuté párování) */}
                                 {chatbotSettings?.enable_product_pairing && (pairingRecommendations.aloe || pairingRecommendations.merkaba) && (
                                     <div className="mt-4 pt-4 border-t border-blue-100">
-                                        <p className="text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Doplňkové doporučení:</p>
+                                        <p className="text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">Doplňkové doporučení:</p>
                                         <div className="flex flex-wrap gap-3 mb-3">
                                             {pairingRecommendations.aloe && (
                                                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100/50 shadow-sm">
@@ -1572,17 +1572,17 @@ const Message: React.FC<{
                                     h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
                                     h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
                                     h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
-                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed text-base" {...props} />,
                                     strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                                     a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
-                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
-                                    li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1 text-base" {...props} />,
+                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1 text-base" {...props} />,
+                                    li: ({node, ...props}) => <li className="ml-4 text-base" {...props} />,
                                     code: ({node, inline, ...props}: any) => 
                                         inline ? (
-                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-base font-mono" {...props} />
                                         ) : (
-                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-base" {...props} />
                                         ),
                                     table: ({node, ...props}) => (
                                         <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
@@ -1592,8 +1592,8 @@ const Message: React.FC<{
                                     thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
                                     tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
                                     tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
-                                    td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-sm font-bold text-white uppercase tracking-wider" {...props} />,
+                                    td: ({node, ...props}) => <td className="px-6 py-4 text-base text-slate-700 whitespace-nowrap" {...props} />,
                                 }}
                             >
                                 {afterSection}
@@ -1611,17 +1611,17 @@ const Message: React.FC<{
                                 h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
                                 h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
                                 h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
-                                p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                                p: ({node, ...props}) => <p className="my-2 leading-relaxed text-base" {...props} />,
                                 strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                                 a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                                ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
-                                ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
-                                li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1 text-base" {...props} />,
+                                ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1 text-base" {...props} />,
+                                li: ({node, ...props}) => <li className="ml-4 text-base" {...props} />,
                                 code: ({node, inline, ...props}: any) => 
                                     inline ? (
-                                        <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                        <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-base font-mono" {...props} />
                                     ) : (
-                                        <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                        <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-base" {...props} />
                                     ),
                                 table: ({node, ...props}) => (
                                     <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
@@ -1631,8 +1631,8 @@ const Message: React.FC<{
                                 thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
                                 tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
                                 tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-                                th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
-                                td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                                th: ({node, ...props}) => <th className="px-6 py-3 text-left text-sm font-bold text-white uppercase tracking-wider" {...props} />,
+                                td: ({node, ...props}) => <td className="px-6 py-4 text-base text-slate-700 whitespace-nowrap" {...props} />,
                             }}
                         >
                             {textSegment}
@@ -1670,17 +1670,17 @@ const Message: React.FC<{
                         h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
                         h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
                         h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
-                        p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                        p: ({node, ...props}) => <p className="my-2 leading-relaxed text-base" {...props} />,
                         strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                         a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                        ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
-                        li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1 text-base" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1 text-base" {...props} />,
+                        li: ({node, ...props}) => <li className="ml-4 text-base" {...props} />,
                         code: ({node, inline, ...props}: any) => 
                             inline ? (
-                                <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-base font-mono" {...props} />
                             ) : (
-                                <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-base" {...props} />
                             ),
                         table: ({node, ...props}) => (
                             <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
@@ -1690,8 +1690,8 @@ const Message: React.FC<{
                         thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
                         tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
                         tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-                        th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
-                        td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                        th: ({node, ...props}) => <th className="px-6 py-3 text-left text-sm font-bold text-white uppercase tracking-wider" {...props} />,
+                        td: ({node, ...props}) => <td className="px-6 py-4 text-base text-slate-700 whitespace-nowrap" {...props} />,
                     }}
                 >
                     {textSegment}
@@ -1709,17 +1709,17 @@ const Message: React.FC<{
                         h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
                         h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
                         h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
-                        p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                        p: ({node, ...props}) => <p className="my-2 leading-relaxed text-base" {...props} />,
                         strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                         a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                        ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
-                        li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1 text-base" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1 text-base" {...props} />,
+                        li: ({node, ...props}) => <li className="ml-4 text-base" {...props} />,
                         code: ({node, inline, ...props}: any) => 
                             inline ? (
-                                <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-base font-mono" {...props} />
                             ) : (
-                                <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-base" {...props} />
                             ),
                         table: ({node, ...props}) => (
                             <div className="overflow-x-auto my-4 rounded-lg shadow-sm border border-slate-200">
@@ -1729,8 +1729,8 @@ const Message: React.FC<{
                         thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
                         tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
                         tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-                        th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
-                        td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                        th: ({node, ...props}) => <th className="px-6 py-3 text-left text-sm font-bold text-white uppercase tracking-wider" {...props} />,
+                        td: ({node, ...props}) => <td className="px-6 py-4 text-base text-slate-700 whitespace-nowrap" {...props} />,
                     }}
                 >
                     {text}
@@ -1777,13 +1777,13 @@ const Message: React.FC<{
                                     h4: ({node, ...props}) => <h4 className="text-base font-bold mt-2 mb-1" {...props} />,
                                     h5: ({node, ...props}) => <h5 className="text-sm font-bold mt-1 mb-1" {...props} />,
                                     h6: ({node, ...props}) => <h6 className="text-xs font-bold mt-1 mb-1" {...props} />,
-                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed" {...props} />,
+                                    p: ({node, ...props}) => <p className="my-2 leading-relaxed text-base" {...props} />,
                                     strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                                     em: ({node, ...props}) => <em className="italic" {...props} />,
                                     a: ({node, ...props}) => <a className="text-bewit-blue hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
-                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
-                                    li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1 text-base" {...props} />,
+                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1 text-base" {...props} />,
+                                    li: ({node, ...props}) => <li className="ml-4 text-base" {...props} />,
                                     img: ({node, ...props}) => (
                                         <img 
                                             className="max-w-full h-auto rounded-lg my-3 shadow-md block" 
@@ -1793,9 +1793,9 @@ const Message: React.FC<{
                                     ),
                                     code: ({node, inline, ...props}: any) => 
                                         inline ? (
-                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                                            <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-base font-mono" {...props} />
                                         ) : (
-                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-sm" {...props} />
+                                            <code className="block bg-slate-100 text-slate-800 p-3 rounded-lg my-2 overflow-x-auto font-mono text-base" {...props} />
                                         ),
                                     pre: ({node, ...props}) => <pre className="bg-slate-100 p-3 rounded-lg my-2 overflow-x-auto" {...props} />,
                                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-bewit-blue pl-4 my-2 italic text-slate-600" {...props} />,
@@ -1808,8 +1808,8 @@ const Message: React.FC<{
                                     thead: ({node, ...props}) => <thead className="bg-gradient-to-r from-bewit-blue to-blue-700" {...props} />,
                                     tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200" {...props} />,
                                     tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider" {...props} />,
-                                    td: ({node, ...props}) => <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap" {...props} />,
+                                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-sm font-bold text-white uppercase tracking-wider" {...props} />,
+                                    td: ({node, ...props}) => <td className="px-6 py-4 text-base text-slate-700 whitespace-nowrap" {...props} />,
                                 }}
                             >
                                 {message.text || ''}
@@ -1857,31 +1857,44 @@ const Message: React.FC<{
                                 <svg className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <p className="text-[11px] text-amber-700 leading-relaxed">
+                                <p className="text-sm text-amber-700 leading-relaxed">
                                     <span className="font-semibold">Upozornění:</span> Informace slouží pro vzdělávací účely. Produkty BEWIT nejsou určeny k léčbě ani diagnostice onemocnění. V případě zdravotních potíží se obraťte na svého lékaře.
                                 </p>
                             </div>
 
                             {/* Aromaterapeutický text */}
                             <div className="px-4 py-3 border-b border-emerald-100">
-                                <p className="text-[12px] text-slate-600 leading-relaxed">
+                                <p className="text-base text-slate-600 leading-relaxed">
                                     Společnost BEWIT neposkytuje léčebná doporučení. V situacích spojených s výrazným svalovým napětím nebo fyzickým diskomfortem se v aromaterapeutické literatuře pracuje s vybranými esenciálními oleji, jejichž složky jsou zkoumány pro svůj vliv na vnímání nepohodlí a napětí.
                                 </p>
                             </div>
 
                             {/* Účinné látky - z tabulky slozeni */}
                             <div className="bg-white px-4 py-3">
-                                <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider mb-2.5">
+                                <p className="text-sm font-semibold text-emerald-700 uppercase tracking-wider mb-2.5">
                                     Účinné látky:
                                 </p>
                                 <div className="flex flex-col gap-2">
                                     {message.eoIngredients.map((ingredient, idx) => (
                                         <div
                                             key={idx}
-                                            className="flex items-center px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-100 shadow-sm"
+                                            className="px-3 py-2.5 rounded-lg text-base bg-emerald-50 border border-emerald-100 shadow-sm"
                                         >
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2 flex-shrink-0" />
-                                            <span>{ingredient}</span>
+                                            <div>
+                                                <div className="flex-1">
+                                                    <span className="font-semibold text-emerald-800 text-sm">{ingredient.name}:</span>
+                                                    {ingredient.description && (
+                                                        <span className="text-sm text-slate-600 ml-1">
+                                                            {ingredient.description}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {!ingredient.description && (
+                                                <p className="mt-1 ml-3.5 text-sm text-slate-600 leading-relaxed">
+                                                    {ingredient.description}
+                                                </p>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -1889,7 +1902,7 @@ const Message: React.FC<{
 
                             {/* Intro text před produkty */}
                             <div className="bg-white px-4 pb-3">
-                                <p className="text-[12px] text-slate-500">
+                                <p className="text-base text-slate-500">
                                     Níže uvádíme produkty BEWIT, které řadu těchto složek obsahují:
                                 </p>
                             </div>
@@ -1943,7 +1956,7 @@ const Message: React.FC<{
                                     
                                     return categories.map((cat) => (
                                         <div key={cat}>
-                                            <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
+                                            <p className="text-sm font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
                                             <div className="flex flex-col gap-2.5">
                                                 {byCategory[cat].map((product, index) => (
                                                     chatbotId === 'eo_smesi' ? (
@@ -1974,7 +1987,7 @@ const Message: React.FC<{
                             {/* Aloe/Merkaba textové odkazy */}
                             {chatbotSettings?.enable_product_pairing && message.pairingInfo && (message.pairingInfo.aloe || message.pairingInfo.merkaba) && (
                                 <div className="mt-4 pt-4 border-t border-blue-100">
-                                    <p className="text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Doplňkové doporučení:</p>
+                                    <p className="text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">Doplňkové doporučení:</p>
                                     <div className="flex flex-wrap gap-3">
                                         {message.pairingInfo.aloe && (
                                             message.pairingInfo.aloeUrl ? (
@@ -2028,7 +2041,7 @@ const Message: React.FC<{
                                                 });
                                                 return Object.entries(byCategory).map(([cat, products]) => (
                                                     <div key={cat}>
-                                                        <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
+                                                        <p className="text-sm font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
                                                         <div className="flex flex-col gap-2.5">
                                                             {products!.map((p, i) => (
                                                                 <ProductCalloutButton
@@ -2352,7 +2365,7 @@ const Message: React.FC<{
                                                     });
                                                     return Object.entries(byCategory).map(([cat, products]) => (
                                                         <div key={cat}>
-                                                            <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
+                                                            <p className="text-sm font-bold text-gray-500 mb-2 uppercase tracking-wider">{cat}</p>
                                                             <div className="flex flex-col gap-2.5">
                                                                 {products!.map((p, i) => (
                                                                     <ProductCalloutButton
@@ -2941,11 +2954,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                     category: p.category
                 }));
                 
-                const eoIngredients = Array.from(new Set([
-                    ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
-                    ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
-                    ...(eoSmesiResult.medicineTable.prawteinSlozeni || [])
-                ]));
+                const eoIngredients = Array.from(
+                    new Map([
+                        ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
+                        ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
+                        ...(eoSmesiResult.medicineTable.prawteinSlozeni || [])
+                    ].map(i => [i.name, i])).values()
+                );
 
                 console.log('💊 [SANACHAT DEBUG] eoIngredients sestaveny:', {
                     eo1: eoSmesiResult.medicineTable.eo1,
@@ -2959,7 +2974,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
 
                 // DIAGNÓZA: Overeni ze data pochazi ze spravne tabulky
                 if (eoSmesiResult.medicineTable.eo2Slozeni?.length === 1 && 
-                    eoSmesiResult.medicineTable.eo2Slozeni[0]?.includes('|')) {
+                    eoSmesiResult.medicineTable.eo2Slozeni[0]?.name?.includes('|')) {
                     console.error('❌ [BUG] eo2Slozeni obsahuje nerozdělený string - Vite servíruje starý bundle!', 
                         'Restartuj Vite server na portu 5173!');
                 }
@@ -3118,11 +3133,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                     product_code: p.code,
                                     category: p.category
                                 }));
-                                const directIngredients = Array.from(new Set([
-                                    ...(directResult.medicineTable.eo1Slozeni || []),
-                                    ...(directResult.medicineTable.eo2Slozeni || []),
-                                    ...(directResult.medicineTable.prawteinSlozeni || [])
-                                ]));
+                                const directIngredients = Array.from(
+                                    new Map([
+                                        ...(directResult.medicineTable.eo1Slozeni || []),
+                                        ...(directResult.medicineTable.eo2Slozeni || []),
+                                        ...(directResult.medicineTable.prawteinSlozeni || [])
+                                    ].map(i => [i.name, i])).values()
+                                );
                                 const botMessage: ChatMessage = {
                                     id: Date.now().toString(),
                                     role: 'bot',
@@ -3171,11 +3188,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                             category: p.category
                         }));
 
-                        const mainIngredients = Array.from(new Set([
-                            ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
-                            ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
-                            ...(eoSmesiResult.medicineTable.prawteinSlozeni || [])
-                        ]));
+                        const mainIngredients = Array.from(
+                            new Map([
+                                ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
+                                ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
+                                ...(eoSmesiResult.medicineTable.prawteinSlozeni || [])
+                            ].map(i => [i.name, i])).values()
+                        );
                         
                         const botMessage: ChatMessage = {
                             id: Date.now().toString(),
