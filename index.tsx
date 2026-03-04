@@ -3622,6 +3622,18 @@ const App = ({ currentUser }: { currentUser: User }) => {
     const [isConvertModalOpen, setConvertModalOpen] = useState(false);
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; book: Book | null }>({ isOpen: false, book: null });
     const [isBulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+    const [bulkVectorUpload, setBulkVectorUpload] = useState<{
+        isOpen: boolean;
+        isRunning: boolean;
+        current: number;
+        total: number;
+        currentBookTitle: string;
+        results: { bookId: string; title: string; success: boolean; message: string }[];
+        isDone: boolean;
+        mode: 'selection' | 'processing'; // 'selection' = vybírá typ, 'processing' = běží nahrávání
+        uploadType: 'pdf' | 'text' | 'metadata' | null; // Typ nahrávání
+        selectedBooks: Book[]; // Knihy které se nahrávají
+    }>({ isOpen: false, isRunning: false, current: 0, total: 0, currentBookTitle: '', results: [], isDone: false, mode: 'selection', uploadType: null, selectedBooks: [] });
     const [vectorDbConfirmation, setVectorDbConfirmation] = useState<{ isOpen: boolean; book: Book | null; missingFields: string[] }>({ isOpen: false, book: null, missingFields: [] });
     const [largePdfWarning, setLargePdfWarning] = useState<{ isOpen: boolean; book: Book | null; pageCount: number }>({ isOpen: false, book: null, pageCount: 0 });
     const [vectorProcessingBooks, setVectorProcessingBooks] = useState<Set<string>>(new Set()); // Sleduje, které knihy se právě zpracovávají
@@ -5108,6 +5120,79 @@ const App = ({ currentUser }: { currentUser: User }) => {
         downloadFile(xmlContent, 'export.xml', 'application/xml');
     };
 
+    const handleBulkVectorUpload = async () => {
+        const selectedBooks = books.filter(b => selectedBookIds.has(b.id));
+        if (selectedBooks.length === 0) return;
+
+        setBulkVectorUpload({
+            isOpen: true,
+            isRunning: false,
+            current: 0,
+            total: selectedBooks.length,
+            currentBookTitle: '',
+            results: [],
+            isDone: false,
+            mode: 'selection',
+            uploadType: null,
+            selectedBooks: selectedBooks,
+        });
+    };
+
+    const executeBulkVectorUpload = async (uploadType: 'pdf' | 'text' | 'metadata') => {
+        const { selectedBooks } = bulkVectorUpload;
+        if (selectedBooks.length === 0) return;
+
+        setBulkVectorUpload(prev => ({
+            ...prev,
+            mode: 'processing',
+            isRunning: true,
+            uploadType: uploadType,
+        }));
+
+        const results: { bookId: string; title: string; success: boolean; message: string }[] = [];
+
+        for (let i = 0; i < selectedBooks.length; i++) {
+            const book = selectedBooks[i];
+            setBulkVectorUpload(prev => ({
+                ...prev,
+                current: i + 1,
+                currentBookTitle: book.title,
+            }));
+
+            try {
+                let result;
+                if (uploadType === 'text') {
+                    result = await api.sendTextOnlyToVectorDatabase(book, true);
+                } else if (uploadType === 'metadata') {
+                    await updateMetadataWebhook(book);
+                    result = { success: true, message: 'Metadata aktualizována' };
+                } else {
+                    // pdf
+                    result = await api.sendToVectorDatabase(book, true, false);
+                }
+
+                results.push({ bookId: book.id, title: book.title, success: result.success, message: result.message });
+
+                if (result.success) {
+                    setBooks(prev => prev.map(b => b.id === book.id
+                        ? { ...b, vectorStatus: 'success', lastVectorUploadAt: new Date().toISOString() }
+                        : b
+                    ));
+                } else {
+                    setBooks(prev => prev.map(b => b.id === book.id ? { ...b, vectorStatus: 'error' } : b));
+                }
+            } catch (err: any) {
+                const errorMsg = err?.message || 'Neznámá chyba';
+                results.push({ bookId: book.id, title: book.title, success: false, message: errorMsg });
+                setBooks(prev => prev.map(b => b.id === book.id ? { ...b, vectorStatus: 'error' } : b));
+            }
+
+            setBulkVectorUpload(prev => ({ ...prev, results: [...results] }));
+        }
+
+        setBulkVectorUpload(prev => ({ ...prev, isRunning: false, isDone: true }));
+    };
+
     const handleToggleSelection = (bookId: string) => {
         const newSelection = new Set(selectedBookIds);
         if (newSelection.has(bookId)) {
@@ -5331,6 +5416,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                 onBulkDelete={handleBulkDelete}
                 onBulkDownload={handleBulkDownload}
                 onExportXml={handleExportXml}
+                onBulkVectorUpload={handleBulkVectorUpload}
                 onConvertClick={() => setConvertModalOpen(true)}
                 isAnyBookSelected={selectedBookIds.size > 0}
                 onChatbotManagementClick={() => setChatbotManagementOpen(true)}
@@ -5443,6 +5529,193 @@ const App = ({ currentUser }: { currentUser: User }) => {
                 <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end'}}>
                     <button style={styles.button} onClick={() => setBulkDeleteModalOpen(false)}>Zrušit</button>
                     <button style={{...styles.button, ...styles.buttonDanger}} onClick={executeBulkDelete}>Smazat</button>
+                </div>
+            </Modal>
+
+            <Modal
+                isOpen={bulkVectorUpload.isOpen}
+                onClose={() => {
+                    if (!bulkVectorUpload.isRunning) {
+                        setBulkVectorUpload(prev => ({ ...prev, isOpen: false }));
+                    }
+                }}
+                title={bulkVectorUpload.mode === 'selection' ? 'Hromadné nahrávání do vektorové databáze' : 'Hromadné nahrávání do vektorové databáze'}
+            >
+                <div style={{ minWidth: '420px', maxWidth: '560px' }}>
+                    {/* SELECTION MODE - výběr typu nahrávání */}
+                    {bulkVectorUpload.mode === 'selection' && (
+                        <div>
+                            <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                                Vyberte typ nahrávání pro {bulkVectorUpload.total} {bulkVectorUpload.total === 1 ? 'knihu' : bulkVectorUpload.total < 5 ? 'knihy' : 'knih'}:
+                            </p>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                                <button
+                                    style={{
+                                        ...styles.button,
+                                        border: '2px solid #007bff',
+                                        backgroundColor: 'transparent',
+                                        color: '#007bff',
+                                        fontWeight: '500',
+                                        padding: '0.75rem 1.25rem',
+                                        transition: 'all 0.2s ease',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                    }}
+                                    onClick={() => executeBulkVectorUpload('pdf')}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                    }}
+                                >
+                                    <div style={{ fontSize: '16px', marginBottom: '4px' }}>📘 Odeslat PDF do VDB</div>
+                                    <div style={{ fontSize: '12px', opacity: '0.8' }}>Odešle celé PDF včetně binárních dat</div>
+                                </button>
+                                
+                                <button
+                                    style={{
+                                        ...styles.button,
+                                        border: '2px solid #28a745',
+                                        backgroundColor: 'transparent',
+                                        color: '#28a745',
+                                        fontWeight: '500',
+                                        padding: '0.75rem 1.25rem',
+                                        transition: 'all 0.2s ease',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                    }}
+                                    onClick={() => executeBulkVectorUpload('text')}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.1)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                    }}
+                                >
+                                    <div style={{ fontSize: '16px', marginBottom: '4px' }}>📄 Odeslat pouze text do VDB</div>
+                                    <div style={{ fontSize: '12px', opacity: '0.8' }}>Odešle pouze extrahovaný text (rychlejší, menší velikost)</div>
+                                </button>
+                                
+                                <button
+                                    style={{
+                                        ...styles.button,
+                                        border: '2px solid #6c757d',
+                                        backgroundColor: 'transparent',
+                                        color: '#6c757d',
+                                        fontWeight: '500',
+                                        padding: '0.75rem 1.25rem',
+                                        transition: 'all 0.2s ease',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                    }}
+                                    onClick={() => executeBulkVectorUpload('metadata')}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.1)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                    }}
+                                >
+                                    <div style={{ fontSize: '16px', marginBottom: '4px' }}>🔄 Aktualizovat metadata</div>
+                                    <div style={{ fontSize: '12px', opacity: '0.8' }}>Aktualizuje pouze metadata v existujících záznamech</div>
+                                </button>
+                            </div>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    style={styles.button}
+                                    onClick={() => setBulkVectorUpload(prev => ({ ...prev, isOpen: false }))}
+                                >
+                                    Zrušit
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* PROCESSING MODE - průběh nahrávání */}
+                    {bulkVectorUpload.mode === 'processing' && (
+                        <div>
+                            {/* Progress info */}
+                            <div style={{ marginBottom: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                                {bulkVectorUpload.isRunning ? (
+                                    <span>
+                                        Typ: <strong style={{ color: 'var(--text-primary)' }}>
+                                            {bulkVectorUpload.uploadType === 'pdf' && '📘 PDF'}
+                                            {bulkVectorUpload.uploadType === 'text' && '📄 Pouze text'}
+                                            {bulkVectorUpload.uploadType === 'metadata' && '🔄 Metadata'}
+                                        </strong>
+                                        <br />
+                                        Nahrávám: <strong style={{ color: 'var(--text-primary)' }}>{bulkVectorUpload.currentBookTitle}</strong>
+                                    </span>
+                                ) : bulkVectorUpload.isDone ? (
+                                    <span>Nahrávání dokončeno</span>
+                                ) : null}
+                            </div>
+
+                            {/* Progress bar */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    <span>{bulkVectorUpload.current} / {bulkVectorUpload.total} knih</span>
+                                    <span>{bulkVectorUpload.total > 0 ? Math.round((bulkVectorUpload.current / bulkVectorUpload.total) * 100) : 0}%</span>
+                                </div>
+                                <div style={{ width: '100%', height: '10px', background: 'var(--border-color)', borderRadius: '5px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        borderRadius: '5px',
+                                        background: bulkVectorUpload.isDone ? '#28a745' : '#007bff',
+                                        width: `${bulkVectorUpload.total > 0 ? (bulkVectorUpload.current / bulkVectorUpload.total) * 100 : 0}%`,
+                                        transition: 'width 0.4s ease, background 0.3s ease',
+                                    }} />
+                                </div>
+                            </div>
+
+                            {/* Results list */}
+                            {bulkVectorUpload.results.length > 0 && (
+                                <div style={{ maxHeight: '260px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', marginBottom: '16px' }}>
+                                    {bulkVectorUpload.results.map((r, idx) => (
+                                        <div key={r.bookId} style={{
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            gap: '8px',
+                                            padding: '8px 12px',
+                                            borderBottom: idx < bulkVectorUpload.results.length - 1 ? '1px solid var(--border-color)' : 'none',
+                                            fontSize: '13px',
+                                        }}>
+                                            <span style={{ fontSize: '16px', lineHeight: '1.4', flexShrink: 0 }}>{r.success ? '✅' : '❌'}</span>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</div>
+                                                {!r.success && (
+                                                    <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '2px' }}>{r.message}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Summary after done */}
+                            {bulkVectorUpload.isDone && (
+                                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                                    <strong style={{ color: '#28a745' }}>✅ {bulkVectorUpload.results.filter(r => r.success).length}</strong> úspěšně
+                                    {bulkVectorUpload.results.filter(r => !r.success).length > 0 && (
+                                        <>, <strong style={{ color: '#dc3545' }}>❌ {bulkVectorUpload.results.filter(r => !r.success).length}</strong> selhalo</>
+                                    )}
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    style={styles.button}
+                                    disabled={bulkVectorUpload.isRunning}
+                                    onClick={() => setBulkVectorUpload(prev => ({ ...prev, isOpen: false }))}
+                                >
+                                    {bulkVectorUpload.isRunning ? 'Probíhá nahrávání...' : 'Zavřít'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </Modal>
 
@@ -6114,6 +6387,7 @@ interface TopToolbarProps {
     onBulkDelete: () => void;
     onBulkDownload: () => void;
     onExportXml: () => void;
+    onBulkVectorUpload: () => void;
     onConvertClick: () => void;
     isAnyBookSelected: boolean;
     onChatbotManagementClick: () => void;
@@ -6123,7 +6397,7 @@ interface TopToolbarProps {
     onProfileSettingsClick: () => void;
     onLogoutClick: () => void;
 }
-const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, onBulkDelete, onBulkDownload, onExportXml, onConvertClick, isAnyBookSelected, onChatbotManagementClick, onAddVideoClick, currentUser, onUserManagementClick, onProfileSettingsClick, onLogoutClick }: TopToolbarProps) => {
+const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, onBulkDelete, onBulkDownload, onExportXml, onBulkVectorUpload, onConvertClick, isAnyBookSelected, onChatbotManagementClick, onAddVideoClick, currentUser, onUserManagementClick, onProfileSettingsClick, onLogoutClick }: TopToolbarProps) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const isSpravce = currentUser.role === 'spravce';
 
@@ -6159,6 +6433,7 @@ const TopToolbar = ({ onUploadClick, viewMode, onViewModeChange, selectedCount, 
                                 <a style={styles.dropdownMenuLink} onClick={() => { onBulkDelete(); setDropdownOpen(false); }}><IconDelete size={14}/> Smazat vybrané</a>
                                 <a style={styles.dropdownMenuLink} onClick={() => { onBulkDownload(); setDropdownOpen(false); }}><IconDownload/> Stáhnout vybrané</a>
                                 <a style={styles.dropdownMenuLink} onClick={() => { onExportXml(); setDropdownOpen(false); }}><IconExport/> Exportovat do XML</a>
+                                <a style={styles.dropdownMenuLink} onClick={() => { onBulkVectorUpload(); setDropdownOpen(false); }}>🗄️ Nahrát do vektorové DB</a>
                             </div>
                         )}
                     </div>
