@@ -5120,7 +5120,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
         downloadFile(xmlContent, 'export.xml', 'application/xml');
     };
 
-    const handleBulkVectorUpload = async () => {
+    const handleBulkVectorUpload = () => {
         const selectedBooks = books.filter(b => selectedBookIds.has(b.id));
         if (selectedBooks.length === 0) return;
 
@@ -5138,9 +5138,8 @@ const App = ({ currentUser }: { currentUser: User }) => {
         });
     };
 
-    const executeBulkVectorUpload = async (uploadType: 'pdf' | 'text' | 'metadata') => {
-        const { selectedBooks } = bulkVectorUpload;
-        if (selectedBooks.length === 0) return;
+    const executeBulkVectorUpload = async (uploadType: 'pdf' | 'text' | 'metadata', booksToUpload: Book[]) => {
+        if (booksToUpload.length === 0) return;
 
         setBulkVectorUpload(prev => ({
             ...prev,
@@ -5151,8 +5150,8 @@ const App = ({ currentUser }: { currentUser: User }) => {
 
         const results: { bookId: string; title: string; success: boolean; message: string }[] = [];
 
-        for (let i = 0; i < selectedBooks.length; i++) {
-            const book = selectedBooks[i];
+        for (let i = 0; i < booksToUpload.length; i++) {
+            const book = booksToUpload[i];
             setBulkVectorUpload(prev => ({
                 ...prev,
                 current: i + 1,
@@ -5562,7 +5561,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                         textAlign: 'left',
                                         cursor: 'pointer',
                                     }}
-                                    onClick={() => executeBulkVectorUpload('pdf')}
+                                    onClick={() => executeBulkVectorUpload('pdf', bulkVectorUpload.selectedBooks)}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
                                     }}
@@ -5586,7 +5585,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                         textAlign: 'left',
                                         cursor: 'pointer',
                                     }}
-                                    onClick={() => executeBulkVectorUpload('text')}
+                                    onClick={() => executeBulkVectorUpload('text', bulkVectorUpload.selectedBooks)}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.1)';
                                     }}
@@ -5610,7 +5609,7 @@ const App = ({ currentUser }: { currentUser: User }) => {
                                         textAlign: 'left',
                                         cursor: 'pointer',
                                     }}
-                                    onClick={() => executeBulkVectorUpload('metadata')}
+                                    onClick={() => executeBulkVectorUpload('metadata', bulkVectorUpload.selectedBooks)}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.1)';
                                     }}

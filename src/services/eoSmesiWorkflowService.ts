@@ -780,20 +780,42 @@ async function getEOSlozeniForProblem(
     }
 
     const record = leceniData[0];
-    const eo1Name: string | null = record['EO 1'] || null;
-    const eo2Name: string | null = record['EO 2'] || null;
-    const prawteinName: string | null = record['Prawtein'] || null;
+
+    // Pokud buňka obsahuje více produktů oddělených čárkou (např. "COLWIT, NOSE"),
+    // vezmeme jen první pro eo1Name / eo2Name / prawteinName – složení se zobrazuje pouze
+    // pro primární produkt, ne pro všechny v buňce.
+    const splitFirst = (raw: string | null): string | null => {
+      if (!raw || raw.trim() === '') return null;
+      return raw.includes(',') ? raw.split(',')[0].trim() : raw.trim();
+    };
+
+    const eo1Name: string | null = splitFirst(record['EO 1']);
+    const eo2Name: string | null = splitFirst(record['EO 2']);
+    const prawteinName: string | null = splitFirst(record['Prawtein']);
 
     // Načte názvy látek z tabulky slozeni (max 3 z každého produktu)
     const fetchRawIngredients = async (productName: string | null): Promise<string[]> => {
       if (!productName || productName.trim() === '' || productName === 'null') return [];
-      const { data, error } = await supabase
+      const name = productName.trim();
+
+      // Pokus 1: přesná shoda (case-insensitive)
+      let result = await supabase
         .from('slozeni')
         .select('ingredients')
-        .ilike('blend_name', productName.trim())
+        .ilike('blend_name', name)
         .limit(1);
-      if (error || !data || data.length === 0) return [];
-      const raw: string = data[0].ingredients || '';
+
+      // Pokus 2: LIKE s obsahem (pro "BODYGUARD" najde "PRAWTEIN Bodyguard")
+      if (result.error || !result.data || result.data.length === 0) {
+        result = await supabase
+          .from('slozeni')
+          .select('ingredients')
+          .ilike('blend_name', `%${name}%`)
+          .limit(1);
+      }
+
+      if (result.error || !result.data || result.data.length === 0) return [];
+      const raw: string = result.data[0].ingredients || '';
       return raw
         .split('|')
         .map((s: string) => s.trim())
