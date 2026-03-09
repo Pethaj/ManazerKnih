@@ -175,9 +175,13 @@ const EmbedEOSmesi = () => {
       // Validace struktury dat
       if (event.data.type === 'USER_DATA' && event.data.user) {
         
-        // 💾 NOVÉ: Uložit do localStorage pro pozdější použití
+        // 💾 Uložit do localStorage pro pozdější použití (včetně tokenEshop!)
         try {
-          localStorage.setItem('BEWIT_USER_DATA', JSON.stringify(event.data.user));
+          const userDataWithToken = {
+            ...event.data.user,
+            tokenEshop: event.data.user.tokenEshop  // Ujisti se že je tam token
+          };
+          localStorage.setItem('BEWIT_USER_DATA', JSON.stringify(userDataWithToken));
         } catch (e) {
         }
         
@@ -224,31 +228,19 @@ const EmbedEOSmesi = () => {
     };
   }, []);
 
-  // 🎯 SAMOSTATNÝ CALL PRO BBO CUSTOMER NAME - ihned po mount
+  // 🎯 SAMOSTATNÝ CALL PRO BBO CUSTOMER NAME - spustí se jakmile tokenEshop dorazí
   useEffect(() => {
+    // Jakmile má userContext tokenEshop, hned zavolej API
+    if (!userContext.tokenEshop) return;
+
     const fetchBboCustomerName = async () => {
       try {
-        // Získej JWT token z cookie
-        const cookies = document.cookie.split(';');
-        let token: string | null = null;
-        for (const cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'token' && value) {
-            token = decodeURIComponent(value);
-            break;
-          }
-        }
-
-        if (!token) {
-          console.log('⚠️ BBO: Token z cookies nenalezen');
-          return;
-        }
-
-        console.log('🔄 BBO: Načítám data z API...');
+        console.log('🔄 BBO: Načítám data z API s tokenEshop...');
+        
         const response = await fetch('https://api.mybewit.com/account?include=bbo.customer', {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${userContext.tokenEshop}`,
             'Content-Type': 'application/json',
           }
         });
@@ -288,9 +280,8 @@ const EmbedEOSmesi = () => {
       }
     };
 
-    // Spusť ihned po mount
     fetchBboCustomerName();
-  }, []);
+  }, [userContext.tokenEshop]);
 
   if (isLoading) {
     return (
