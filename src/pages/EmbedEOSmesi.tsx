@@ -94,7 +94,7 @@ const EmbedEOSmesi = () => {
     position?: string;
     tokenEshop?: string;  // 🆕 E-shop token z Bewit webu
   }>({});
-  const [ccPotential, setCcPotential] = useState<string | null>(null);
+  const [bboCustomerName, setBboCustomerName] = useState<string | null>(null);
   const [allUserData, setAllUserData] = useState<any>(null);
 
   useEffect(() => {
@@ -258,9 +258,9 @@ const EmbedEOSmesi = () => {
 
         if (!data) return;
 
-        // Ulož cc_potential z bbo.customer.name (A/B/C)
+        // Ulož name z bbo.customer.name (A/B/C)
         const customerName = data?.bbo?.customer?.name ?? null;
-        setCcPotential(customerName);
+        setBboCustomerName(customerName);
         setAllUserData(data);
 
         // Log: All User Data
@@ -311,7 +311,7 @@ const EmbedEOSmesi = () => {
     email: userContext.email,
     position: userContext.position,
     token_eshop: userContext.tokenEshop,  // 🆕 E-shop token
-    cc_potential: ccPotential ?? undefined,  // 🆕 A/B/C z Bewit API
+    bbo_customer_name: bboCustomerName ?? undefined,  // 🆕 A/B/C z Bewit API (bbo.customer.name)
   } : undefined;
 
 

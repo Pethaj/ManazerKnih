@@ -2913,7 +2913,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             firstName: currentUser?.firstName || externalUserInfo?.first_name || 'N/A',
             lastName: currentUser?.lastName || externalUserInfo?.last_name || 'N/A',
             role: currentUser?.role || externalUserInfo?.position || 'N/A',
-            cc_potential: externalUserInfo?.cc_potential ?? 'N/A',
+            name: externalUserInfo?.bbo_customer_name ?? 'N/A',
         });
         console.groupEnd();
         
