@@ -241,7 +241,10 @@ const EmbedEOSmesi = () => {
           }
         }
 
-        if (!token) return;
+        if (!token) {
+          console.log('⚠️ Token z cookies nenalezen');
+          return;
+        }
 
         const response = await fetch('https://api.mybewit.com/account?include=bbo.customer', {
           method: 'GET',
@@ -251,15 +254,22 @@ const EmbedEOSmesi = () => {
           }
         });
 
-        if (!response.ok) return;
+        if (!response.ok) {
+          console.error('API error:', response.status);
+          return;
+        }
 
         const apiData = await response.json();
         const data = apiData?.data;
 
-        if (!data) return;
+        if (!data) {
+          console.error('No data in response');
+          return;
+        }
 
         // Ulož name z bbo.customer.name (A/B/C)
         const customerName = data?.bbo?.customer?.name ?? null;
+        console.log('👤 BBO Customer Name (typ zákazníka):', customerName);
         setBboCustomerName(customerName);
         setAllUserData(data);
 
@@ -274,7 +284,7 @@ const EmbedEOSmesi = () => {
           phone: data.phone,
           position: userContext.position,
         });
-        console.log('BBO customer:', {
+        console.log('BBO customer (typ zákazníka):', {
           bbo_id: data.bbo_id,
           name: customerName,
           points_from: data?.bbo?.customer?.points_from,
@@ -284,8 +294,8 @@ const EmbedEOSmesi = () => {
         console.log('Kompletní API response:', data);
         console.groupEnd();
 
-      } catch {
-        // silent fail
+      } catch (err) {
+        console.error('Chyba při načítání BBO dat:', err);
       }
     };
 
@@ -313,11 +323,6 @@ const EmbedEOSmesi = () => {
     token_eshop: userContext.tokenEshop,  // 🆕 E-shop token
     bbo_customer_name: bboCustomerName,  // null = ještě nenačteno, "A"/"B"/"C" = načteno
   } : undefined;
-
-  // DEBUG
-  if (externalUserInfo?.email === 'petr.hajduk@bewit.team') {
-    console.log('🔍 DEBUG EmbedEOSmesi:', { bboCustomerName, externalUserInfo });
-  }
 
 
   const handleAcceptDisclaimer = () => {
