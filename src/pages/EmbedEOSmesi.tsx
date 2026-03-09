@@ -224,12 +224,9 @@ const EmbedEOSmesi = () => {
     };
   }, []);
 
-  // 🎯 Načti data z Bewit API pomocí cookie tokenu
+  // 🎯 SAMOSTATNÝ CALL PRO BBO CUSTOMER NAME - ihned po mount
   useEffect(() => {
-    if (!userContext.id && !userContext.email) return;
-
-    const fetchBewitAccountData = async () => {
-      console.log('🔍 fetchBewitAccountData SPUŠTĚN, userContext:', userContext);
+    const fetchBboCustomerName = async () => {
       try {
         // Získej JWT token z cookie
         const cookies = document.cookie.split(';');
@@ -243,10 +240,11 @@ const EmbedEOSmesi = () => {
         }
 
         if (!token) {
-          console.log('⚠️ Token z cookies nenalezen');
+          console.log('⚠️ BBO: Token z cookies nenalezen');
           return;
         }
 
+        console.log('🔄 BBO: Načítám data z API...');
         const response = await fetch('https://api.mybewit.com/account?include=bbo.customer', {
           method: 'GET',
           headers: {
@@ -256,7 +254,7 @@ const EmbedEOSmesi = () => {
         });
 
         if (!response.ok) {
-          console.error('API error:', response.status);
+          console.error('🔴 BBO: API error', response.status);
           return;
         }
 
@@ -264,44 +262,35 @@ const EmbedEOSmesi = () => {
         const data = apiData?.data;
 
         if (!data) {
-          console.error('No data in response');
+          console.error('🔴 BBO: No data in response');
           return;
         }
 
         // Ulož name z bbo.customer.name (A/B/C)
         const customerName = data?.bbo?.customer?.name ?? null;
-        console.log('👤 BBO Customer Name (typ zákazníka):', customerName);
-        setBboCustomerName(customerName);
-        setAllUserData(data);
-
-        // Log: All User Data
-        console.group('👤 All User Data');
-        console.log('Základní info:', {
-          id: data.id,
-          email: data.email,
-          firstName: data.firstname,
-          lastName: data.lastname,
-          fullname: data.fullname,
-          phone: data.phone,
-          position: userContext.position,
-        });
-        console.log('BBO customer (typ zákazníka):', {
+        
+        console.group('🎯 BBO CUSTOMER NAME');
+        console.log('Typ zákazníka (name):', customerName);
+        console.log('BBO customer data:', {
           bbo_id: data.bbo_id,
           name: customerName,
           points_from: data?.bbo?.customer?.points_from,
           points_to: data?.bbo?.customer?.points_to,
           discount_type: data?.bbo?.customer?.discount_type,
         });
-        console.log('Kompletní API response:', data);
         console.groupEnd();
 
+        setBboCustomerName(customerName);
+        setAllUserData(data);
+
       } catch (err) {
-        console.error('Chyba při načítání BBO dat:', err);
+        console.error('🔴 BBO: Chyba při volání API:', err);
       }
     };
 
-    fetchBewitAccountData();
-  }, [userContext.id, userContext.email]);
+    // Spusť ihned po mount
+    fetchBboCustomerName();
+  }, []);
 
   if (isLoading) {
     return (
@@ -321,8 +310,7 @@ const EmbedEOSmesi = () => {
     last_name: userContext.lastName,
     email: userContext.email,
     position: userContext.position,
-    token_eshop: userContext.tokenEshop,  // 🆕 E-shop token
-    bbo_customer_name: bboCustomerName,  // null = ještě nenačteno, "A"/"B"/"C" = načteno
+    token_eshop: userContext.tokenEshop,
   } : undefined;
 
 
