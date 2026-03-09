@@ -239,6 +239,7 @@ const EmbedEOSmesi = () => {
         const apiUrl = 'https://api.mybewit.com/account?include=bbo.customer';
         
         console.log('🔄 BBO: Načítám data z API...');
+        console.log('🔍 DEBUG TOKEN:', token?.substring(0, 50));
         
         const response = await fetch(apiUrl, {
           method: 'GET',
