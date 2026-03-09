@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test User Data Integration - Wany Chat</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #2563eb;
+      margin-bottom: 10px;
+    }
+    
+    .info {
+      background: #eff6ff;
+      border-left: 4px solid #2563eb;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    
+    .info h3 {
+      margin-top: 0;
+      color: #1e40af;
+    }
+    
+    .warning {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    
+    .success {
+      background: #d1fae5;
+      border-left: 4px solid #10b981;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    
+    .error {
+      background: #fee2e2;
+      border-left: 4px solid #ef4444;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    
+    #status {
+      margin-bottom: 20px;
+      min-height: 100px;
+    }
+    
+    .status-item {
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    
+    .status-success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    
+    .status-error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    
+    .status-info {
+      background: #eff6ff;
+      color: #1e40af;
+    }
+    
+    iframe {
+      width: 100%;
+      height: 700px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="container">
+    <h1>🧪 Test User Data Integration - Wany Chat</h1>
+    
+    <div class="info">
+      <h3>📋 Co tento test dělá:</h3>
+      <p>1. Načte Wany Chat iframe z <code>http://localhost:5173/embed.html</code></p>
+      <p>2. Po načtení pošle testovací user data přes <code>postMessage</code></p>
+      <p>3. Zkontroluje, jestli data dorazila do iframe</p>
+      <p>4. Zobrazí detailní logy v sekci níže</p>
+    </div>
+    
+    <div class="warning">
+      <h3>⚠️ Důležité:</h3>
+      <p><strong>Otevři konzoli (F12)</strong> a sleduj logy!</p>
+      <p>V konzoli by měly být vidět:</p>
+      <ul>
+        <li>✅ <code>Iframe nalezen</code></li>
+        <li>✅ <code>Iframe načtený (load event)</code></li>
+        <li>✅ <code>postMessage odeslán!</code></li>
+        <li>✅ <code>👤 User data přijata z rodiče přes postMessage</code> (z tvé aplikace)</li>
+      </ul>
+    </div>
+    
+    <div id="status">
+      <h3>📊 Status integrace:</h3>
+      <div id="status-logs"></div>
+    </div>
+    
+    <!-- IFRAME -->
+    <div style="border: 2px dashed #2563eb; padding: 10px; border-radius: 8px; margin-bottom: 20px;">
+      <p style="margin: 0 0 10px 0;"><strong>Wany Chat Iframe:</strong></p>
+      <iframe 
+        id="wany-chat-iframe" 
+        src="http://localhost:5173/embed.html"
+        allow="clipboard-write" 
+        title="Wany Chat Test"
+      ></iframe>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT - TESTOVACÍ KÓD -->
+  <script>
+  // Helper funkce pro logování
+  const statusLogs = document.getElementById('status-logs');
+  
+  function addLog(message, type = 'info') {
+    const div = document.createElement('div');
+    div.className = `status-item status-${type}`;
+    div.textContent = message;
+    statusLogs.appendChild(div);
+    
+    // Scroll dolů
+    statusLogs.scrollTop = statusLogs.scrollHeight;
+  }
+  
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🧪 TEST USER DATA INTEGRATION - START');
+  console.log('═══════════════════════════════════════════════════════');
+  
+  addLog('🔧 JavaScript inicializován', 'info');
+  console.log('🔧 JavaScript začíná...');
+  
+  (function() {
+    const iframe = document.getElementById('wany-chat-iframe');
+    
+    if (!iframe) {
+      const errorMsg = '❌ CHYBA: Iframe nenalezen! ID: wany-chat-iframe';
+      console.error(errorMsg);
+      addLog(errorMsg, 'error');
+      return;
+    }
+    
+    const successMsg = '✅ Iframe nalezen: ' + iframe.id;
+    console.log(successMsg, iframe);
+    addLog(successMsg, 'success');
+    
+    function sendUserData() {
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('📤 ODESÍLÁM USER DATA DO IFRAME');
+      console.log('═══════════════════════════════════════════════════════');
+      
+      addLog('📤 Připravuji user data...', 'info');
+      
+      const userData = {
+        id: '12345',
+        firstName: 'Marcel',
+        lastName: 'Haim',
+        email: 'marcel.haim@bewit.cz',
+        position: 'Supervisor'
+      };
+      
+      console.log('📦 User data:', userData);
+      addLog('📦 User data: ' + JSON.stringify(userData, null, 2), 'info');
+      
+      try {
+        iframe.contentWindow.postMessage({
+          type: 'USER_DATA',
+          user: userData
+        }, 'http://localhost:5173');
+        
+        const successMsg = '✅ postMessage ÚSPĚŠNĚ ODESLÁN do iframe!';
+        console.log(successMsg);
+        addLog(successMsg, 'success');
+        
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('⏳ TEĎ ČEKÁM NA ODPOVĚĎ Z IFRAME...');
+        console.log('   (v konzoli by měl být log z EmbedVanyChat.tsx)');
+        console.log('   Očekávám: "👤 User data přijata z rodiče přes postMessage"');
+        console.log('═══════════════════════════════════════════════════════');
+        
+        addLog('⏳ Čekám na potvrzení z iframe...', 'info');
+        addLog('💡 Sleduj konzoli - měl by se objevit log z aplikace', 'info');
+        
+        // Po 3 sekundách zkontrolujeme, jestli data dorazila
+        setTimeout(() => {
+          addLog('⏰ Timeout: Zkontroluj konzoli - objevil se tam log z aplikace?', 'info');
+          addLog('📋 Hledej: "👤 User data přijata z rodiče přes postMessage"', 'info');
+        }, 3000);
+        
+      } catch (error) {
+        const errorMsg = '❌ CHYBA při odesílání postMessage: ' + error.message;
+        console.error(errorMsg, error);
+        addLog(errorMsg, 'error');
+      }
+    }
+    
+    // Event listener pro načtení iframe
+    iframe.addEventListener('load', function() {
+      const successMsg = '✅ Iframe načtený (load event)';
+      console.log(successMsg);
+      addLog(successMsg, 'success');
+      
+      console.log('⏳ Čekám 1 sekundu před odesláním dat (pro jistotu)...');
+      addLog('⏳ Čekám 1 sekundu...', 'info');
+      
+      // Počkáme 1 sekundu pro jistotu, že se aplikace v iframe inicializovala
+      setTimeout(sendUserData, 1000);
+    });
+    
+    console.log('⏳ Čekám na načtení iframe...');
+    addLog('⏳ Čekám na načtení iframe...', 'info');
+    
+  })();
+  
+  // Naslouchej také zprávám zpět z iframe (volitelné)
+  window.addEventListener('message', function(event) {
+    console.log('📨 Přijata zpráva z iframe:', event);
+    if (event.origin === 'http://localhost:5173') {
+      console.log('📦 Data z iframe:', event.data);
+      addLog('📨 Zpráva z iframe: ' + JSON.stringify(event.data), 'success');
+    }
+  });
+  
+  </script>
+  
+</body>
+</html>

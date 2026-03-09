@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Testovací prostředí – Bewit Chaty</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+
+    /* ── HEADER ─────────────────────────────── */
+    .header {
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-badge {
+      background: #f59e0b;
+      color: #000;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    /* ── UŽIVATEL PANEL ─────────────────────── */
+    .user-panel {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .user-panel:hover { background: rgba(255,255,255,0.1); }
+
+    .user-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      flex-shrink: 0;
+    }
+
+    /* ── MAIN LAYOUT ────────────────────────── */
+    .main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 20px;
+    }
+
+    /* ── CHAT TILES ─────────────────────────── */
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 48px;
+    }
+
+    .tile {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      padding: 40px 32px;
+      text-align: center;
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      background-size: cover;
+      background-position: center;
+    }
+
+    .tile-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.62);
+    }
+
+    .tile-content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .tile h2 {
+      position: relative;
+      z-index: 2;
+      font-size: 24px;
+      color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    }
+
+    .tile p {
+      color: #e2e8f0;
+      font-size: 14px;
+      line-height: 1.6;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      max-width: 280px;
+    }
+
+    .chat-btn {
+      width: 160px;
+      height: 46px;
+      border-radius: 14px;
+      cursor: pointer;
+      border: none;
+      background-color: #079854;
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 14px rgba(7,152,84,0.45);
+    }
+
+    .chat-btn:hover {
+      background-color: #06804a;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(7,152,84,0.55);
+    }
+
+    /* ── LOG PANEL ──────────────────────────── */
+    .log-section { }
+
+    .log-box {
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .log-header {
+      padding: 12px 18px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .log-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .log-indicator {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #64748b;
+      transition: background 0.3s;
+    }
+
+    .log-indicator.active { background: #22c55e; }
+
+    .log-clear {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #64748b;
+      padding: 3px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.2s;
+    }
+
+    .log-clear:hover { background: rgba(255,255,255,0.06); color: #94a3b8; }
+
+    #log-output {
+      padding: 14px 18px;
+      font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+      font-size: 11.5px;
+      line-height: 1.9;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .log-entry { display: block; color: #4ade80; }
+    .log-entry.info { color: #60a5fa; }
+    .log-entry.warn { color: #fbbf24; }
+    .log-entry.recv { color: #a78bfa; }
+    .log-entry.send { color: #34d399; }
+    .log-entry.error { color: #f87171; }
+
+    /* ── USER EDITOR (modal) ────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+      z-index: 888888;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 28px;
+      width: 100%;
+      max-width: 440px;
+      margin: 16px;
+    }
+
+    .modal h3 { font-size: 16px; color: #f1f5f9; margin-bottom: 20px; }
+
+    .form-row { margin-bottom: 14px; }
+    .form-row label { display: block; font-size: 11px; color: #64748b; margin-bottom: 5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+    .form-row input {
+      width: 100%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #e2e8f0;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .form-row input:focus { border-color: rgba(99,102,241,0.6); }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-save { flex: 1; padding: 10px; background: #4f46e5; color: #fff; border: none; border-radius: 9px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s; }
+    .btn-save:hover { background: #4338ca; }
+    .btn-cancel { padding: 10px 18px; background: rgba(255,255,255,0.07); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); border-radius: 9px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
+    .btn-cancel:hover { background: rgba(255,255,255,0.12); }
+
+    /* ── CHAT OVERLAY + WRAPPER (klientský kód) ── */
+    #chat-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 999998;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      backdrop-filter: blur(4px);
+    }
+
+    #chat-wrapper {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.95);
+      width: 90%;
+      max-width: 1200px;
+      height: 85%;
+      max-height: 800px;
+      z-index: 999999;
+      visibility: hidden;
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+
+    #chat-close-btn {
+      position: absolute;
+      top: -48px;
+      right: 0;
+      z-index: 10;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    #chat-close-btn:hover { background: rgba(0,0,0,0.9); }
+
+    #chat-modal {
+      width: 100%;
+      height: 100%;
+      border-radius: 24px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+      overflow: hidden;
+    }
+
+    #chat-iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-radius: 24px;
+      background: #fff;
+    }
+
+    @media (max-width: 600px) {
+      #chat-wrapper { width: 95%; height: 90%; max-width: none; max-height: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-title">
+      <span class="header-badge">Dev</span>
+      <h1>Testovací prostředí – Bewit Chaty</h1>
+    </div>
+    <div class="user-panel" onclick="openUserModal()">
+      <div class="user-dot"></div>
+      <span id="user-display">test@bewit.cz</span>
+      <span style="color:#475569">· upravit</span>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <div class="section-label">Dostupné chaty</div>
+
+    <!-- TILES -->
+    <div class="tiles">
+
+      <!-- EO Směsi Chat -->
+      <div
+        class="tile"
+        style="background-image: url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/ChatGPT%20Image%20Jan%2029,%202026,%2012_00_25%20PM.png');"
+      >
+        <div class="tile-overlay"></div>
+        <h2>Poradce na esenciální oleje</h2>
+        <div class="tile-content">
+          <p>Asistent specializující se na EO směsi, jejich použití a výběr produktů BEWIT.</p>
+          <button class="chat-btn" onclick="openChat('embed-eo-smesi.html', 'EO Směsi Chat')">Spustit Chat</button>
+        </div>
+      </div>
+
+      <!-- Wany Chat -->
+      <div
+        class="tile"
+        style="background-image: url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/images/main/production/Gemini_Generated_Image_gnhw0wgnhw0wgnhw.png');"
+      >
+        <div class="tile-overlay"></div>
+        <h2>Poradce na čínské wany</h2>
+        <div class="tile-content">
+          <p>Asistent pro wany – dodá informace a poradí s výběrem správného produktu.</p>
+          <button class="chat-btn" onclick="openChat('embed.html', 'Wany Chat')">Spustit Chat</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- LOG -->
+    <div class="section-label log-section">PostMessage komunikace</div>
+    <div class="log-box">
+      <div class="log-header">
+        <div class="log-header-left">
+          <div class="log-indicator" id="log-indicator"></div>
+          <span>parent ↔ iframe</span>
+        </div>
+        <button class="log-clear" onclick="clearLog()">Vymazat</button>
+      </div>
+      <div id="log-output">
+        <span class="log-entry info">Čekám na otevření chatu…</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- USER EDITOR MODAL -->
+  <div class="modal-backdrop" id="user-modal">
+    <div class="modal">
+      <h3>Simulovaný uživatel (z backendu)</h3>
+      <div class="form-row"><label>ID</label><input id="u-id" value="test-user-123"></div>
+      <div class="form-row"><label>E-mail</label><input id="u-email" value="test@bewit.cz"></div>
+      <div class="form-row"><label>Jméno</label><input id="u-firstName" value="Testovací"></div>
+      <div class="form-row"><label>Příjmení</label><input id="u-lastName" value="Uživatel"></div>
+      <div class="form-row"><label>Pozice</label><input id="u-position" value="Tester"></div>
+      <div class="form-row"><label>Token Eshop</label><input id="u-token" value="test-token-xyz"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeUserModal()">Zrušit</button>
+        <button class="btn-save" onclick="saveUser()">Uložit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KLIENTSKÁ STRUKTURA: overlay + wrapper + iframe -->
+  <div id="chat-overlay" onclick="requestClose()"></div>
+
+  <div id="chat-wrapper">
+    <button id="chat-close-btn" onclick="requestClose()" title="Zavřít chat">✕</button>
+    <div id="chat-modal">
+      <iframe id="chat-iframe" src="" allow="clipboard-write" title="Chat"></iframe>
+    </div>
+  </div>
+
+  <script>
+    const BASE_URL = window.location.origin;
+
+    // Uživatel – výchozí hodnoty
+    let CURRENT_USER = {
+      id: 'test-user-123',
+      email: 'test@bewit.cz',
+      firstName: 'Testovací',
+      lastName: 'Uživatel',
+      position: 'Tester',
+      tokenEshop: 'test-token-xyz'
+    };
+
+    // ── LOG ────────────────────────────────────────────────────
+    function log(msg, type = '') {
+      const out = document.getElementById('log-output');
+      const el = document.createElement('span');
+      el.className = 'log-entry ' + type;
+      const time = new Date().toLocaleTimeString('cs', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      el.textContent = time + '  ' + msg;
+      out.appendChild(document.createElement('br'));
+      out.appendChild(el);
+      out.scrollTop = out.scrollHeight;
+
+      // Bliknutí indikátoru
+      const ind = document.getElementById('log-indicator');
+      ind.classList.add('active');
+      setTimeout(() => ind.classList.remove('active'), 600);
+    }
+
+    function clearLog() {
+      document.getElementById('log-output').innerHTML =
+        '<span class="log-entry info">Log vymazán…</span>';
+    }
+
+    // ── UŽIVATEL ───────────────────────────────────────────────
+    function openUserModal() {
+      document.getElementById('u-id').value = CURRENT_USER.id;
+      document.getElementById('u-email').value = CURRENT_USER.email;
+      document.getElementById('u-firstName').value = CURRENT_USER.firstName;
+      document.getElementById('u-lastName').value = CURRENT_USER.lastName;
+      document.getElementById('u-position').value = CURRENT_USER.position;
+      document.getElementById('u-token').value = CURRENT_USER.tokenEshop;
+      document.getElementById('user-modal').classList.add('open');
+    }
+
+    function closeUserModal() {
+      document.getElementById('user-modal').classList.remove('open');
+    }
+
+    function saveUser() {
+      CURRENT_USER = {
+        id: document.getElementById('u-id').value,
+        email: document.getElementById('u-email').value,
+        firstName: document.getElementById('u-firstName').value,
+        lastName: document.getElementById('u-lastName').value,
+        position: document.getElementById('u-position').value,
+        tokenEshop: document.getElementById('u-token').value
+      };
+      document.getElementById('user-display').textContent = CURRENT_USER.email;
+      closeUserModal();
+      log('👤 Uživatel aktualizován: ' + CURRENT_USER.email, 'info');
+    }
+
+    // ── OTEVŘENÍ CHATU ─────────────────────────────────────────
+    function openChat(embedPage, chatName) {
+      const iframe = document.getElementById('chat-iframe');
+      const wrapper = document.getElementById('chat-wrapper');
+      const overlay = document.getElementById('chat-overlay');
+
+      // Nastav src (přesně jako klient)
+      iframe.src = BASE_URL + '/' + embedPage;
+
+      overlay.style.visibility = 'visible';
+      overlay.style.opacity = '1';
+      wrapper.style.visibility = 'visible';
+      setTimeout(() => {
+        wrapper.style.opacity = '1';
+        wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+      }, 10);
+      document.body.style.overflow = 'hidden';
+
+      log('▶ Otevírám: ' + chatName, 'info');
+
+      // Pošli USER_DATA po načtení iframe (přesně jako klient)
+      iframe.onload = function () {
+        setTimeout(() => {
+          iframe.contentWindow.postMessage(
+            { type: 'USER_DATA', user: CURRENT_USER },
+            BASE_URL
+          );
+          log('📤 USER_DATA odeslána → ' + CURRENT_USER.email, 'send');
+        }, 300);
+      };
+    }
+
+    // ── ZAVŘENÍ CHATU ──────────────────────────────────────────
+    function hardClose() {
+      const wrapper = document.getElementById('chat-wrapper');
+      const overlay = document.getElementById('chat-overlay');
+      wrapper.style.opacity = '0';
+      wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        wrapper.style.visibility = 'hidden';
+        overlay.style.visibility = 'hidden';
+        document.getElementById('chat-iframe').src = '';
+        document.body.style.overflow = '';
+      }, 300);
+    }
+
+    var closeAcknowledged = false;
+
+    function requestClose() {
+      const iframe = document.getElementById('chat-iframe');
+      if (!iframe || !iframe.contentWindow) {
+        log('⚠️ iframe není připravený – zavírám natvrdo', 'warn');
+        hardClose();
+        return;
+      }
+      log('✕ Posílám REQUEST_CLOSE → iframe', 'info');
+      closeAcknowledged = false;
+      iframe.contentWindow.postMessage({ type: 'REQUEST_CLOSE' }, '*');
+
+      // Fallback – pokud iframe nepotvrdí příjem do 3s, zavři natvrdo
+      setTimeout(() => {
+        if (!closeAcknowledged) {
+          const w = document.getElementById('chat-wrapper');
+          if (w && w.style.visibility === 'visible') {
+            log('⏱ Timeout – iframe neodpovědělo, zavírám natvrdo', 'warn');
+            hardClose();
+          }
+        }
+      }, 3000);
+    }
+
+    // ── PŘÍJEM ZPRÁV Z IFRAME ──────────────────────────────────
+    window.addEventListener('message', function (e) {
+      if (!e.data || !e.data.type) return;
+      const t = e.data.type;
+      log('📨 Přijato z iframe: ' + t, 'recv');
+
+      if (t === 'CLOSE_ACKNOWLEDGED') {
+        closeAcknowledged = true;
+        log('✅ Feedback okno otevřeno v iframu', 'info');
+      }
+      if (t === 'WIDGET_CLOSE') {
+        log('✅ WIDGET_CLOSE – zavírám chat', 'send');
+        hardClose();
+      }
+    });
+
+    // ESC
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        const w = document.getElementById('chat-wrapper');
+        if (w && w.style.visibility === 'visible') requestClose();
+      }
+      if (e.key === 'Escape') {
+        closeUserModal();
+      }
+    });
+  </script>
+
+</body>
+</html>

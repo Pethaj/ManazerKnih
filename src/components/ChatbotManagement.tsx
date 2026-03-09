@@ -725,6 +725,27 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                                         Povolí přepínač mezi AI chatem a vyhledávačem produktů přímo v chatu. Uživatel si může sám zvolit režim.
                                                     </div>
                                                 </div>
+
+                                                {/* 🌿 Filtrování látek podle problému (EO Směsi) */}
+                                                <div style={styles.settingRow}>
+                                                    <label style={styles.settingLabel}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chatbot.filter_ingredients_by_problem === true}
+                                                            onChange={() => updateLocalSettings(chatbot.chatbot_id, {
+                                                                filter_ingredients_by_problem: !(chatbot.filter_ingredients_by_problem === true)
+                                                            })}
+                                                            style={styles.checkbox}
+                                                        />
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                                        </svg>
+                                                        Filtrovat látky podle problému
+                                                    </label>
+                                                    <div style={styles.settingDescription}>
+                                                        Zobrazí účinné látky z tabulky ingredient-solution napárované ke konkrétnímu problému uživatele (místo látek z produktu). Určeno pro EO Směsi chat.
+                                                    </div>
+                                                </div>
                                             </div>
                                             
                                             {/* Vyhledávač produktů - badge */}
@@ -1071,6 +1092,17 @@ export const ChatbotManagement: React.FC<ChatbotManagementProps> = ({ onClose, o
                                         onClick={() => setShowProductEmbeddingsFeed2(true)}
                                     >
                                         📋 Spravovat Embeddingy Pro Feed 2
+                                    </button>
+                                </div>
+
+                                <div style={styles.actionCard}>
+                                    <h4>AI Embeddingy Pro Feed ABC</h4>
+                                    <p>Vygenerujte embeddingy pro vylepšená produktová doporučení z Feed ABC (varianty, ceny A/B/C)</p>
+                                    <button
+                                        style={styles.primaryButton}
+                                        onClick={() => alert('Embeddingy pro Feed ABC – připravuje se')}
+                                    >
+                                        📋 Spravovat Embeddingy Pro Feed ABC
                                     </button>
                                 </div>
                             </div>

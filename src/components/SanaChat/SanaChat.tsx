@@ -42,7 +42,7 @@ import { openBewitProductLink } from '../../services/productLinkService';
 import { classifyProblemFromUserMessage } from '../../services/problemClassificationService';
 import { matchProductCombinationsWithProblems } from '../../services/productPairingService';
 // 🌿 EO Směsi Workflow Service - zpracování EO Směsi dotazů
-import { processEoSmesiQuery, processEoSmesiQueryWithKnownProblem, IngredientWithDescription } from '../../services/eoSmesiWorkflowService';
+import { processEoSmesiQuery, processEoSmesiQueryWithKnownProblem, IngredientWithDescription, getIngredientsByProblem } from '../../services/eoSmesiWorkflowService';
 // 🔍 Problem Selection Form - formulář pro výběr problému (EO Směsi Chat)
 import { ProblemSelectionForm } from './ProblemSelectionForm';
 // 🔍 Feed Agent - vyhledávač produktů
@@ -172,6 +172,7 @@ interface SanaChatProps {
     group_products_by_category?: boolean;  // NEW Grupování produktů podle kategorií
     enable_product_pairing?: boolean;  // NEW Párování kombinací produktů
     enable_product_search?: boolean;   // SEARCH Vyhledávač produktů (Feed Agent toggle)
+    filter_ingredients_by_problem?: boolean;  // 🌿 Filtrovat látky podle problému (EO Směsi)
   };
   chatbotId?: string;  // NEW ID chatbota (pro Sana 2 markdown rendering)
   originalChatbotId?: string;  // NEW Původní ID chatbota před přepnutím
@@ -1143,6 +1144,7 @@ const Message: React.FC<{
         group_products_by_category?: boolean;  // NEW Grupování produktů podle kategorií
         show_sources?: boolean;  // NEW Zobrazování zdrojů
         enable_product_pairing?: boolean;  // NEW Párování kombinací produktů
+        filter_ingredients_by_problem?: boolean;  // 🌿 Filtrovat látky podle problému (EO Směsi)
     };
     sessionId?: string;
     token?: string;  // NEW Token z externalUserInfo
@@ -2453,6 +2455,7 @@ const ChatWindow: React.FC<{
         show_sources?: boolean;  // NEW Zobrazování zdrojů
         group_products_by_category?: boolean;  // NEW Grupování produktů podle kategorií
         enable_product_pairing?: boolean;  // NEW Párování kombinací produktů
+        filter_ingredients_by_problem?: boolean;  // 🌿 Filtrovat látky podle problému (EO Směsi)
     };
     sessionId?: string;
     token?: string;  // NEW Token z externalUserInfo
@@ -2954,13 +2957,25 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                     category: p.category
                 }));
                 
-                const eoIngredients = Array.from(
+                // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
+                let eoIngredients: IngredientWithDescription[];
+                console.log(`%c🌿 [EO SMESI] Načítám ingredience z medicineTable (Ing_sol)`, 'color: #9b59b6; font-weight: bold;');
+                
+                eoIngredients = Array.from(
                     new Map([
                         ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
                         ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
-                        ...(eoSmesiResult.medicineTable.prawteinSlozeni || [])
                     ].map(i => [i.name, i])).values()
                 );
+                console.log(
+                    `%c✅ Ingredience z Ing_sol (EO1 + EO2): ${eoIngredients.length} položek`,
+                    'color: #2ecc71;'
+                );
+                console.table(eoIngredients.map((item, idx) => ({
+                    '#': idx + 1,
+                    'Ingredience': item.name,
+                    'Popis': item.description || '(prázdný)'
+                })));
 
                 console.log('💊 [SANACHAT DEBUG] eoIngredients sestaveny:', {
                     eo1: eoSmesiResult.medicineTable.eo1,
@@ -3133,13 +3148,25 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                     product_code: p.code,
                                     category: p.category
                                 }));
-                                const directIngredients = Array.from(
+                                // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
+                                let directIngredients: IngredientWithDescription[];
+                                console.log(`%c🌿 [EO SMESI] Načítám ingredience z medicineTable (Ing_sol - Single problem mode)`, 'color: #9b59b6; font-weight: bold;');
+                                
+                                directIngredients = Array.from(
                                     new Map([
                                         ...(directResult.medicineTable.eo1Slozeni || []),
                                         ...(directResult.medicineTable.eo2Slozeni || []),
-                                        ...(directResult.medicineTable.prawteinSlozeni || [])
                                     ].map(i => [i.name, i])).values()
                                 );
+                                console.log(
+                                    `%c✅ Ingredience z Ing_sol (EO1 + EO2): ${directIngredients.length} položek`,
+                                    'color: #2ecc71;'
+                                );
+                                console.table(directIngredients.map((item, idx) => ({
+                                    '#': idx + 1,
+                                    'Ingredience': item.name,
+                                    'Popis': item.description || '(prázdný)'
+                                })));
                                 const botMessage: ChatMessage = {
                                     id: Date.now().toString(),
                                     role: 'bot',
@@ -3188,13 +3215,26 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                             category: p.category
                         }));
 
-                        const mainIngredients = Array.from(
+                        // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
+                        let mainIngredients: IngredientWithDescription[];
+                        console.log(`%c🌿 [EO SMESI] Načítám ingredience z medicineTable (Ing_sol - Main flow)`, 'color: #9b59b6; font-weight: bold;');
+                        console.log(`%cProblém: ${eoSmesiResult.medicineTable.problemName}`, 'color: #3498db; font-size: 11px;');
+                        
+                        mainIngredients = Array.from(
                             new Map([
                                 ...(eoSmesiResult.medicineTable.eo1Slozeni || []),
                                 ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
-                                ...(eoSmesiResult.medicineTable.prawteinSlozeni || [])
                             ].map(i => [i.name, i])).values()
                         );
+                        console.log(
+                            `%c✅ Ingredience z Ing_sol (EO1 + EO2): ${mainIngredients.length} položek`,
+                            'color: #2ecc71;'
+                        );
+                        console.table(mainIngredients.map((item, idx) => ({
+                            '#': idx + 1,
+                            'Ingredience': item.name,
+                            'Popis': item.description || '(prázdný)'
+                        })));
                         
                         const botMessage: ChatMessage = {
                             id: Date.now().toString(),

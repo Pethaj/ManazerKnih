@@ -42,6 +42,8 @@ export interface ChatbotSettings {
   enable_product_pairing?: boolean;  // Automatické párování produktů podle tabulky leceni
   // 🆕 Vyhledávač produktů (Feed Agent)
   enable_product_search?: boolean;  // Povolení přepínání mezi AI chatem a vyhledávačem produktů
+  // 🆕 Filtrování látek podle problému (EO Směsi)
+  filter_ingredients_by_problem?: boolean;  // Zobrazit látky z tabulky ingredient-solution podle detekovaného problému
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -105,6 +107,8 @@ export interface CreateChatbotSettingsData {
   enable_product_pairing?: boolean;
   // 🆕 Vyhledávač produktů (Feed Agent)
   enable_product_search?: boolean;
+  // 🆕 Filtrování látek podle problému (EO Směsi)
+  filter_ingredients_by_problem?: boolean;
 }
 
 // Interface pro aktualizaci chatbota
@@ -139,6 +143,8 @@ export interface UpdateChatbotSettingsData {
   enable_product_pairing?: boolean;
   // 🆕 Vyhledávač produktů (Feed Agent)
   enable_product_search?: boolean;
+  // 🆕 Filtrování látek podle problému (EO Směsi)
+  filter_ingredients_by_problem?: boolean;
 }
 
 // Interface pro filtry chatbota
@@ -168,6 +174,8 @@ export interface ChatbotFilters {
   enableProductPairing: boolean;  // Automatické párování produktů podle tabulky leceni
   // 🆕 Vyhledávač produktů (Feed Agent)
   enableProductSearch: boolean;  // Povolení přepínání mezi AI chatem a vyhledávačem produktů
+  // 🆕 Filtrování látek podle problému (EO Směsi)
+  filterIngredientsByProblem: boolean;  // Zobrazit látky z tabulky ingredient-solution podle detekovaného problému
 }
 
 export class ChatbotSettingsService {
@@ -468,6 +476,8 @@ export class ChatbotSettingsService {
         enableProductPairing: settings.enable_product_pairing === true, // default false
         // 🔍 Vyhledávač produktů (Feed Agent)
         enableProductSearch: settings.enable_product_search === true, // default false
+        // 🌿 Filtrování látek podle problému (EO Směsi)
+        filterIngredientsByProblem: settings.filter_ingredients_by_problem === true, // default false
       };
     } catch (error) {
       throw error;

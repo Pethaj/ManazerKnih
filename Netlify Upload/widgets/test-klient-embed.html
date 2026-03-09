@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Wany Chat Widget na stránce klienta</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 32px;
+            margin-bottom: 16px;
+        }
+
+        .status-card {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 24px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .status-icon.success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-icon.error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-icon.pending {
+            background: #fef5e7;
+            color: #975a16;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 16px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+        }
+
+        .content-section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            color: #2d3748;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        p {
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .code-block {
+            background: #1a202c;
+            color: #48bb78;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+
+        .alert.info {
+            background: #bee3f8;
+            color: #2c5282;
+            border-left: 4px solid #4299e1;
+        }
+
+        .alert.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #48bb78;
+        }
+
+        .alert.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border-left: 4px solid #f56565;
+        }
+
+        /* Iframe styles */
+        #wany-chat-iframe {
+            display: none;
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            width: 1200px;
+            height: 700px;
+            border: 0;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            z-index: 999999;
+        }
+
+        #wany-chat-iframe.visible {
+            display: block;
+        }
+
+        /* Toggle button */
+        #wany-chat-toggle {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #4299e1;
+            color: white;
+            border: none;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            cursor: pointer;
+            z-index: 999998;
+            font-size: 24px;
+            transition: all 0.3s ease;
+        }
+
+        #wany-chat-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+        }
+
+        #wany-chat-toggle.open {
+            background: #f56565;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #wany-chat-iframe {
+                width: 100vw;
+                height: 100vh;
+                right: 0;
+                bottom: 0;
+                border-radius: 0;
+            }
+
+            .header, .content-section {
+                padding: 24px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+
+        .loader {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header s informacemi -->
+        <div class="header">
+            <h1>🎉 Wany Chat Widget - Test na stránce klienta</h1>
+            <p>Simulace reálného webu klienta kde bude Wany Chat vložen pomocí iframe.</p>
+
+            <div class="status-card">
+                <h3 style="margin-bottom: 16px; color: #2d3748;">📊 Status připojení</h3>
+                <div class="status-item">
+                    <div class="status-icon pending" id="status-icon-server">⏳</div>
+                    <div>
+                        <strong>MedBase Server</strong>
+                        <div style="font-size: 12px; color: #718096;">Kontrola dostupnosti...</div>
+                    </div>
+                </div>
+                <div class="status-item">
+                    <div class="status-icon pending" id="status-icon-iframe">⏳</div>
+                    <div>
+                        <strong>Iframe embedding</strong>
+                        <div style="font-size: 12px; color: #718096;">Testování CSP hlaviček...</div>
+                    </div>
+                </div>
+                <div class="status-item">
+                    <div class="status-icon pending" id="status-icon-chat">⏳</div>
+                    <div>
+                        <strong>Chat widget</strong>
+                        <div style="font-size: 12px; color: #718096;">Čekání na načtení...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="toggleChat()">
+                    <span id="toggle-text">🚀 Otevřít Wany Chat</span>
+                </button>
+                <button class="btn-secondary" onclick="refreshIframe()">
+                    🔄 Refresh Widget
+                </button>
+                <button class="btn-success" onclick="testConnection()">
+                    🔍 Test Připojení
+                </button>
+            </div>
+        </div>
+
+        <!-- Informační sekce -->
+        <div class="content-section">
+            <h2>📝 O tomto testu</h2>
+            <p>Tato stránka simuluje <strong>web klienta</strong>, kde bude Wany Chat vložen pomocíiframe. Testujeme:</p>
+            <ul style="margin-left: 24px; color: #4a5568;">
+                <li style="margin: 8px 0;">✅ Iframe embedding (CSP hlavičky)</li>
+                <li style="margin: 8px 0;">✅ Responsivní design (desktop + mobile)</li>
+                <li style="margin: 8px 0;">✅ Funkčnost chatu (N8N webhook)</li>
+                <li style="margin: 8px 0;">✅ Filtry (pouze TČM a Wany, bez štítků)</li>
+            </ul>
+
+            <div class="alert info">
+                <strong>💡 Tip:</strong> Otevři Developer Tools (F12) a sleduj Console a Network tab pro detailní informace o chybách.
+            </div>
+        </div>
+
+        <!-- Implementační kód -->
+        <div class="content-section">
+            <h2>👨‍💻 Implementační kód pro klienta</h2>
+            <p>Klient si zkopíruje tento kód na svůj web (před <code>&lt;/body&gt;</code> tag):</p>
+
+            <h3 style="margin: 24px 0 12px; color: #2d3748;">Varianta A: Vždy viditelný chat</h3>
+            <div class="code-block">
+&lt;!-- Wany Chat Widget --&gt;
+&lt;iframe
+  src="https://medbase.cz/embed.html"
+  style="position:fixed; right:24px; bottom:24px; width:1200px; height:700px; 
+         border:0; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); 
+         z-index:999999;"
+  allow="clipboard-write"
+  title="Wany Chat"
+&gt;&lt;/iframe&gt;
+            </div>
+
+            <h3 style="margin: 24px 0 12px; color: #2d3748;">Varianta B: S tlačítkem (používá tato stránka)</h3>
+            <div class="code-block">
+&lt;!-- Toggle tlačítko --&gt;
+&lt;button id="wany-chat-toggle" onclick="toggleWanyChat()"&gt;💬&lt;/button&gt;
+
+&lt;!-- Iframe (skrytý) --&gt;
+&lt;iframe id="wany-chat-iframe" src="https://medbase.cz/embed.html"&gt;&lt;/iframe&gt;
+
+&lt;script&gt;
+function toggleWanyChat() {
+  const iframe = document.getElementById('wany-chat-iframe');
+  const btn = document.getElementById('wany-chat-toggle');
+  const isVisible = iframe.classList.contains('visible');
+  
+  if (isVisible) {
+    iframe.classList.remove('visible');
+    btn.textContent = '💬';
+    btn.classList.remove('open');
+  } else {
+    iframe.classList.add('visible');
+    btn.textContent = '✕';
+    btn.classList.add('open');
+  }
+}
+&lt;/script&gt;
+            </div>
+
+            <div class="alert success" id="success-message" style="display: none;">
+                <strong>✅ Výborně!</strong> Chat se úspěšně načetl a je funkční. Můžeš poslat tuto URL klientovi.
+            </div>
+
+            <div class="alert error" id="error-message" style="display: none;">
+                <strong>❌ Chyba!</strong> <span id="error-text"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wany Chat Widget - Toggle Button -->
+    <button id="wany-chat-toggle" onclick="toggleChat()">💬</button>
+
+    <!-- Wany Chat Widget - Iframe -->
+    <iframe 
+        id="wany-chat-iframe"
+        src="http://localhost:5173/embed.html"
+        allow="clipboard-write"
+        title="Wany Chat"
+    ></iframe>
+
+    <script>
+        let chatOpen = false;
+        let iframeLoaded = false;
+
+        // Toggle chat visibility
+        function toggleChat() {
+            const iframe = document.getElementById('wany-chat-iframe');
+            const btn = document.getElementById('wany-chat-toggle');
+            const toggleText = document.getElementById('toggle-text');
+            
+            chatOpen = !chatOpen;
+            
+            if (chatOpen) {
+                iframe.style.display = 'block';
+                btn.classList.add('open');
+                btn.textContent = '✕';
+                if (toggleText) toggleText.textContent = '❌ Zavřít Chat';
+                updateStatus('chat', 'success', 'Chat otevřen');
+            } else {
+                iframe.style.display = 'none';
+                btn.classList.remove('open');
+                btn.textContent = '💬';
+                if (toggleText) toggleText.textContent = '🚀 Otevřít Wany Chat';
+                updateStatus('chat', 'pending', 'Chat zavřen');
+            }
+        }
+
+        // Refresh iframe
+        function refreshIframe() {
+            const iframe = document.getElementById('wany-chat-iframe');
+            iframe.src = iframe.src;
+            updateStatus('chat', 'pending', 'Načítání...');
+            setTimeout(() => testConnection(), 2000);
+        }
+
+        // Test connection
+        async function testConnection() {
+            // Test 1: Server dostupnost
+            try {
+                const response = await fetch('http://localhost:5173/embed.html', { method: 'HEAD' });
+                if (response.ok) {
+                    updateStatus('server', 'success', 'Server běží');
+                    
+                    // Check CSP headers
+                    const csp = response.headers.get('Content-Security-Policy');
+                    if (csp && csp.includes('frame-ancestors')) {
+                        updateStatus('iframe', 'success', 'CSP správně nastaven');
+                    } else {
+                        updateStatus('iframe', 'error', 'CSP není nastaven!');
+                        showError('Server neposílá správné CSP hlavičky. Zkontroluj vite.config.ts');
+                    }
+                } else {
+                    updateStatus('server', 'error', 'Server neodpovídá');
+                    showError('Server není dostupný na http://localhost:5173');
+                }
+            } catch (err) {
+                updateStatus('server', 'error', 'Připojení selhalo');
+                updateStatus('iframe', 'error', 'Nelze testovat');
+                showError('Nelze se připojit k serveru. Je spuštěn "npm run dev"?');
+            }
+        }
+
+        // Update status icon
+        function updateStatus(type, status, message) {
+            const icon = document.getElementById(`status-icon-${type}`);
+            const item = icon.parentElement.parentElement;
+            const messageEl = item.querySelector('div > div');
+            
+            icon.className = `status-icon ${status}`;
+            
+            if (status === 'success') {
+                icon.textContent = '✓';
+            } else if (status === 'error') {
+                icon.textContent = '✕';
+            } else {
+                icon.textContent = '⏳';
+            }
+            
+            messageEl.textContent = message;
+        }
+
+        // Show error
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            errorText.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 10000);
+        }
+
+        // Show success
+        function showSuccess() {
+            const successDiv = document.getElementById('success-message');
+            successDiv.style.display = 'block';
+        }
+
+        // Listen for iframe load
+        document.getElementById('wany-chat-iframe').addEventListener('load', function() {
+            console.log('✅ Iframe načten úspěšně!');
+            iframeLoaded = true;
+            updateStatus('chat', 'success', 'Widget načten');
+            showSuccess();
+        });
+
+        // Listen for iframe errors
+        document.getElementById('wany-chat-iframe').addEventListener('error', function() {
+            console.error('❌ Chyba při načítání iframe!');
+            updateStatus('chat', 'error', 'Načítání selhalo');
+            showError('Iframe se nepodařilo načíst. Zkontroluj konzoli (F12) pro detaily.');
+        });
+
+        // Auto-test on load
+        window.addEventListener('load', function() {
+            setTimeout(() => testConnection(), 1000);
+        });
+
+        // Listen for console errors
+        window.addEventListener('error', function(e) {
+            if (e.message.includes('frame') || e.message.includes('X-Frame-Options')) {
+                updateStatus('iframe', 'error', 'CSP blokuje iframe!');
+                showError('Server blokuje iframe embedding! Zkontroluj CSP hlavičky.');
+            }
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Příklad použití EO Směsi Chat na webu klienta</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .info-box h3 {
+            margin-top: 0;
+            color: #1e40af;
+        }
+        
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .feature {
+            margin: 15px 0;
+            padding-left: 20px;
+        }
+        
+        .feature::before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+            margin-left: -20px;
+        }
+        
+        .toggle-button {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 60px;
+            height: 60px;
+            background: #3b82f6;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+            z-index: 999998;
+            transition: all 0.3s ease;
+        }
+        
+        .toggle-button:hover {
+            background: #2563eb;
+            transform: scale(1.1);
+        }
+        
+        .toggle-button.open {
+            background: #ef4444;
+        }
+        
+        #eo-smesi-chat-iframe {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            width: 1200px;
+            height: 700px;
+            max-width: calc(100vw - 48px);
+            max-height: calc(100vh - 48px);
+            border: 0;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            z-index: 999999;
+            display: none;
+            transition: all 0.3s ease;
+        }
+        
+        #eo-smesi-chat-iframe.visible {
+            display: block;
+        }
+        
+        @media (max-width: 1280px) {
+            #eo-smesi-chat-iframe {
+                width: calc(100vw - 48px);
+                height: calc(100vh - 48px);
+                right: 24px;
+                bottom: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 EO Směsi Chat Widget - Příklad Integrace</h1>
+        <p class="subtitle">Toto je ukázka jak vypadá EO Směsi Chat na webu klienta</p>
+        
+        <div class="info-box">
+            <h3>📋 Jak použít na vašem webu</h3>
+            <p>Jednoduše vložte následující kód před uzavírací tag <code>&lt;/body&gt;</code> na vaší stránce:</p>
+        </div>
+        
+        <div class="code-block">
+&lt;!-- EO Směsi Chat Widget --&gt;
+&lt;iframe
+  id="eo-smesi-chat-iframe"
+  src="http://localhost:5173/embed-eo-smesi.html"
+  data-user-id="&lt;?php echo $user-&gt;id; ?&gt;"
+  data-firstname="&lt;?php echo $user-&gt;firstName; ?&gt;"
+  data-lastname="&lt;?php echo $user-&gt;lastName; ?&gt;"
+  data-email="&lt;?php echo $user-&gt;email; ?&gt;"
+  data-position="&lt;?php echo $user-&gt;position; ?&gt;"
+  data-token-eshop="&lt;?php echo $user-&gt;tokenEshop; ?&gt;"
+  style="position:fixed;right:24px;bottom:24px;width:1200px;height:700px;max-width:calc(100vw - 48px);max-height:calc(100vh - 48px);border:0;border-radius:16px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);z-index:999999;display:none"
+  allow="clipboard-write"
+&gt;&lt;/iframe&gt;
+
+&lt;button 
+  id="eo-smesi-chat-toggle"
+  onclick="document.getElementById('eo-smesi-chat-iframe').classList.toggle('visible'); this.classList.toggle('open')"
+  style="position:fixed;bottom:24px;right:24px;width:60px;height:60px;background:#3b82f6;border:none;border-radius:50%;color:white;font-size:28px;cursor:pointer;box-shadow:0 4px 12px rgba(59,130,246,0.4);z-index:999998"
+&gt;
+  💬
+&lt;/button&gt;
+        </div>
+        
+        <div class="info-box">
+            <h3>🎯 Vlastnosti</h3>
+            <div class="feature">100% izolace CSS - žádné konflikty s vaším webem</div>
+            <div class="feature">Automatické aktualizace - změny na MedBase se okamžitě projeví</div>
+            <div class="feature">Responzivní design - funguje na desktopu i mobilu</div>
+            <div class="feature">Stejný design jako na MedBase - bez rozdílů</div>
+            <div class="feature">Žádná instalace - jen vložte iframe kód</div>
+            <div class="feature">E-shop token tracking - kompletní integrace s Bewit</div>
+        </div>
+        
+        <div class="info-box" style="background: #fef3c7; border-color: #f59e0b;">
+            <h3 style="color: #92400e;">⚠️ Poznámka pro produkci</h3>
+            <p>V produkčním prostředí změňte URL v iframe <code>src</code> z:</p>
+            <code>http://localhost:5173/embed-eo-smesi.html</code>
+            <p>na:</p>
+            <code>https://gr8learn.eu/embed-eo-smesi.html</code>
+        </div>
+        
+        <div class="info-box" style="background: #dcfce7; border-color: #10b981;">
+            <h3 style="color: #065f46;">✨ Vyzkoušejte si to!</h3>
+            <p>Klikněte na <strong>modré tlačítko v pravém dolním rohu</strong> a otevřete EO Směsi Chat!</p>
+        </div>
+
+        <div class="info-box" style="background: #ede9fe; border-color: #8b5cf6;">
+            <h3 style="color: #5b21b6;">👤 User Data Tracking</h3>
+            <p>Chat automaticky sbírá a ukládá tyto informace o uživateli:</p>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li><strong>User ID</strong> - ID uživatele v systému klienta</li>
+                <li><strong>Jméno a příjmení</strong> - Pro personalizaci</li>
+                <li><strong>Email</strong> - Pro následnou komunikaci</li>
+                <li><strong>Pozice</strong> - Role uživatele</li>
+                <li><strong>E-shop Token</strong> - Pro integraci s Bewit e-shopem</li>
+            </ul>
+            <p style="margin-top: 10px;">Všechna data se ukládají do Supabase a jsou dostupná v N8N webhooku.</p>
+        </div>
+    </div>
+    
+    <!-- EO SMĚSI CHAT WIDGET - START -->
+    <iframe
+        id="eo-smesi-chat-iframe"
+        src="http://localhost:5173/embed-eo-smesi.html"
+        data-user-id="test-user-123"
+        data-firstname="Jan"
+        data-lastname="Testovací"
+        data-email="jan.testovaci@bewit.cz"
+        data-position="Testovací uživatel"
+        data-token-eshop="test-token-abc123xyz"
+        allow="clipboard-write"
+    ></iframe>
+    
+    <button 
+        id="eo-smesi-chat-toggle"
+        class="toggle-button"
+        onclick="toggleEOSmesiChat()"
+        aria-label="Otevřít/zavřít chat"
+    >
+        💬
+    </button>
+    <!-- EO SMĚSI CHAT WIDGET - END -->
+    
+    <script>
+        function toggleEOSmesiChat() {
+            const iframe = document.getElementById('eo-smesi-chat-iframe');
+            const button = document.getElementById('eo-smesi-chat-toggle');
+            
+            iframe.classList.toggle('visible');
+            button.classList.toggle('open');
+            
+            // Změna ikony
+            if (iframe.classList.contains('visible')) {
+                button.textContent = '✕';
+            } else {
+                button.textContent = '💬';
+            }
+        }
+
+        // 🚀 Poslech na IFRAME_READY signál
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'IFRAME_READY') {
+                console.log('✅ EO Směsi Chat iframe je připraven!');
+                
+                // Můžeš poslat user data přes postMessage (alternativa k data-* atributům)
+                const iframe = document.getElementById('eo-smesi-chat-iframe');
+                if (iframe && iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({
+                        type: 'USER_DATA',
+                        user: {
+                            id: 'test-user-456',
+                            firstName: 'Petr',
+                            lastName: 'PostMessage',
+                            email: 'petr@bewit.cz',
+                            position: 'PostMessage User',
+                            tokenEshop: 'postmessage-token-xyz789'
+                        }
+                    }, 'http://localhost:5173');
+                    console.log('📤 User data odeslána přes postMessage');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

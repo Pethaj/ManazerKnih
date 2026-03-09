@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EO Směsi Chat - Náhled pro klienta</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 40px 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .preview-header h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+
+        .preview-header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .preview-note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 32px;
+            max-width: 420px;
+            text-align: center;
+        }
+
+        .preview-note p {
+            color: #856404;
+            font-size: 14px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-header">
+        <h1>🌿 EO Směsi Chat Widget</h1>
+        <p>Náhled dlaždice pro web klienta</p>
+    </div>
+
+    <div class="preview-note">
+        <p><strong>💡 Klikni na "Spustit Chat"</strong> pro otevření chatu</p>
+    </div>
+
+    <!-- ========================================
+         DLAŽDICE PRO KLIENTA - ZAČÁTEK
+         ======================================== -->
+    
+    <div id="eo-smesi-chat-tile" style="position:relative;background-image:url('https://modopafybeslbcqjxsve.supabase.co/storage/v1/object/public/web/ChatGPT%20Image%20Jan%2029,%202026,%2012_00_25%20PM.png');background-size:cover;background-position:center;border-radius:24px;padding:40px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1);max-width:420px;margin:0 auto;text-align:center;overflow:hidden;">
+      
+      <!-- Tmavý overlay -->
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:1;"></div>
+      
+      <!-- Nadpis -->
+      <h2 style="position:relative;z-index:2;font-size:28px;color:#ffffff;margin:0 0 16px 0;text-shadow:0 2px 4px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        Poradce na směsi esenciálních olejů
+      </h2>
+      
+      <!-- Obsah -->
+      <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:24px;">
+        <p style="color:#e2e8f0;line-height:1.6;font-size:16px;margin:0;text-shadow:0 1px 3px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+          Náš asistent na esenciální oleje dodá informace a poradí s výběrem produktu
+        </p>
+        
+        <!-- Tlačítko Spustit Chat -->
+        <button
+          id="eo-smesi-chat-open-btn"
+          onclick="openEOSmesiChat()"
+          style="width:180px;height:51px;border-radius:15px;cursor:pointer;transition:0.3s ease;background:linear-gradient(to bottom right,#2e8eff 0%,rgba(46,142,255,0) 30%);background-color:rgba(46,142,255,0.2);border:none;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"
+          onmouseover="this.style.backgroundColor='rgba(46,142,255,0.7)';this.style.boxShadow='0 0 10px rgba(46,142,255,0.5)'"
+          onmouseout="this.style.backgroundColor='rgba(46,142,255,0.2)';this.style.boxShadow='none'"
+        >
+          <div style="width:176px;height:47px;border-radius:13px;background-color:#079854;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+            Spustit Chat
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================
+         DLAŽDICE PRO KLIENTA - KONEC
+         ======================================== -->
+
+    <!-- Overlay pozadí pro modal -->
+    <div
+      id="eo-smesi-chat-overlay"
+      onclick="closeEOSmesiChat()"
+      style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;visibility:hidden;opacity:0;transition:opacity 0.3s ease;backdrop-filter:blur(4px);"
+    ></div>
+
+    <!-- Chat Modal -->
+    <div
+      id="eo-smesi-chat-wrapper"
+      style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);width:90%;max-width:1200px;height:85%;max-height:800px;z-index:999999;visibility:hidden;opacity:0;transition:all 0.3s ease;"
+    >
+      <!-- Zavírací tlačítko -->
+      <button
+        id="eo-smesi-close-btn"
+        onclick="closeEOSmesiChat()"
+        style="position:absolute;top:-48px;right:0;z-index:10;background:rgba(0,0,0,0.6);color:white;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;font-family:sans-serif;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;opacity:0.8;"
+        onmouseover="this.style.opacity='1';this.style.background='rgba(0,0,0,0.9)'"
+        onmouseout="this.style.opacity='0.8';this.style.background='rgba(0,0,0,0.6)'"
+      >✕</button>
+
+      <!-- Chat iframe container -->
+      <div
+        id="eo-smesi-chat-modal"
+        style="width:100%;height:100%;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;"
+      >
+        <iframe
+          id="eo-smesi-chat-iframe"
+          src="/embed-eo-smesi.html"
+          style="width:100%;height:100%;border:0;border-radius:24px;background:#fff;"
+          allow="clipboard-write"
+          title="EO Směsi Chat"
+        ></iframe>
+      </div>
+    </div>
+
+    <!-- JavaScript pro ovládání chatu -->
+    <script>
+        // Simulace user dat (na produkci by šlo z PHP backendu)
+        const CURRENT_USER = {
+            id: '12345',
+            email: 'test@bewit.cz',
+            firstName: 'Jan',
+            lastName: 'Novák',
+            position: 'Distributor',
+            tokenEshop: 'bewit_token_abc123'
+        };
+
+        console.log('👤 User data pro test:', CURRENT_USER);
+
+        // Otevřít chat
+        function openEOSmesiChat() {
+          const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+          const overlay = document.getElementById('eo-smesi-chat-overlay');
+          
+          // Zobraz overlay
+          overlay.style.visibility = 'visible';
+          overlay.style.opacity = '1';
+          
+          // Zobraz wrapper s animací
+          wrapper.style.visibility = 'visible';
+          setTimeout(() => {
+            wrapper.style.opacity = '1';
+            wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+          }, 10);
+          
+          console.log('✅ EO Směsi Chat otevřen');
+          
+          // Pošli user data do iframe
+          setTimeout(() => {
+            sendUserData();
+          }, 500);
+        }
+
+        // Zavřít chat
+        function closeEOSmesiChat() {
+          const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+          const overlay = document.getElementById('eo-smesi-chat-overlay');
+          
+          // Skryj s animací
+          wrapper.style.opacity = '0';
+          wrapper.style.transform = 'translate(-50%, -50%) scale(0.95)';
+          overlay.style.opacity = '0';
+          
+          setTimeout(() => {
+            wrapper.style.visibility = 'hidden';
+            overlay.style.visibility = 'hidden';
+          }, 300);
+          
+          console.log('❌ EO Směsi Chat zavřen');
+        }
+
+        // Poslat user data do iframe pomocí postMessage
+        function sendUserData() {
+          const iframe = document.getElementById('eo-smesi-chat-iframe');
+          
+          if (!iframe || !iframe.contentWindow) {
+            console.warn('⚠️ Iframe ještě není načtený');
+            return;
+          }
+          
+          // Pošli user data do iframe
+          iframe.contentWindow.postMessage({
+            type: 'USER_DATA',
+            user: CURRENT_USER
+          }, 'https://gr8learn.eu');
+          
+          console.log('📤 User data odesláno do iframe:', CURRENT_USER);
+        }
+
+        // Po načtení iframe
+        const iframe = document.getElementById('eo-smesi-chat-iframe');
+        if (iframe) {
+          iframe.addEventListener('load', function() {
+            console.log('✅ EO Směsi Chat iframe načten');
+          });
+        }
+
+        // Klávesová zkratka ESC pro zavření
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') {
+            const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+            if (wrapper && wrapper.style.visibility === 'visible') {
+              closeEOSmesiChat();
+            }
+          }
+        });
+
+        // Responzivní zobrazení
+        function handleResize() {
+          const wrapper = document.getElementById('eo-smesi-chat-wrapper');
+          if (!wrapper) return;
+          
+          const isMobile = window.innerWidth <= 768;
+          
+          if (isMobile) {
+            wrapper.style.width = '95%';
+            wrapper.style.height = '90%';
+            wrapper.style.maxWidth = '100%';
+            wrapper.style.maxHeight = '100%';
+          } else {
+            wrapper.style.width = '90%';
+            wrapper.style.height = '85%';
+            wrapper.style.maxWidth = '1200px';
+            wrapper.style.maxHeight = '800px';
+          }
+        }
+
+        window.addEventListener('resize', handleResize);
+        handleResize();
+    </script>
+
+    <!-- Info footer -->
+    <div style="margin-top: 40px; text-align: center; color: #999; font-size: 14px;">
+        <p>💡 Stiskni <strong>ESC</strong> pro zavření chatu</p>
+        <p style="margin-top: 8px;">📱 Zkus změnit velikost okna - widget je plně responzivní</p>
+    </div>
+</body>
+</html>

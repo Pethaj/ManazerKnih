@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Data Atributů - Wany Chat</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .info-box {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .info-box h2 {
+            margin-top: 0;
+            color: #079854;
+        }
+        .user-data {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #079854;
+            margin: 10px 0;
+        }
+        .user-data p {
+            margin: 5px 0;
+            font-family: 'Courier New', monospace;
+        }
+        .iframe-wrapper {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: 800px;
+        }
+        .iframe-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            border-radius: 8px;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin: 10px 0;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="info-box">
+            <h2>🧪 Test Data-* Atributů - Wany Chat</h2>
+            
+            <div class="success">
+                <strong>✅ Test běží!</strong><br>
+                Tato stránka testuje předávání user dat pomocí <code>data-*</code> atributů přímo v iframe tagu.
+            </div>
+            
+            <div class="user-data">
+                <strong>📋 Testovací user data (z data-* atributů):</strong>
+                <p><strong>ID:</strong> 3523</p>
+                <p><strong>Jméno:</strong> Marcel</p>
+                <p><strong>Příjmení:</strong> Haim</p>
+                <p><strong>Email:</strong> marcel.haim@bewit.cz</p>
+                <p><strong>Pozice:</strong> Supervisor</p>
+            </div>
+            
+            <div class="warning">
+                <strong>🔍 Co kontrolovat v DevTools Console:</strong><br>
+                1. Otevřete DevTools (F12) → Console<br>
+                2. Hledejte log: <code>📋 User data načtena z data-* atributů iframe:</code><br>
+                3. Zkontrolujte, že obsahuje všechny user data výše<br>
+                4. Odešlete zprávu v chatu<br>
+                5. Zkontrolujte payload do N8N - měl by obsahovat user objekt
+            </div>
+        </div>
+        
+        <div class="iframe-wrapper">
+            <!-- 
+                🎯 KLÍČOVÝ ELEMENT: Iframe s data-* atributy
+                
+                Embed skript automaticky načte tato data při inicializaci:
+                - data-user-id
+                - data-firstname  
+                - data-lastname
+                - data-email
+                - data-position
+            -->
+            <iframe
+                id="wany-chat-iframe"
+                src="/embed.html"
+                data-user-id="3523"
+                data-firstname="Marcel"
+                data-lastname="Haim"
+                data-email="marcel.haim@bewit.cz"
+                data-position="Supervisor"
+                allow="clipboard-write"
+                title="Wany Chat Test"
+            ></iframe>
+        </div>
+    </div>
+</body>
+</html>

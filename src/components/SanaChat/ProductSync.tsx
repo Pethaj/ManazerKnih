@@ -4,6 +4,7 @@ import { supabase as supabaseClient } from '../../lib/supabase';
 // URL produktových feedů BEWIT
 const BEWIT_FEED_URL = 'https://bewit.love/feeds/zbozi.xml';
 const BEWIT_FEED_2_URL = 'https://bewit.love/feed/bewit?auth=xr32PRbrs554K';
+const BEWIT_FEED_ABC_URL = 'https://bewit.love/feed/bewit2?auth=xr32PRbrs554K';
 
 // Supabase Edge Function URL pro Feed 2
 const getSupabaseUrl = () => {
@@ -312,6 +313,24 @@ export const syncProductsFeed = async (): Promise<boolean> => {
     }
 };
 
+// Funkce pro synchronizaci Feed ABC (přes Edge Function)
+export const syncProductsFeedAbc = async (): Promise<boolean> => {
+    try {
+        const { data, error } = await supabaseClient.functions.invoke('sync-feed-abc', {
+            body: {}
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        return data?.ok === true;
+
+    } catch (error) {
+        return false;
+    }
+};
+
 // Nová funkce pro synchronizaci Feed 2 (přes Edge Function)
 export const syncProductsFeed2 = async (): Promise<boolean> => {
     try {
@@ -358,7 +377,7 @@ export const getLastSyncLog = async (syncType: string): Promise<SyncLog | null> 
 };
 
 // Funkce pro získání počtu produktů v tabulkách
-export const getProductCounts = async (): Promise<{feed1: number, feed2: number}> => {
+export const getProductCounts = async (): Promise<{feed1: number, feed2: number, feedAbc: number}> => {
     try {
         const { count: count1 } = await supabaseClient
             .from('products')
@@ -368,12 +387,17 @@ export const getProductCounts = async (): Promise<{feed1: number, feed2: number}
             .from('product_feed_2')
             .select('*', { count: 'exact', head: true });
 
+        const { count: countAbc } = await supabaseClient
+            .from('product_feed_abc')
+            .select('*', { count: 'exact', head: true });
+
         return {
             feed1: count1 || 0,
-            feed2: count2 || 0
+            feed2: count2 || 0,
+            feedAbc: countAbc || 0
         };
     } catch (error) {
-        return { feed1: 0, feed2: 0 };
+        return { feed1: 0, feed2: 0, feedAbc: 0 };
     }
 };
 
@@ -381,7 +405,8 @@ export const getProductCounts = async (): Promise<{feed1: number, feed2: number}
 const ProductSyncAdmin: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingFeed2, setIsLoadingFeed2] = useState(false);
-    const [selectedFeed, setSelectedFeed] = useState<'feed_1' | 'feed_2'>('feed_1');
+    const [isLoadingFeedAbc, setIsLoadingFeedAbc] = useState(false);
+    const [selectedFeed, setSelectedFeed] = useState<'feed_1' | 'feed_2' | 'feed_abc'>('feed_1');
     
     // State pro Feed 1
     const [lastSyncStatus, setLastSyncStatus] = useState<SyncLog | null>(null);
@@ -391,12 +416,22 @@ const ProductSyncAdmin: React.FC = () => {
     const [lastSyncStatusFeed2, setLastSyncStatusFeed2] = useState<SyncLog | null>(null);
     const [productCountFeed2, setProductCountFeed2] = useState<number>(0);
 
+    // State pro Feed ABC
+    const [lastSyncStatusFeedAbc, setLastSyncStatusFeedAbc] = useState<SyncLog | null>(null);
+    const [productCountFeedAbc, setProductCountFeedAbc] = useState<number>(0);
+    const [productsFeedAbc, setProductsFeedAbc] = useState<any[]>([]);
+    const [feedAbcPage, setFeedAbcPage] = useState<number>(0);
+    const FEED_ABC_PAGE_SIZE = 20;
+
     // Načteme data při startu
     useEffect(() => {
         loadSyncStatus();
         loadProductCount();
         loadSyncStatusFeed2();
         loadProductCountFeed2();
+        loadSyncStatusFeedAbc();
+        loadProductCountFeedAbc();
+        loadProductsFeedAbc(0);
     }, []);
 
     const loadSyncStatus = async () => {
@@ -411,6 +446,14 @@ const ProductSyncAdmin: React.FC = () => {
         try {
             const log = await getLastSyncLog('product_feed_2');
             setLastSyncStatusFeed2(log);
+        } catch (error) {
+        }
+    };
+
+    const loadSyncStatusFeedAbc = async () => {
+        try {
+            const log = await getLastSyncLog('product_feed_abc');
+            setLastSyncStatusFeedAbc(log);
         } catch (error) {
         }
     };
@@ -445,6 +488,38 @@ const ProductSyncAdmin: React.FC = () => {
         }
     };
 
+    const loadProductCountFeedAbc = async () => {
+        try {
+            const { count, error } = await supabaseClient
+                .from('product_feed_abc')
+                .select('*', { count: 'exact', head: true });
+
+            if (error) {
+                return;
+            }
+
+            setProductCountFeedAbc(count || 0);
+        } catch (error) {
+        }
+    };
+
+    const loadProductsFeedAbc = async (page = 0) => {
+        try {
+            const from = page * 20;
+            const to = from + 19;
+            const { data, error } = await supabaseClient
+                .from('product_feed_abc')
+                .select('product_code, product_name, category, price_a, price_b, price_b_percents, price_c, price_c_percents, in_action, availability, accessibility, add_to_cart_id, variants_json, sales_last_30_days, url, thumbnail, sync_status, last_sync_at')
+                .order('sales_last_30_days', { ascending: false })
+                .range(from, to);
+
+            if (error) return;
+            setProductsFeedAbc(data || []);
+            setFeedAbcPage(page);
+        } catch (error) {
+        }
+    };
+
     // Nová funkce pro HTTP synchronizaci
     const handleHttpSync = async () => {
         setIsLoading(true);
@@ -454,8 +529,7 @@ const ProductSyncAdmin: React.FC = () => {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U`,
-                    'Content-Type': 'application/json',
-                    'X-Triggered-By': 'manual-button'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     source: 'manual_button',
@@ -542,6 +616,50 @@ const ProductSyncAdmin: React.FC = () => {
         }
     };
 
+    const handleManualSyncFeedAbc = async () => {
+        setIsLoadingFeedAbc(true);
+        try {
+            const success = await syncProductsFeedAbc();
+
+            if (success) {
+                alert('✅ Synchronizace Feed ABC byla spuštěna na pozadí. Sledujte stav na této stránce.');
+
+                const pollInterval = setInterval(async () => {
+                    await loadSyncStatusFeedAbc();
+                    await loadProductCountFeedAbc();
+
+                    const { data: latestLog } = await supabaseClient
+                        .from('sync_logs')
+                        .select('*')
+                        .eq('sync_type', 'product_feed_abc')
+                        .order('started_at', { ascending: false })
+                        .limit(1)
+                        .single();
+
+                    if (latestLog && latestLog.status !== 'running') {
+                        clearInterval(pollInterval);
+                        setIsLoadingFeedAbc(false);
+
+                        if (latestLog.status === 'success') {
+                            alert(`✅ Synchronizace Feed ABC dokončena!\n\n📊 Zpracováno: ${latestLog.records_processed}\n➕ Vloženo: ${latestLog.records_inserted}\n🔄 Aktualizováno: ${latestLog.records_updated}\n❌ Selhalo: ${latestLog.records_failed}`);
+                        } else {
+                            alert(`❌ Synchronizace Feed ABC selhala: ${latestLog.error_message || 'Neznámá chyba'}`);
+                        }
+                    }
+                }, 5000);
+
+                await loadSyncStatusFeedAbc();
+                await loadProductCountFeedAbc();
+                await loadProductsFeedAbc(0);
+            } else {
+                throw new Error('Nepodařilo se spustit synchronizaci Feed ABC');
+            }
+        } catch (error) {
+            alert('❌ Chyba při spouštění synchronizace Feed ABC: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
+            setIsLoadingFeedAbc(false);
+        }
+    };
+
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleString('cs-CZ');
     };
@@ -573,6 +691,17 @@ const ProductSyncAdmin: React.FC = () => {
                     }`}
                 >
                     Feed 2 - Product Feed 2
+                </button>
+                <button
+                    onClick={() => setSelectedFeed('feed_abc')}
+                    className={`px-6 py-3 font-semibold border-b-2 transition-colors ${
+                        selectedFeed === 'feed_abc'
+                            ? 'border-bewit-blue text-bewit-blue'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Feed ABC - Product Feed ABC
+
                 </button>
             </div>
             
@@ -692,6 +821,212 @@ const ProductSyncAdmin: React.FC = () => {
                             📋 Zobrazit feed
                         </button>
                     </div>
+                </>
+            )}
+
+            {/* Obsah pro Feed ABC */}
+            {selectedFeed === 'feed_abc' && (
+                <>
+                    {/* Statistiky Feed ABC */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="bg-emerald-100 rounded-lg p-4">
+                            <h3 className="text-lg font-semibold text-emerald-700 mb-2">Produkty v databázi (Feed ABC)</h3>
+                            <p className="text-3xl font-bold text-emerald-700">{productCountFeedAbc}</p>
+                            <p className="text-xs text-gray-600 mt-2">Tabulka: product_feed_abc</p>
+                        </div>
+
+                        {lastSyncStatusFeedAbc && (
+                            <div className={`rounded-lg p-4 ${lastSyncStatusFeedAbc.status === 'success' ? 'bg-green-100' : lastSyncStatusFeedAbc.status === 'error' ? 'bg-red-100' : 'bg-yellow-100'}`}>
+                                <h3 className="text-lg font-semibold mb-2">Poslední synchronizace</h3>
+                                <p className="text-sm">
+                                    <strong>Status:</strong> {lastSyncStatusFeedAbc.status === 'success' ? '✅ Úspěch' : lastSyncStatusFeedAbc.status === 'error' ? '❌ Chyba' : '⏳ Běží'}
+                                </p>
+                                <p className="text-sm">
+                                    <strong>Čas:</strong> {formatDate(lastSyncStatusFeedAbc.started_at)}
+                                </p>
+                                {lastSyncStatusFeedAbc.status === 'success' && (
+                                    <>
+                                        <p className="text-sm">
+                                            <strong>Zpracováno:</strong> {lastSyncStatusFeedAbc.records_processed}
+                                        </p>
+                                        <p className="text-sm">
+                                            <strong>Nových:</strong> {lastSyncStatusFeedAbc.records_inserted},{' '}
+                                            <strong>Aktualizováno:</strong> {lastSyncStatusFeedAbc.records_updated}
+                                        </p>
+                                    </>
+                                )}
+                                {lastSyncStatusFeedAbc.error_message && (
+                                    <p className="text-sm text-red-600 mt-2">
+                                        <strong>Chyba:</strong> {lastSyncStatusFeedAbc.error_message}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Tlačítka Feed ABC */}
+                    <div className="flex gap-4 mb-6">
+                        <button
+                            onClick={handleManualSyncFeedAbc}
+                            disabled={isLoadingFeedAbc}
+                            className="flex-1 bg-emerald-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {isLoadingFeedAbc ? '⏳ Synchronizuji Feed ABC...' : '🔄 Synchronizovat Feed ABC nyní'}
+                        </button>
+                        <button
+                            onClick={() => window.open(BEWIT_FEED_ABC_URL, '_blank')}
+                            className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+                        >
+                            📋 Zobrazit feed
+                        </button>
+                    </div>
+
+                    {/* Tabulka produktů */}
+                    {productsFeedAbc.length > 0 && (
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-base font-semibold text-gray-700">
+                                    Produkty (řazeno dle prodejů za 30 dní)
+                                </h3>
+                                <button
+                                    onClick={() => loadProductsFeedAbc(0)}
+                                    className="text-xs text-emerald-600 hover:underline"
+                                >
+                                    ↻ Obnovit
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-gray-200">
+                                <table className="w-full text-xs">
+                                    <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left">Produkt</th>
+                                            <th className="px-3 py-2 text-left">Kategorie</th>
+                                            <th className="px-3 py-2 text-right">Cena A</th>
+                                            <th className="px-3 py-2 text-right">Cena B</th>
+                                            <th className="px-3 py-2 text-right">Cena C</th>
+                                            <th className="px-3 py-2 text-center">Akce</th>
+                                            <th className="px-3 py-2 text-center">Sklad</th>
+                                            <th className="px-3 py-2 text-center">Prodeje/30d</th>
+                                            <th className="px-3 py-2 text-left">Přístupnost</th>
+                                            <th className="px-3 py-2 text-left">ADD_TO_CART_ID</th>
+                                            <th className="px-3 py-2 text-center">Variant</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {productsFeedAbc.map((p, idx) => (
+                                            <tr key={p.product_code} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                <td className="px-3 py-2 max-w-xs">
+                                                    <a
+                                                        href={p.url || '#'}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-emerald-700 font-medium hover:underline"
+                                                    >
+                                                        {p.product_name}
+                                                    </a>
+                                                    <div className="text-gray-400 text-xs mt-0.5 font-mono">{p.product_code}</div>
+                                                </td>
+                                                <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.category || '–'}</td>
+                                                <td className="px-3 py-2 text-right font-semibold text-gray-800 whitespace-nowrap">
+                                                    {p.price_a != null ? `${p.price_a} Kč` : '–'}
+                                                </td>
+                                                <td className="px-3 py-2 text-right text-blue-600 whitespace-nowrap">
+                                                    {p.price_b != null ? (
+                                                        <span>
+                                                            {p.price_b} Kč
+                                                            {p.price_b_percents != null && (
+                                                                <span className="ml-1 text-gray-400">(-{p.price_b_percents}%)</span>
+                                                            )}
+                                                        </span>
+                                                    ) : '–'}
+                                                </td>
+                                                <td className="px-3 py-2 text-right text-purple-600 whitespace-nowrap">
+                                                    {p.price_c != null ? (
+                                                        <span>
+                                                            {p.price_c} Kč
+                                                            {p.price_c_percents != null && (
+                                                                <span className="ml-1 text-gray-400">(-{p.price_c_percents}%)</span>
+                                                            )}
+                                                        </span>
+                                                    ) : '–'}
+                                                </td>
+                                                <td className="px-3 py-2 text-center">
+                                                    {p.in_action ? (
+                                                        <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-xs font-semibold">AKCE</span>
+                                                    ) : (
+                                                        <span className="text-gray-300">–</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2 text-center">
+                                                    {p.availability === 1 ? (
+                                                        <span className="text-green-600 font-semibold">✓</span>
+                                                    ) : (
+                                                        <span className="text-red-400">✗</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2 text-center font-semibold text-emerald-700">
+                                                    {p.sales_last_30_days}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {(p.accessibility || []).map((a: string) => (
+                                                            <span key={a} className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                                                                a === 'public' ? 'bg-green-100 text-green-700' :
+                                                                a === 'birthday' ? 'bg-pink-100 text-pink-700' :
+                                                                'bg-orange-100 text-orange-700'
+                                                            }`}>
+                                                                {a}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-2 font-mono text-gray-500 whitespace-nowrap">
+                                                    {p.add_to_cart_id || '–'}
+                                                </td>
+                                                <td className="px-3 py-2 text-center">
+                                                    {p.variants_json && Array.isArray(p.variants_json) ? (
+                                                        <span
+                                                            title={JSON.stringify(p.variants_json, null, 2)}
+                                                            className="cursor-help bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-xs font-semibold"
+                                                        >
+                                                            {p.variants_json.length}×
+                                                        </span>
+                                                    ) : '–'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Stránkování */}
+                            <div className="flex items-center justify-between mt-3">
+                                <button
+                                    onClick={() => loadProductsFeedAbc(feedAbcPage - 1)}
+                                    disabled={feedAbcPage === 0}
+                                    className="px-3 py-1.5 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    ← Předchozí
+                                </button>
+                                <span className="text-xs text-gray-500">
+                                    Strana {feedAbcPage + 1} · zobrazeno {feedAbcPage * 20 + 1}–{Math.min((feedAbcPage + 1) * 20, productCountFeedAbc)} z {productCountFeedAbc}
+                                </span>
+                                <button
+                                    onClick={() => loadProductsFeedAbc(feedAbcPage + 1)}
+                                    disabled={(feedAbcPage + 1) * 20 >= productCountFeedAbc}
+                                    className="px-3 py-1.5 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    Další →
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {productsFeedAbc.length === 0 && productCountFeedAbc === 0 && (
+                        <div className="text-center py-8 text-gray-400 text-sm">
+                            Žádné produkty. Spusťte synchronizaci.
+                        </div>
+                    )}
                 </>
             )}
         </div>

@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Testovací Stránka - Vany Chat Widget (Simulace Klienta)</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+    
+    .header p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+    
+    /* Content */
+    .content {
+      padding: 40px;
+    }
+    
+    .section {
+      margin-bottom: 40px;
+    }
+    
+    .section h2 {
+      color: #333;
+      margin-bottom: 20px;
+      font-size: 1.8rem;
+      border-bottom: 3px solid #667eea;
+      padding-bottom: 10px;
+    }
+    
+    .section p {
+      color: #666;
+      line-height: 1.8;
+      margin-bottom: 15px;
+      font-size: 1rem;
+    }
+    
+    /* Buttons */
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .btn {
+      padding: 15px 30px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+    }
+    
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6);
+    }
+    
+    .btn-warning {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
+    }
+    
+    .btn-warning:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(240, 147, 251, 0.6);
+    }
+    
+    .btn-info {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+    }
+    
+    .btn-info:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(79, 172, 254, 0.6);
+    }
+    
+    /* Cards */
+    .card {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-left: 4px solid #667eea;
+    }
+    
+    .card h3 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 1.3rem;
+    }
+    
+    .card p {
+      color: #555;
+      line-height: 1.6;
+    }
+    
+    /* Code box */
+    .code-box {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    
+    .code-box .keyword {
+      color: #569cd6;
+    }
+    
+    .code-box .string {
+      color: #ce9178;
+    }
+    
+    .code-box .comment {
+      color: #6a9955;
+    }
+    
+    /* Status badge */
+    .status {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+    }
+    
+    .status-info {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    
+    /* API Console */
+    .console {
+      background: #000;
+      color: #0f0;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    
+    .console-line {
+      margin-bottom: 5px;
+    }
+    
+    .console-time {
+      color: #888;
+    }
+    
+    .console-success {
+      color: #0f0;
+    }
+    
+    .console-error {
+      color: #f00;
+    }
+    
+    .console-info {
+      color: #0ff;
+    }
+    
+    /* Footer */
+    .footer {
+      background: #f8f9fa;
+      padding: 30px;
+      text-align: center;
+      color: #666;
+      border-top: 1px solid #dee2e6;
+    }
+    
+    /* Floating button */
+    .floating-btn {
+      position: fixed;
+      bottom: 30px;
+      left: 30px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px 25px;
+      border-radius: 50px;
+      border: none;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+      transition: all 0.3s ease;
+      z-index: 999998;
+    }
+    
+    .floating-btn:hover {
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 6px 25px rgba(102, 126, 234, 0.7);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 1.8rem;
+      }
+      
+      .button-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .floating-btn {
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 20px;
+      }
+      
+      .floating-btn:hover {
+        transform: translateX(-50%) translateY(-3px) scale(1.05);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Floating button (simuluje typické použití u klienta) -->
+  <button class="floating-btn" onclick="openChatWidget()">
+    💬 Kontaktujte našeho poradce
+  </button>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🧪 Testovací Prostředí - Vany Chat Widget</h1>
+      <p>Simulace reálného klientského webu</p>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Status Section -->
+      <div class="section">
+        <h2>📊 Status Widgetu</h2>
+        <div class="card">
+          <span class="status status-success" id="widget-status">⏳ Načítání...</span>
+          <h3>Widget je připraven k použití</h3>
+          <p>Widget běží ve stejném režimu jako u klienta na produkci. Všechny funkce jsou plně funkční a připojené k produkčním službám (N8N, Supabase).</p>
+        </div>
+      </div>
+
+      <!-- Testing Section -->
+      <div class="section">
+        <h2>🎮 Testovací Scénáře</h2>
+        
+        <div class="button-grid">
+          <button class="btn btn-primary" onclick="testScenario1()">
+            💬 Základní chat
+          </button>
+          
+          <button class="btn btn-success" onclick="testScenario2()">
+            🛒 Produktové doporučení
+          </button>
+          
+          <button class="btn btn-warning" onclick="testScenario3()">
+            🎯 Funnel flow
+          </button>
+          
+          <button class="btn btn-info" onclick="testScenario4()">
+            🤖 Automatická zpráva
+          </button>
+        </div>
+      </div>
+
+      <!-- API Testing Section -->
+      <div class="section">
+        <h2>🔧 API Testování</h2>
+        
+        <div class="button-grid">
+          <button class="btn btn-primary" onclick="testAPIOpen()">
+            📖 Otevřít widget
+          </button>
+          
+          <button class="btn btn-success" onclick="testAPIClose()">
+            📕 Zavřít widget
+          </button>
+          
+          <button class="btn btn-warning" onclick="testAPIToggle()">
+            🔄 Toggle widget
+          </button>
+          
+          <button class="btn btn-info" onclick="testAPISendMessage()">
+            📨 Poslat zprávu
+          </button>
+        </div>
+
+        <!-- Console -->
+        <div class="console" id="console">
+          <div class="console-line console-info">[INFO] Konzole připravena...</div>
+        </div>
+      </div>
+
+      <!-- Scenarios Description -->
+      <div class="section">
+        <h2>📖 Popis Testovacích Scénářů</h2>
+        
+        <div class="card">
+          <h3>💬 Scénář 1: Základní chat</h3>
+          <p>Otevře chat a simuluje běžnou konverzaci. Widget zobrazí uvítací zprávu a uživatel může začít psát.</p>
+        </div>
+
+        <div class="card">
+          <h3>🛒 Scénář 2: Produktové doporučení</h3>
+          <p>Otevře chat a pošle automatickou zprávu pro produktová doporučení. Bot by měl rozpoznat intent a nabídnout produkty.</p>
+        </div>
+
+        <div class="card">
+          <h3>🎯 Scénář 3: Funnel flow</h3>
+          <p>Spustí konverzační funnel, kde bot vede uživatele přes sérii otázek k cíli (např. doporučení produktu).</p>
+        </div>
+
+        <div class="card">
+          <h3>🤖 Scénář 4: Automatická zpráva</h3>
+          <p>Demonstruje jak poslat zprávu do chatu programově - použitelné pro kontextové nabídky.</p>
+        </div>
+      </div>
+
+      <!-- Integration Code -->
+      <div class="section">
+        <h2>💻 Integrace u Klienta</h2>
+        
+        <p>Takto vypadá integrace na této stránce (identické s reálným klientem):</p>
+
+        <div class="code-box">
+<span class="comment">&lt;!-- Vany Chat Widget Integration --&gt;</span>
+<span class="keyword">&lt;script</span> <span class="string">src</span>=<span class="string">"./vany-chat-widget.js"</span> 
+        <span class="string">data-chatbot-id</span>=<span class="string">"vany_chat"</span>
+        <span class="string">data-theme</span>=<span class="string">"light"</span>
+        <span class="string">data-position</span>=<span class="string">"bottom-right"</span><span class="keyword">&gt;</span>
+<span class="keyword">&lt;/script&gt;</span>
+
+<span class="comment">// Otevření widgetu tlačítkem</span>
+<span class="keyword">function</span> openChatWidget() {
+  window.VanyChatWidget.<span class="string">open</span>();
+  <span class="string">logToConsole</span>(<span class="string">'Widget otevřen tlačítkem'</span>, <span class="string">'success'</span>);
+}
+        </div>
+
+        <p><strong>Poznámka:</strong> V produkci by se používala URL:</p>
+        <div class="code-box">
+<span class="string">src</span>=<span class="string">"https://beautiful-pika-466f18.netlify.app/widgets/vany-chat-widget.js"</span>
+        </div>
+      </div>
+
+      <!-- Configuration -->
+      <div class="section">
+        <h2>⚙️ Aktuální Konfigurace</h2>
+        
+        <div class="card">
+          <h3>Widget Konfigurace</h3>
+          <div id="config-display">
+            <p><strong>Chatbot ID:</strong> <code>vany_chat</code></p>
+            <p><strong>Téma:</strong> <code>light</code></p>
+            <p><strong>Pozice:</strong> <code>bottom-right</code></p>
+            <p><strong>Šířka:</strong> <code>400px</code></p>
+            <p><strong>Výška:</strong> <code>600px</code></p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>© 2025 Bewit | Vany Chat Widget Testing Environment</p>
+      <p style="margin-top: 10px; font-size: 14px;">
+        <strong>Verze:</strong> 1.0.0 | 
+        <strong>Status:</strong> <span style="color: #28a745;">🟢 Online</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- VANY CHAT WIDGET - PRODUCTION SIMULATION    -->
+  <!-- ============================================ -->
+  <script src="./vany-chat-widget.js" 
+          data-chatbot-id="vany_chat"
+          data-theme="light"
+          data-position="bottom-right">
+  </script>
+
+  <!-- Test Scripts -->
+  <script>
+    // Console logger
+    function logToConsole(message, type = 'info') {
+      const console = document.getElementById('console');
+      const time = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.className = `console-line console-${type}`;
+      line.innerHTML = `<span class="console-time">[${time}]</span> ${message}`;
+      console.appendChild(line);
+      console.scrollTop = console.scrollHeight;
+    }
+
+    // Widget status check
+    function checkWidgetStatus() {
+      const statusEl = document.getElementById('widget-status');
+      
+      if (window.VanyChatWidget) {
+        statusEl.textContent = '✅ Widget Připraven';
+        statusEl.className = 'status status-success';
+        logToConsole('Widget úspěšně načten a připraven', 'success');
+        
+        // Log config
+        logToConsole('Config: ' + JSON.stringify(window.VanyChatWidget.config), 'info');
+      } else {
+        statusEl.textContent = '❌ Widget Nenačten';
+        statusEl.className = 'status status-error';
+        logToConsole('Widget se nepodařilo načíst!', 'error');
+      }
+    }
+
+    // Open chat widget
+    function openChatWidget() {
+      if (window.VanyChatWidget) {
+        window.VanyChatWidget.open();
+        logToConsole('Widget otevřen', 'success');
+      } else {
+        logToConsole('Widget není k dispozici!', 'error');
+        alert('Widget není k dispozici. Zkuste obnovit stránku.');
+      }
+    }
+
+    // Test Scenarios
+    function testScenario1() {
+      logToConsole('🧪 Test Scénář 1: Základní chat', 'info');
+      openChatWidget();
+    }
+
+    function testScenario2() {
+      logToConsole('🧪 Test Scénář 2: Produktové doporučení', 'info');
+      window.VanyChatWidget.open();
+      
+      setTimeout(() => {
+        window.VanyChatWidget.sendMessage('Hledám produkty pro lepší spánek');
+        logToConsole('Poslána zpráva: "Hledám produkty pro lepší spánek"', 'info');
+      }, 800);
+    }
+
+    function testScenario3() {
+      logToConsole('🧪 Test Scénář 3: Funnel flow', 'info');
+      window.VanyChatWidget.open();
+      
+      setTimeout(() => {
+        window.VanyChatWidget.sendMessage('Potřebuji doporučení');
+        logToConsole('Poslána zpráva: "Potřebuji doporučení"', 'info');
+      }, 800);
+    }
+
+    function testScenario4() {
+      logToConsole('🧪 Test Scénář 4: Automatická zpráva', 'info');
+      window.VanyChatWidget.open();
+      
+      setTimeout(() => {
+        window.VanyChatWidget.sendMessage('Jaké máte produkty z včelích produktů?');
+        logToConsole('Poslána automatická zpráva o včelích produktech', 'info');
+      }, 800);
+    }
+
+    // API Tests
+    function testAPIOpen() {
+      window.VanyChatWidget.open();
+      logToConsole('API: window.VanyChatWidget.open()', 'success');
+    }
+
+    function testAPIClose() {
+      window.VanyChatWidget.close();
+      logToConsole('API: window.VanyChatWidget.close()', 'success');
+    }
+
+    function testAPIToggle() {
+      window.VanyChatWidget.toggle();
+      logToConsole('API: window.VanyChatWidget.toggle()', 'success');
+    }
+
+    function testAPISendMessage() {
+      const message = 'Testovací zpráva z API';
+      window.VanyChatWidget.sendMessage(message);
+      logToConsole(`API: window.VanyChatWidget.sendMessage("${message}")`, 'success');
+    }
+
+    // Listen to widget events
+    window.addEventListener('message', function(event) {
+      const data = event.data;
+      
+      if (data.type === 'WIDGET_READY') {
+        logToConsole('📡 Widget Event: WIDGET_READY', 'info');
+        checkWidgetStatus();
+      } else if (data.type === 'WIDGET_OPEN') {
+        logToConsole('📡 Widget Event: WIDGET_OPEN', 'info');
+      } else if (data.type === 'WIDGET_CLOSE') {
+        logToConsole('📡 Widget Event: WIDGET_CLOSE', 'info');
+      }
+    });
+
+    // Check status on load
+    window.addEventListener('load', function() {
+      setTimeout(checkWidgetStatus, 1000);
+    });
+
+    // Initial log
+    logToConsole('Testovací prostředí inicializováno', 'success');
+    logToConsole('Čekám na načtení widgetu...', 'info');
+  </script>
+</body>
+</html>
+
+
+
+
+
+

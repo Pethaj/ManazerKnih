@@ -92,8 +92,6 @@
       color: #6b7280;
     }
   </style>
-  <script type="module" crossorigin src="/assets/widget-wY7JPaBj.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/preload-helper-B8tWKQ1F.js">
 </head>
 <body>
   <!-- Root element for React app -->
@@ -108,6 +106,51 @@
   </div>
 
   <!-- Widget Entry Point Script -->
+  <script type="module">
+    // Widget initialization
+    console.log('🤖 Vany Chat Widget HTML načten');
+    
+    // Parse URL parameters for debugging
+    const params = new URLSearchParams(window.location.search);
+    console.log('📋 Widget parametry:', {
+      chatbot: params.get('chatbot'),
+      theme: params.get('theme'),
+      greeting: params.get('greeting')
+    });
+
+    // Error handler
+    window.addEventListener('error', (event) => {
+      console.error('❌ Widget chyba:', event.error);
+      
+      // Show error UI
+      const root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = `
+          <div class="widget-error">
+            <div class="widget-error-icon">⚠️</div>
+            <div class="widget-error-title">Nepodařilo se načíst chat</div>
+            <div class="widget-error-message">${event.message || 'Neznámá chyba'}</div>
+          </div>
+        `;
+      }
+    });
+
+    // Import and render React app
+    import('/src/widget-entry.tsx').catch((error) => {
+      console.error('❌ Nepodařilo se načíst widget:', error);
+      
+      const root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = `
+          <div class="widget-error">
+            <div class="widget-error-icon">⚠️</div>
+            <div class="widget-error-title">Chyba načítání</div>
+            <div class="widget-error-message">Zkontrolujte konfiguraci widgetu</div>
+          </div>
+        `;
+      }
+    });
+  </script>
 
   <!-- Analytics (volitelné - pro budoucnost) -->
   <script>
@@ -121,4 +164,13 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
 

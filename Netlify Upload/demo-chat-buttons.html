@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wany Chat - Nová Sada Dlaždic</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --sana-glow: rgba(139, 92, 246, 0.5);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            padding: 60px 20px;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        header { text-align: center; margin-bottom: 60px; }
+        h1 { font-size: 42px; margin-bottom: 12px; color: #0f172a; }
+        .subtitle { font-size: 18px; color: #64748b; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 40px;
+        }
+
+        .card-wrapper {
+            background: white;
+            padding: 40px;
+            border-radius: 32px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+        }
+
+        .card-label {
+            margin-bottom: 24px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 12px;
+        }
+
+        /* 1. Sana AI Signature */
+        .style-7 {
+            background: #0f172a;
+            border-radius: 20px;
+            padding: 20px 32px;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 0 rgba(139, 92, 246, 0);
+        }
+        .style-7:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3), 0 0 20px var(--sana-glow);
+            border-color: rgba(139, 92, 246, 0.5);
+        }
+        .ai-orb {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            border-radius: 50%;
+            position: relative;
+            box-shadow: 0 0 15px #8b5cf6;
+        }
+        .ai-orb::after {
+            content: ''; position: absolute; inset: -4px;
+            border-radius: 50%; border: 2px solid #8b5cf6;
+            animation: pulse 2s infinite;
+        }
+
+        /* 2. Search Bar Look */
+        .style-8 {
+            width: 100%;
+            max-width: 400px;
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            border-radius: 100px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .style-8:hover {
+            border-color: #6366f1;
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.1);
+        }
+        .search-text { color: #94a3b8; font-size: 16px; }
+        .search-btn {
+            background: #6366f1;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 100px;
+            font-weight: 600;
+        }
+
+        /* 3. Floating Avatar */
+        .style-9 {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: white;
+            padding: 10px 20px 10px 10px;
+            border-radius: 100px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .style-9:hover { transform: scale(1.05); box-shadow: 0 15px 40px rgba(0,0,0,0.12); }
+        .avatar {
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px;
+            position: relative;
+        }
+        .status {
+            position: absolute; bottom: 2px; right: 2px;
+            width: 12px; height: 12px;
+            background: #22c55e;
+            border: 2px solid white;
+            border-radius: 50%;
+        }
+
+        /* 4. Bento Box Support */
+        .style-10 {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 24px;
+            padding: 24px;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+        }
+        .style-10:hover { background: #6366f1; color: white; border-color: #6366f1; }
+        .style-10 .icon { font-size: 32px; margin-bottom: 12px; }
+        .style-10 .title { font-weight: 700; font-size: 20px; }
+        .style-10 .desc { font-size: 14px; opacity: 0.7; }
+
+        /* 5. Glassmorphism */
+        .glass-container {
+            background: url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000') center/cover;
+            width: 100%; height: 200px;
+            border-radius: 24px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .style-11 {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 20px 40px;
+            color: white;
+            font-weight: 600;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .style-11:hover { background: rgba(255, 255, 255, 0.3); transform: scale(1.02); }
+
+        /* 6. Ultra Minimalist */
+        .style-12 {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid #0f172a;
+            padding: 8px 0;
+            font-size: 20px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .style-12:hover { gap: 24px; color: #6366f1; border-color: #6366f1; }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.3); opacity: 0; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+
+        /* Chat Iframe logic */
+        #chat-frame {
+            position: fixed; inset: 0; width: 100%; height: 100%;
+            border: 0; z-index: 999999;
+            visibility: hidden; opacity: 0; transition: all 0.3s;
+        }
+        #chat-frame.open { visibility: visible; opacity: 1; }
+        #close-chat {
+            position: fixed; top: 20px; right: 20px; z-index: 1000000;
+            background: #ef4444; color: white; border: none;
+            width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+            visibility: hidden; opacity: 0;
+        }
+        #close-chat.open { visibility: visible; opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Sada B: Moderní AI Design</h1>
+            <p class="subtitle">Nová kolekce interaktivních dlaždic pro Sana AI Chat</p>
+        </header>
+
+        <div class="grid">
+            <div class="card-wrapper">
+                <div class="card-label">1. AI Signature</div>
+                <div class="style-7" onclick="openChat()">
+                    <div class="ai-orb"></div>
+                    <div>
+                        <div style="font-weight:700; font-size:18px;">Sana AI</div>
+                        <div style="font-size:12px; opacity:0.6;">Připravena pomoci</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-wrapper">
+                <div class="card-label">2. Search Bar Look</div>
+                <div class="style-8" onclick="openChat()">
+                    <span class="search-text">Jak vám mohu pomoci?</span>
+                    <span class="search-btn">Položit dotaz</span>
+                </div>
+            </div>
+
+            <div class="card-wrapper">
+                <div class="card-label">3. Floating Avatar</div>
+                <div class="style-9" onclick="openChat()">
+                    <div class="avatar">🤖<div class="status"></div></div>
+                    <div style="font-weight:600;">Chatovat se Sana AI</div>
+                </div>
+            </div>
+
+            <div class="card-wrapper">
+                <div class="card-label">4. Bento Tile</div>
+                <div class="style-10" onclick="openChat()">
+                    <div class="icon">✨</div>
+                    <div class="title">AI Podpora</div>
+                    <div class="desc">Zeptejte se na recepty nebo TCM</div>
+                </div>
+            </div>
+
+            <div class="card-wrapper">
+                <div class="card-label">5. Glassmorphism</div>
+                <div class="glass-container">
+                    <button class="style-11" onclick="openChat()">Spustit Chat</button>
+                </div>
+            </div>
+
+            <div class="card-wrapper">
+                <div class="card-label">6. Ultra Minimalist</div>
+                <button class="style-12" onclick="openChat()">
+                    SANA CHAT <span>→</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <button id="close-chat" onclick="closeChat()">✕</button>
+    <iframe id="chat-frame" src="http://localhost:5173/embed.html"></iframe>
+
+    <script>
+        function openChat() {
+            document.getElementById('chat-frame').classList.add('open');
+            document.getElementById('close-chat').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeChat() {
+            document.getElementById('chat-frame').classList.remove('open');
+            document.getElementById('close-chat').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+    </script>
+</body>
+</html>

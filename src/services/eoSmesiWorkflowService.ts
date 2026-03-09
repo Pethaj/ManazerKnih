@@ -205,16 +205,25 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
   medicineTable: MedicineTable | null;
   pairingResults: PairingRecommendations;
 }> {
-  const pairingResults = await matchProductCombinationsWithProblems([problemName]);
+  console.log('🔧 [buildMedicineTableForProblem] START:', { problemName });
+  
+  try {
+    const pairingResults = await matchProductCombinationsWithProblems([problemName]);
+    console.log('🔧 [buildMedicineTableForProblem] matchProductCombinations OK:', pairingResults.products.length);
 
-  const [eoProducts, prawteinProducts, tcmProducts, slozeniData] = await Promise.all([
-    getEOProductsForProblem(problemName),
-    getPrawteinProductsForProblem(problemName),
-    getTCMProductsForProblem(problemName),
-    getEOSlozeniForProblem(problemName)
-  ]);
+    const [eoProducts, prawteinProducts, tcmProducts] = await Promise.all([
+      getEOProductsForProblem(problemName),
+      getPrawteinProductsForProblem(problemName),
+      getTCMProductsForProblem(problemName)
+    ]);
+    
+    console.log('🔧 [buildMedicineTableForProblem] Promise.all OK:', {
+      eoProducts: eoProducts.length,
+      prawteinProducts: prawteinProducts.length,
+      tcmProducts: tcmProducts.length
+    });
 
-  const hasAnyProducts = eoProducts.length > 0 || prawteinProducts.length > 0 || tcmProducts.length > 0 || pairingResults.products.length > 0;
+    const hasAnyProducts = eoProducts.length > 0 || prawteinProducts.length > 0 || tcmProducts.length > 0 || pairingResults.products.length > 0;
 
   if (!hasAnyProducts) {
     return { medicineTable: null, pairingResults };
@@ -248,19 +257,26 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
   if (eoProducts[0]) medicineTable.eo1 = eoProducts[0].name;
   if (eoProducts[1]) medicineTable.eo2 = eoProducts[1].name;
   if (prawteinProducts[0]) medicineTable.prawtein = prawteinProducts[0].name;
-  medicineTable.eo1Slozeni = slozeniData.eo1Slozeni;
-  medicineTable.eo2Slozeni = slozeniData.eo2Slozeni;
-  medicineTable.prawteinSlozeni = slozeniData.prawteinSlozeni;
 
-  console.log('🧪 [SLOZENI DEBUG] Účinné látky přiřazeny do medicineTable:', {
-    eo1: medicineTable.eo1,
-    eo2: medicineTable.eo2,
-    prawtein: medicineTable.prawtein,
-    eo1Slozeni: slozeniData.eo1Slozeni,
-    eo2Slozeni: slozeniData.eo2Slozeni,
-    prawteinSlozeni: slozeniData.prawteinSlozeni,
-    celkem: slozeniData.eo1Slozeni.length + slozeniData.eo2Slozeni.length + slozeniData.prawteinSlozeni.length
-  });
+  // Načteme kódy EO směsí přímo z leceni (stejné hodnoty jako v Ing_sol.produkt)
+  const { data: leceniRow } = await supabase
+    .from('leceni')
+    .select('"EO 1", "EO 2"')
+    .eq('Problém', problemName)
+    .limit(1);
+
+  const eo1Code = leceniRow?.[0]?.['EO 1'] ?? null;
+  const eo2Code = leceniRow?.[0]?.['EO 2'] ?? null;
+
+  // Načti Ing_sol paralelně pro EO1 a EO2 pomocí kódů z leceni
+  const [eo1IngSol, eo2IngSol] = await Promise.all([
+    eo1Code ? getIngredientsByProblemAndEO(problemName, eo1Code) : Promise.resolve([]),
+    eo2Code ? getIngredientsByProblemAndEO(problemName, eo2Code) : Promise.resolve([])
+  ]);
+
+  medicineTable.eo1Slozeni = eo1IngSol;
+  medicineTable.eo2Slozeni = eo2IngSol;
+  medicineTable.prawteinSlozeni = [];
 
   // TČM wan produkty – přidáme do companionProducts (pokud ještě nejsou ze SQL RPC)
   if (tcmProducts.length > 0) {
@@ -278,6 +294,10 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
   }
 
   return { medicineTable, pairingResults };
+  } catch (error) {
+    console.error('🔧 [buildMedicineTableForProblem] CHYBA:', error);
+    return { medicineTable: null, pairingResults: { products: [], aloe: false, merkaba: false } };
+  }
 }
 
 /**
@@ -333,6 +353,8 @@ export async function processEoSmesiQuery(
   userQuery: string,
   sessionId?: string
 ): Promise<EoSmesiResult> {
+  console.log('⚙️ [processEoSmesiQuery] INICIALIZACE - userQuery:', userQuery);
+  
   try {
     // KROK 1: DEFINICE PROBLÉMU
     const problemClassification = await classifyProblemFromUserMessage(userQuery);
@@ -370,6 +392,14 @@ export async function processEoSmesiQuery(
     // KROK 2-5: Sestavení medicine table pro nalezené problémy
     const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problems[0]);
     const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
+
+    console.log('🔎 [processEoSmesiQuery] Výsledek:', {
+      shouldShowTable,
+      'medicineTable !== null': medicineTable !== null,
+      'products.length': medicineTable?.products?.length ?? 'N/A',
+      products: medicineTable?.products,
+      problemName: medicineTable?.problemName,
+    });
     
     return {
       success: true,
@@ -383,6 +413,11 @@ export async function processEoSmesiQuery(
     };
     
   } catch (error) {
+    // #region agent log H1/H2/H3
+    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+    console.error('❌ [processEoSmesiQuery] CHYBA:', errorMessage, error);
+    // #endregion
+    
     return {
       success: false,
       problemClassification: {
@@ -400,6 +435,187 @@ export async function processEoSmesiQuery(
 // ============================================================================
 // HELPER: Načtení EO produktů z tabulky leceni
 // ============================================================================
+
+/**
+ * Načte ingredience z tabulky ing_sol pro daný problém + konkrétní EO směs.
+ * Tato funkce je hlavní pro zobrazení látek v EO Směsi chatu.
+ *
+ * Logika:
+ * - Tabulka ing_sol obsahuje záznamy pro kombinaci (problém + EO směs)
+ * - Dotazuje se přes sloupce: problem, eo_smes, ingredience, popis
+ * - Vrátí IngredientWithDescription[] – popis může být prázdný (zobrazí se jen název)
+ *
+ * @param problemName - Název problému (shoduje se s tabulkou leceni)
+ * @param eoSmes - Název konkrétní EO směsi (shoduje se s EO 1 / EO 2 z leceni)
+ * @returns Pole ingrediencí (název + popis, popis může být null)
+ */
+export async function getIngredientsByProblemAndEO(
+  problemName: string,
+  eoSmes: string
+): Promise<IngredientWithDescription[]> {
+  try {
+    const { data, error } = await supabase
+      .from('Ing_sol')
+      .select('ingredience, popis')
+      .eq('problem', problemName)
+      .eq('produkt', eoSmes);
+
+    if (error) {
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    const result: IngredientWithDescription[] = data.map(
+      (row: { ingredience: string; popis: string | null }) => ({
+        name: row.ingredience,
+        description: row.popis || null
+      })
+    );
+
+    return result;
+  } catch (_err) {
+    console.error(
+      `%c❌ [ing_sol] KRITICKÁ CHYBA při načítání:`,
+      'color: #e74c3c; font-weight: bold;'
+    );
+    console.error(_err);
+    return [];
+  }
+}
+
+/**
+ * Načte ingredience ze ing_sol pro VŠECHNY EO směsi daného problému.
+ * Vrátí deduplikovaný seznam ingrediencí přes všechny EO směsi.
+ * Pokud pro danou EO směs nejsou záznamy, přeskočí ji tiše.
+ *
+ * @param problemName - Název problému
+ * @param eoNames - Pole názvů EO směsí (EO 1, EO 2, ...)
+ * @returns Deduplikované pole ingrediencí
+ */
+export async function getIngredientsByProblemAndEOList(
+  problemName: string,
+  eoNames: string[]
+): Promise<IngredientWithDescription[]> {
+  if (eoNames.length === 0) return [];
+
+  console.log(
+    `%c🌿 [ing_sol] Načítám ingredience pro ${eoNames.length} EO směs(í): ${eoNames.join(', ')}`,
+    'color: #9b59b6; font-weight: bold;'
+  );
+
+  const allResults = await Promise.all(
+    eoNames.map(eo => getIngredientsByProblemAndEO(problemName, eo))
+  );
+
+  // Deduplikace podle názvu ingredience (zachová první výskyt)
+  const seen = new Set<string>();
+  const merged: IngredientWithDescription[] = [];
+  for (const list of allResults) {
+    for (const item of list) {
+      if (!seen.has(item.name.toLowerCase())) {
+        seen.add(item.name.toLowerCase());
+        merged.push(item);
+      }
+    }
+  }
+
+  if (merged.length > 0) {
+    console.log(
+      `%c✅ [ing_sol] Celkem po deduplikaci: ${merged.length} ingrediencí`,
+      'color: #2ecc71; font-weight: bold;'
+    );
+  }
+
+  return merged;
+}
+
+/**
+ * Načte účinné látky pro daný problém z tabulky ingredient-solution.
+ * Tato funkce slouží pro nový mód "filtrovat látky podle problému".
+ * Vrátí IngredientWithDescription[] s popisem specifickým pro konkrétní problém.
+ * 
+ * Logování:
+ * - Zobrazuje se seznam gefiltovaných ingrediencí s jejich popisy
+ * - Strukturované logování s CSS stylem pro lepší čitelnost v konzoli
+ * - Detailní debug informace pro diagnostiku
+ *
+ * @param problemName - Název problému (kategorie v ingredient-solution)
+ * @returns Pole látek s popisem specifickým pro tento problém
+ */
+export async function getIngredientsByProblem(
+  problemName: string
+): Promise<IngredientWithDescription[]> {
+  try {
+    console.log(`%c🌿 [Filtrovat látky podle problému] START`, 'color: #2ecc71; font-weight: bold; font-size: 14px;');
+    console.log(`%cProblém: ${problemName}`, 'color: #3498db; font-size: 12px;');
+    
+    const { data, error } = await supabase
+      .from('ingredient-solution')
+      .select('ingredience, popis')
+      .eq('kategorie', problemName);
+
+    if (error || !data || data.length === 0) {
+      console.warn(`%c⚠️ [ingredient-solution] Žádná data pro problém: "${problemName}"`, 'color: #f39c12; font-weight: bold;');
+      if (error) {
+        console.error('Detaily chyby:', error.message);
+      }
+      return [];
+    }
+
+    const result = data.map((row: { ingredience: string; popis: string }) => ({
+      name: row.ingredience,
+      description: row.popis || null
+    }));
+
+    // 📊 HLAVNÍ LOG - Strukturované zobrazení gefiltovaných ingrediencí
+    console.groupCollapsed(
+      `%c✅ [Filtrovat látky podle problému] Nalezeno ${result.length} ingrediencí pro: "${problemName}"`,
+      'color: #2ecc71; font-weight: bold; font-size: 13px;'
+    );
+    
+    // Zobraz tabulkový formát v konzoli
+    console.table(result.map((item, idx) => ({
+      'Poř.': idx + 1,
+      'Ingredience': item.name,
+      'Popis': item.description || '(bez popisu)'
+    })));
+
+    // Detailní výpis s formátováním
+    console.log(`%c═══════════════════════════════════════════════════════`, 'color: #95a5a6;');
+    result.forEach((item, idx) => {
+      const hasDescription = item.description && item.description.length > 0;
+      const style = hasDescription 
+        ? 'color: #27ae60; font-weight: 500;' 
+        : 'color: #95a5a6; font-style: italic;';
+      
+      console.log(
+        `%c${idx + 1}. ${item.name}${hasDescription ? ` – ${item.description}` : ' (bez popisu)'}`,
+        style
+      );
+    });
+    console.log(`%c═══════════════════════════════════════════════════════`, 'color: #95a5a6;');
+    
+    console.groupEnd();
+
+    // 📈 Summary log na konci
+    const withDescription = result.filter(i => i.description).length;
+    const withoutDescription = result.filter(i => !i.description).length;
+    
+    console.log(
+      `%c✨ SOUHRN: ${result.length} ingrediencí (${withDescription} s popisem, ${withoutDescription} bez popisu)`,
+      'color: #3498db; background-color: #ecf0f1; padding: 8px 12px; border-radius: 4px;'
+    );
+
+    return result;
+  } catch (_error) {
+    console.error(`%c❌ [ingredient-solution] KRITICKÁ CHYBA při načítání látek:`, 'color: #e74c3c; font-weight: bold;');
+    console.error('Detaily chyby:', _error);
+    return [];
+  }
+}
 
 /**
  * Načte Prawtein produkty pro daný problém z tabulky leceni
@@ -867,4 +1083,65 @@ async function getEOSlozeniForProblem(
   } catch (_error) {
     return { eo1Slozeni: [], eo2Slozeni: [], prawteinSlozeni: [] };
   }
+}
+
+// ============================================================================
+// HELPER: Logování ingrediencí
+// ============================================================================
+
+/**
+ * Formátované logování seznamu ingrediencí do konzole.
+ * Používá se pro diagnostiku a monitoring získaných ingrediencí.
+ * 
+ * Příklad logů:
+ * - Zelené logy = úspěšně načtené ingredience
+ * - Červené logy = chyby při načítání
+ * - Tabulkový formát v konzoli pro lepší přehled
+ * 
+ * @param ingredients - Pole ingrediencí k zalogování
+ * @param problemName - Název problému (pro kontext v logu)
+ * @param source - Zdroj dat ('ingredient-solution', 'slozeni', atd.)
+ */
+export function logFilteredIngredients(
+  ingredients: IngredientWithDescription[],
+  problemName: string,
+  source: 'ingredient-solution' | 'slozeni' | 'product' = 'ingredient-solution'
+): void {
+  const sourceLabel = {
+    'ingredient-solution': '📋 ingredient-solution (problém)',
+    'slozeni': '📦 slozeni (produkt)',
+    'product': '🔗 produkt'
+  }[source];
+
+  console.group(
+    `%c✨ [INGREDIENCE ZALOGOVÁNO] ${sourceLabel} | ${problemName}`,
+    'color: #2ecc71; font-weight: bold; font-size: 13px;'
+  );
+
+  if (ingredients.length === 0) {
+    console.warn(
+      `%c⚠️ Žádné ingredience nenalezeny!`,
+      'color: #f39c12; font-weight: bold;'
+    );
+  } else {
+    // Tabulka
+    const tableData = ingredients.map((item, idx) => ({
+      '#': idx + 1,
+      'Ingredience': item.name,
+      'Popis': item.description ? item.description.substring(0, 60) + (item.description.length > 60 ? '...' : '') : '(bez popisu)'
+    }));
+    
+    console.table(tableData);
+
+    // Statistika
+    const withDescription = ingredients.filter(i => i.description).length;
+    const withoutDescription = ingredients.filter(i => !i.description).length;
+    
+    console.log(
+      `%c📊 STATISTIKA: ${ingredients.length} ingrediencí (${withDescription} s popisem, ${withoutDescription} bez)`,
+      'color: #3498db; background: #ecf0f1; padding: 6px 10px; border-radius: 3px;'
+    );
+  }
+
+  console.groupEnd();
 }
