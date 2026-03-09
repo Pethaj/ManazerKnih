@@ -314,6 +314,11 @@ const EmbedEOSmesi = () => {
     bbo_customer_name: bboCustomerName,  // null = ještě nenačteno, "A"/"B"/"C" = načteno
   } : undefined;
 
+  // DEBUG
+  if (externalUserInfo?.email === 'petr.hajduk@bewit.team') {
+    console.log('🔍 DEBUG EmbedEOSmesi:', { bboCustomerName, externalUserInfo });
+  }
+
 
   const handleAcceptDisclaimer = () => {
     setShowDisclaimer(false);
@@ -490,6 +495,7 @@ const EmbedEOSmesi = () => {
           currentUser={undefined}
           externalUserInfo={externalUserInfo}
         />
+      </div>
       </div>
       {showFeedback && (
         <ChatFeedback
