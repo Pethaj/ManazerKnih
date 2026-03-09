@@ -230,16 +230,30 @@ const EmbedEOSmesi = () => {
 
   // 🎯 SAMOSTATNÝ CALL PRO BBO CUSTOMER NAME - spustí se jakmile tokenEshop dorazí
   useEffect(() => {
-    // Jakmile má userContext tokenEshop, hned zavolej API
+    // Jakmile má userContext tokenEshop (víme že USER_DATA dorazila), zavolej API
     if (!userContext.tokenEshop) return;
 
     const fetchBboCustomerName = async () => {
       try {
-        const token = userContext.tokenEshop;
+        // Vezmi token z cookies (nikoliv z tokenEshop!)
+        const cookies = document.cookie.split(';');
+        let token: string | null = null;
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'token' && value) {
+            token = decodeURIComponent(value);
+            break;
+          }
+        }
+
+        if (!token) {
+          console.log('⚠️ BBO: Token z cookies nenalezen');
+          return;
+        }
+
         const apiUrl = 'https://api.mybewit.com/account?include=bbo.customer';
         
         console.log('🔄 BBO: Načítám data z API...');
-        console.log('🔍 DEBUG TOKEN:', token?.substring(0, 50));
         
         const response = await fetch(apiUrl, {
           method: 'GET',
@@ -275,7 +289,7 @@ const EmbedEOSmesi = () => {
         setBboCustomerName(customerName);
 
       } catch (err) {
-        console.error('🔴 BBO: Chyba:', err.message);
+        console.error('🔴 BBO: Chyba:', err instanceof Error ? err.message : String(err));
       }
     };
 
