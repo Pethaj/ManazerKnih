@@ -94,6 +94,8 @@ const EmbedEOSmesi = () => {
     position?: string;
     tokenEshop?: string;  // 🆕 E-shop token z Bewit webu
   }>({});
+  const [ccPotential, setCcPotential] = useState<string | null>(null);
+  const [allUserData, setAllUserData] = useState<any>(null);
 
   useEffect(() => {
     
@@ -222,22 +224,73 @@ const EmbedEOSmesi = () => {
     };
   }, []);
 
-  // 🎯 DEBUG: Zobraz user data vždy když se změní userContext
+  // 🎯 Načti data z Bewit API pomocí cookie tokenu
   useEffect(() => {
-    // Vytvoř externalUserInfo objekt
-    const externalUserInfo = userContext.id || userContext.email ? {
-      external_user_id: userContext.id,
-      first_name: userContext.firstName,
-      last_name: userContext.lastName,
-      email: userContext.email,
-      position: userContext.position,
-      token_eshop: userContext.tokenEshop
-    } : undefined;
+    if (!userContext.id && !userContext.email) return;
 
-    // Zobraz POUZE pokud jsou nějaká data
-    if (externalUserInfo) {
-    }
-  }, [userContext]); // Spustí se POUZE když se userContext změní
+    const fetchBewitAccountData = async () => {
+      try {
+        // Získej JWT token z cookie
+        const cookies = document.cookie.split(';');
+        let token: string | null = null;
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'token' && value) {
+            token = decodeURIComponent(value);
+            break;
+          }
+        }
+
+        if (!token) return;
+
+        const response = await fetch('https://api.mybewit.com/account?include=bbo.customer', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (!response.ok) return;
+
+        const apiData = await response.json();
+        const data = apiData?.data;
+
+        if (!data) return;
+
+        // Ulož cc_potential z bbo.customer.name (A/B/C)
+        const customerName = data?.bbo?.customer?.name ?? null;
+        setCcPotential(customerName);
+        setAllUserData(data);
+
+        // Log: All User Data
+        console.group('👤 All User Data');
+        console.log('Základní info:', {
+          id: data.id,
+          email: data.email,
+          firstName: data.firstname,
+          lastName: data.lastname,
+          fullname: data.fullname,
+          phone: data.phone,
+          position: userContext.position,
+        });
+        console.log('BBO customer:', {
+          bbo_id: data.bbo_id,
+          name: customerName,
+          points_from: data?.bbo?.customer?.points_from,
+          points_to: data?.bbo?.customer?.points_to,
+          discount_type: data?.bbo?.customer?.discount_type,
+        });
+        console.log('Kompletní API response:', data);
+        console.groupEnd();
+
+      } catch {
+        // silent fail
+      }
+    };
+
+    fetchBewitAccountData();
+  }, [userContext.id, userContext.email]);
 
   if (isLoading) {
     return (
@@ -257,7 +310,8 @@ const EmbedEOSmesi = () => {
     last_name: userContext.lastName,
     email: userContext.email,
     position: userContext.position,
-    token_eshop: userContext.tokenEshop  // 🆕 E-shop token
+    token_eshop: userContext.tokenEshop,  // 🆕 E-shop token
+    cc_potential: ccPotential ?? undefined,  // 🆕 A/B/C z Bewit API
   } : undefined;
 
 

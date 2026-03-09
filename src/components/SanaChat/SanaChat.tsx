@@ -2912,7 +2912,8 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             email: currentUser?.email || externalUserInfo?.email || 'N/A',
             firstName: currentUser?.firstName || externalUserInfo?.first_name || 'N/A',
             lastName: currentUser?.lastName || externalUserInfo?.last_name || 'N/A',
-            role: currentUser?.role || externalUserInfo?.position || 'N/A'
+            role: currentUser?.role || externalUserInfo?.position || 'N/A',
+            cc_potential: externalUserInfo?.cc_potential ?? 'N/A',
         });
         console.groupEnd();
         
@@ -2959,7 +2960,6 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                 
                 // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
                 let eoIngredients: IngredientWithDescription[];
-                console.log(`%c🌿 [EO SMESI] Načítám ingredience z medicineTable (Ing_sol)`, 'color: #9b59b6; font-weight: bold;');
                 
                 eoIngredients = Array.from(
                     new Map([
@@ -2967,25 +2967,17 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
                     ].map(i => [i.name, i])).values()
                 );
-                console.log(
-                    `%c✅ Ingredience z Ing_sol (EO1 + EO2): ${eoIngredients.length} položek`,
-                    'color: #2ecc71;'
+                
+                console.groupCollapsed(
+                    `%c🌿 [Ing_sol] Problém: ${eoSmesiResult.medicineTable.problemName} | Ingredience: ${eoIngredients.length}`,
+                    'color: #9b59b6; font-weight: bold;'
                 );
                 console.table(eoIngredients.map((item, idx) => ({
                     '#': idx + 1,
                     'Ingredience': item.name,
                     'Popis': item.description || '(prázdný)'
                 })));
-
-                console.log('💊 [SANACHAT DEBUG] eoIngredients sestaveny:', {
-                    eo1: eoSmesiResult.medicineTable.eo1,
-                    eo2: eoSmesiResult.medicineTable.eo2,
-                    prawtein: eoSmesiResult.medicineTable.prawtein,
-                    eo1Slozeni: eoSmesiResult.medicineTable.eo1Slozeni,
-                    eo2Slozeni: eoSmesiResult.medicineTable.eo2Slozeni,
-                    prawteinSlozeni: eoSmesiResult.medicineTable.prawteinSlozeni,
-                    finalEoIngredients: eoIngredients
-                });
+                console.groupEnd();
 
                 // DIAGNÓZA: Overeni ze data pochazi ze spravne tabulky
                 if (eoSmesiResult.medicineTable.eo2Slozeni?.length === 1 && 
@@ -3150,7 +3142,6 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                 }));
                                 // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
                                 let directIngredients: IngredientWithDescription[];
-                                console.log(`%c🌿 [EO SMESI] Načítám ingredience z medicineTable (Ing_sol - Single problem mode)`, 'color: #9b59b6; font-weight: bold;');
                                 
                                 directIngredients = Array.from(
                                     new Map([
@@ -3158,15 +3149,17 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                         ...(directResult.medicineTable.eo2Slozeni || []),
                                     ].map(i => [i.name, i])).values()
                                 );
-                                console.log(
-                                    `%c✅ Ingredience z Ing_sol (EO1 + EO2): ${directIngredients.length} položek`,
-                                    'color: #2ecc71;'
+                                
+                                console.groupCollapsed(
+                                    `%c🌿 [Ing_sol] Problém: ${directResult.medicineTable.problemName} | Ingredience: ${directIngredients.length}`,
+                                    'color: #9b59b6; font-weight: bold;'
                                 );
                                 console.table(directIngredients.map((item, idx) => ({
                                     '#': idx + 1,
                                     'Ingredience': item.name,
                                     'Popis': item.description || '(prázdný)'
                                 })));
+                                console.groupEnd();
                                 const botMessage: ChatMessage = {
                                     id: Date.now().toString(),
                                     role: 'bot',
@@ -3217,8 +3210,6 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
 
                         // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
                         let mainIngredients: IngredientWithDescription[];
-                        console.log(`%c🌿 [EO SMESI] Načítám ingredience z medicineTable (Ing_sol - Main flow)`, 'color: #9b59b6; font-weight: bold;');
-                        console.log(`%cProblém: ${eoSmesiResult.medicineTable.problemName}`, 'color: #3498db; font-size: 11px;');
                         
                         mainIngredients = Array.from(
                             new Map([
@@ -3226,15 +3217,17 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                 ...(eoSmesiResult.medicineTable.eo2Slozeni || []),
                             ].map(i => [i.name, i])).values()
                         );
-                        console.log(
-                            `%c✅ Ingredience z Ing_sol (EO1 + EO2): ${mainIngredients.length} položek`,
-                            'color: #2ecc71;'
+                        
+                        console.groupCollapsed(
+                            `%c🌿 [Ing_sol] Problém: ${eoSmesiResult.medicineTable.problemName} | Ingredience: ${mainIngredients.length}`,
+                            'color: #9b59b6; font-weight: bold;'
                         );
                         console.table(mainIngredients.map((item, idx) => ({
                             '#': idx + 1,
                             'Ingredience': item.name,
                             'Popis': item.description || '(prázdný)'
                         })));
+                        console.groupEnd();
                         
                         const botMessage: ChatMessage = {
                             id: Date.now().toString(),
