@@ -235,48 +235,46 @@ const EmbedEOSmesi = () => {
 
     const fetchBboCustomerName = async () => {
       try {
-        console.log('🔄 BBO: Načítám data z API s tokenEshop...');
+        const token = userContext.tokenEshop;
+        const apiUrl = 'https://api.mybewit.com/account?include=bbo.customer';
         
-        const response = await fetch('https://api.mybewit.com/account?include=bbo.customer', {
+        console.log('🔄 BBO: Načítám data z API...');
+        
+        const response = await fetch(apiUrl, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${userContext.tokenEshop}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           }
         });
+
+        console.log(`📊 HTTP Status: ${response.status}`);
+        
+        const data = await response.json();
 
         if (!response.ok) {
           console.error('🔴 BBO: API error', response.status);
           return;
         }
 
-        const apiData = await response.json();
-        const data = apiData?.data;
-
-        if (!data) {
-          console.error('🔴 BBO: No data in response');
-          return;
-        }
-
         // Ulož name z bbo.customer.name (A/B/C)
-        const customerName = data?.bbo?.customer?.name ?? null;
+        const customerName = data?.data?.bbo?.customer?.name ?? null;
         
         console.group('🎯 BBO CUSTOMER NAME');
         console.log('Typ zákazníka (name):', customerName);
         console.log('BBO customer data:', {
-          bbo_id: data.bbo_id,
+          bbo_id: data?.data?.bbo_id,
           name: customerName,
-          points_from: data?.bbo?.customer?.points_from,
-          points_to: data?.bbo?.customer?.points_to,
-          discount_type: data?.bbo?.customer?.discount_type,
+          points_from: data?.data?.bbo?.customer?.points_from,
+          points_to: data?.data?.bbo?.customer?.points_to,
+          discount_type: data?.data?.bbo?.customer?.discount_type,
         });
         console.groupEnd();
 
         setBboCustomerName(customerName);
-        setAllUserData(data);
 
       } catch (err) {
-        console.error('🔴 BBO: Chyba při volání API:', err);
+        console.error('🔴 BBO: Chyba:', err.message);
       }
     };
 
