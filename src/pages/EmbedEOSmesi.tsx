@@ -502,7 +502,7 @@ const EmbedEOSmesi = () => {
           externalUserInfo={externalUserInfo}
         />
       </div>
-      </div>
+
       {showFeedback && (
         <ChatFeedback
           onClose={async (feedback: ChatFeedbackData) => {
