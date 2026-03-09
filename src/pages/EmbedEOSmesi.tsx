@@ -311,7 +311,7 @@ const EmbedEOSmesi = () => {
     email: userContext.email,
     position: userContext.position,
     token_eshop: userContext.tokenEshop,  // 🆕 E-shop token
-    bbo_customer_name: bboCustomerName ?? undefined,  // 🆕 A/B/C z Bewit API (bbo.customer.name)
+    bbo_customer_name: bboCustomerName,  // null = ještě nenačteno, "A"/"B"/"C" = načteno
   } : undefined;
 
 

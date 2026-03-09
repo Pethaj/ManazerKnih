@@ -2926,8 +2926,11 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
         }
     }, [chatbotSettings.product_recommendations]);
 
-    // Log User Info - čeká až dorazí bbo_customer_name z API
+    // Log User Info - čeká až dorazí bbo_customer_name z API (null = loading, string = hotovo)
     useEffect(() => {
+        // Pokud je to externalUserInfo flow, čekej - null znamená ještě se načítá
+        if (externalUserInfo && externalUserInfo.bbo_customer_name === null) return;
+        // Pokud není ani user ani externalUserInfo, nic nelog
         if (!externalUserInfo && !currentUser) return;
         console.log('User Info:', {
             userId: currentUser?.id || externalUserInfo?.external_user_id || 'anonymous',
