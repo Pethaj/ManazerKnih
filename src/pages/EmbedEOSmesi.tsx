@@ -229,6 +229,7 @@ const EmbedEOSmesi = () => {
     if (!userContext.id && !userContext.email) return;
 
     const fetchBewitAccountData = async () => {
+      console.log('🔍 fetchBewitAccountData SPUŠTĚN, userContext:', userContext);
       try {
         // Získej JWT token z cookie
         const cookies = document.cookie.split(';');
