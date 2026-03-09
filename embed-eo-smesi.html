@@ -18,7 +18,22 @@
           
           // 💾 OKAMŽITĚ uložit do localStorage
           try {
-            localStorage.setItem('BEWIT_USER_DATA', JSON.stringify(e.data.user));
+            const userDataToStore = { ...e.data.user };
+            
+            // Pokud není tokenEshop, vezmi skutečný token z cookies
+            if (!userDataToStore.tokenEshop) {
+              const cookies = document.cookie.split(';');
+              for (const cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'token' && value) {
+                  userDataToStore.tokenEshop = decodeURIComponent(value);
+                  console.log('🔐 Token z cookies doplněn');
+                  break;
+                }
+              }
+            }
+            
+            localStorage.setItem('BEWIT_USER_DATA', JSON.stringify(userDataToStore));
             console.log('💾 [EARLY] User data uložena do localStorage');
           } catch (err) {
             console.error('❌ [EARLY] Chyba při ukládání do localStorage:', err);

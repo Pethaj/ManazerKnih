@@ -235,19 +235,18 @@ const EmbedEOSmesi = () => {
 
     const fetchBboCustomerName = async () => {
       try {
-        // Vezmi token z cookies (nikoliv z tokenEshop!)
-        const cookies = document.cookie.split(';');
-        let token: string | null = null;
-        for (const cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'token' && value) {
-            token = decodeURIComponent(value);
-            break;
-          }
+        // Vezmi token z localStorage (BEWIT_USER_DATA)
+        const userDataStr = localStorage.getItem('BEWIT_USER_DATA');
+        if (!userDataStr) {
+          console.log('⚠️ BBO: BEWIT_USER_DATA v localStorage nenalezen');
+          return;
         }
 
+        const userData = JSON.parse(userDataStr);
+        const token = userData?.tokenEshop;
+
         if (!token) {
-          console.log('⚠️ BBO: Token z cookies nenalezen');
+          console.log('⚠️ BBO: tokenEshop v BEWIT_USER_DATA nenalezen');
           return;
         }
 
