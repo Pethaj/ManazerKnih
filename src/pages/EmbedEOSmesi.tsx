@@ -228,17 +228,17 @@ const EmbedEOSmesi = () => {
     };
   }, []);
 
-  // 🎯 SAMOSTATNÝ CALL PRO BBO CUSTOMER TYPE - spustí se jakmile tokenEshop dorazí
+  // 🎯 SAMOSTATNÝ CALL PRO CUSTOMER TYPE - spustí se jakmile tokenEshop dorazí
   useEffect(() => {
     // Jakmile má userContext tokenEshop (víme že USER_DATA dorazila), zavolej API
     if (!userContext.tokenEshop) return;
 
-    const fetchBboCustomerType = async () => {
+    const fetchCustomerType = async () => {
       try {
         // Vezmi token z localStorage (BEWIT_USER_DATA)
         const userDataStr = localStorage.getItem('BEWIT_USER_DATA');
         if (!userDataStr) {
-          console.log('⚠️ BBO: BEWIT_USER_DATA v localStorage nenalezen');
+          console.log('⚠️ Customer Type: BEWIT_USER_DATA v localStorage nenalezen');
           return;
         }
 
@@ -246,19 +246,18 @@ const EmbedEOSmesi = () => {
         const token = userData?.tokenEshop;
 
         if (!token) {
-          console.log('⚠️ BBO: tokenEshop v BEWIT_USER_DATA nenalezen');
+          console.log('⚠️ Customer Type: tokenEshop v BEWIT_USER_DATA nenalezen');
           return;
         }
 
-        const apiUrl = 'https://api.mybewit.com/account?include=bbo';
+        const apiUrl = 'https://api.mybewit.com/account';
         
-        console.log('🔄 BBO: Načítám data z API...');
+        console.log('🔄 Customer Type: Načítám data z API...');
         
         const response = await fetch(apiUrl, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
           }
         });
 
@@ -267,21 +266,17 @@ const EmbedEOSmesi = () => {
         const data = await response.json();
 
         if (!response.ok) {
-          console.error('🔴 BBO: API error', response.status);
+          console.error('🔴 Customer Type: API error', response.status);
           return;
         }
 
-        // Mapování bbo_customer_prices_id na typ (A/B/C)
-        const customerId = data?.data?.bbo?.bbo_customer_prices_id;
-        const typeMap = { 1: 'A', 2: 'B', 3: 'C' };
-        const customerType = typeMap[customerId as keyof typeof typeMap] || 'N/A';
+        // Vezmi cc_potential_raynet - vrací přímo "A", "B", "C"
+        const customerType = data?.data?.cc_potential_raynet || 'N/A';
         
-        console.group('🎯 BBO CUSTOMER TYPE');
+        console.group('🎯 CUSTOMER TYPE');
         console.log('Typ zákazníka (A/B/C):', customerType);
-        console.log('BBO customer data:', {
-          bbo_customer_prices_id: customerId,
-          type: customerType,
-          bbo_id: data?.data?.bbo_id,
+        console.log('Customer data:', {
+          cc_potential_raynet: customerType,
           cc_potential: data?.data?.cc_potential,
         });
         console.groupEnd();
@@ -289,11 +284,11 @@ const EmbedEOSmesi = () => {
         setBboCustomerName(customerType);
 
       } catch (err) {
-        console.error('🔴 BBO: Chyba:', err instanceof Error ? err.message : String(err));
+        console.error('🔴 Customer Type: Chyba:', err instanceof Error ? err.message : String(err));
       }
     };
 
-    fetchBboCustomerType();
+    fetchCustomerType();
   }, [userContext.tokenEshop]);
 
   if (isLoading) {
