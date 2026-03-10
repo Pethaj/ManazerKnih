@@ -22,6 +22,13 @@ import {
 } from './productPairingService';
 import { supabase } from '../lib/supabase';
 
+// Vrátí správný cenový sloupec podle customer type. Výchozí je 'price_a'.
+function getPriceColumn(customerType?: string | null): 'price_a' | 'price_b' | 'price_c' {
+  if (customerType === 'B') return 'price_b';
+  if (customerType === 'C') return 'price_c';
+  return 'price_a';
+}
+
 // ============================================================================
 // INTERFACES & TYPES
 // ============================================================================
@@ -60,9 +67,12 @@ export interface MedicineTable {
   products: Array<{
     code: string;
     name: string;
+    description?: string;
     category: string;
     url: string | null;
     thumbnail: string | null;
+    price?: number | null;
+    currency?: string;
   }>;
 }
 
@@ -143,7 +153,7 @@ async function extractMedicineTable(
     const isSpecificAloe = aloeProduct && aloeProduct.toLowerCase() !== 'aloe' && aloeProduct.length > 5;
     const aloeSearchTerm = isSpecificAloe ? `%${aloeProduct}%` : '%Aloe Vera gel%';
     const { data: aloeData, error } = await supabase
-      .from('product_feed_2')
+      .from('product_feed_abc')
       .select('product_code, product_name, category, url, thumbnail')
       .ilike('product_name', aloeSearchTerm)
       .limit(1);
@@ -161,7 +171,7 @@ async function extractMedicineTable(
   
   if (merkaba) {
     const { data: merkabaProduct, error } = await supabase
-      .from('product_feed_2')
+      .from('product_feed_abc')
       .select('product_code, product_name, category, url, thumbnail')
       .ilike('product_name', '%MERKABA Ultimate Elixir%')
       .limit(1)
@@ -201,7 +211,7 @@ async function extractMedicineTable(
  * Sdílená logika: načte produkty z leceni + aloe/merkaba z SQL RPC pro daný problém.
  * Používá se jak v processEoSmesiQuery, tak v processEoSmesiQueryWithKnownProblem.
  */
-async function buildMedicineTableForProblem(problemName: string): Promise<{
+async function buildMedicineTableForProblem(problemName: string, customerType?: string | null): Promise<{
   medicineTable: MedicineTable | null;
   pairingResults: PairingRecommendations;
 }> {
@@ -212,9 +222,9 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
     console.log('🔧 [buildMedicineTableForProblem] matchProductCombinations OK:', pairingResults.products.length);
 
     const [eoProducts, prawteinProducts, tcmProducts] = await Promise.all([
-      getEOProductsForProblem(problemName),
-      getPrawteinProductsForProblem(problemName),
-      getTCMProductsForProblem(problemName)
+      getEOProductsForProblem(problemName, customerType),
+      getPrawteinProductsForProblem(problemName, customerType),
+      getTCMProductsForProblem(problemName, customerType)
     ]);
     
     console.log('🔧 [buildMedicineTableForProblem] Promise.all OK:', {
@@ -305,10 +315,11 @@ async function buildMedicineTableForProblem(problemName: string): Promise<{
  * Přeskočí LLM klasifikaci - problém je již znám.
  */
 export async function processEoSmesiQueryWithKnownProblem(
-  problemName: string
+  problemName: string,
+  customerType?: string | null
 ): Promise<EoSmesiResult> {
   try {
-    const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problemName);
+    const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problemName, customerType);
 
     const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
 
@@ -351,7 +362,8 @@ export async function processEoSmesiQueryWithKnownProblem(
  */
 export async function processEoSmesiQuery(
   userQuery: string,
-  sessionId?: string
+  sessionId?: string,
+  customerType?: string | null
 ): Promise<EoSmesiResult> {
   console.log('⚙️ [processEoSmesiQuery] INICIALIZACE - userQuery:', userQuery);
   
@@ -390,7 +402,7 @@ export async function processEoSmesiQuery(
     }
     
     // KROK 2-5: Sestavení medicine table pro nalezené problémy
-    const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problems[0]);
+    const { medicineTable, pairingResults } = await buildMedicineTableForProblem(problems[0], customerType);
     const shouldShowTable = medicineTable !== null && medicineTable.products.length > 0;
 
     console.log('🔎 [processEoSmesiQuery] Výsledek:', {
@@ -622,11 +634,13 @@ export async function getIngredientsByProblem(
  * Stejná logika jako u EO - načte názvy a napáruje podle kategorie
  * 
  * @param problemName - Název problému
+ * @param customerType - Typ zákazníka ('A', 'B', 'C') pro výběr cenového sloupce
  * @returns Pole product info pro Prawtein produkty
  */
 export async function getPrawteinProductsForProblem(
-  problemName: string
-): Promise<Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }>> {
+  problemName: string,
+  customerType?: string | null
+): Promise<Array<{ code: string; name: string; description?: string; category: string; url: string | null; thumbnail: string | null; price?: number | null; currency?: string; }>> {
   try {
     const { data: leceniData, error: leceniError } = await supabase
       .from('leceni')
@@ -665,7 +679,8 @@ export async function getPrawteinProductsForProblem(
     if (prawteinNames.length === 0) {
       return [];
     }
-    const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
+    const priceColumn = getPriceColumn(customerType);
+    const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; price?: number | null; currency?: string; }> = [];
     
     for (const prawteinName of prawteinNames) {
       try {
@@ -676,8 +691,8 @@ export async function getPrawteinProductsForProblem(
         if (isNumeric) {
           // Hledáme přesně podle product_code
           const result1 = await supabase
-            .from('product_feed_2')
-            .select('product_code, product_name, category, url, thumbnail')
+            .from('product_feed_abc')
+            .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
             .eq('product_code', prawteinName.trim())
             .eq('category', 'PRAWTEIN® – superpotravinové směsi')
             .limit(1);
@@ -689,8 +704,8 @@ export async function getPrawteinProductsForProblem(
           // Fallback: hledáme bez filtru kategorie
           if (!product) {
             const result2 = await supabase
-              .from('product_feed_2')
-              .select('product_code, product_name, category, url, thumbnail')
+              .from('product_feed_abc')
+              .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
               .eq('product_code', prawteinName.trim())
               .limit(1);
             
@@ -701,8 +716,8 @@ export async function getPrawteinProductsForProblem(
         } else {
           // Textové hledání: Pokus 1 - S prefixem "PRAWTEIN "
           const result1 = await supabase
-            .from('product_feed_2')
-            .select('product_code, product_name, category, url, thumbnail')
+            .from('product_feed_abc')
+            .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
             .ilike('product_name', `%PRAWTEIN ${prawteinName}%`)
             .eq('category', 'PRAWTEIN® – superpotravinové směsi')
             .limit(1);
@@ -712,8 +727,8 @@ export async function getPrawteinProductsForProblem(
           } else {
             // Pokus 2: Bez prefixu (fallback)
             const result2 = await supabase
-              .from('product_feed_2')
-              .select('product_code, product_name, category, url, thumbnail')
+              .from('product_feed_abc')
+              .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
               .ilike('product_name', `%${prawteinName}%`)
               .eq('category', 'PRAWTEIN® – superpotravinové směsi')
               .limit(1);
@@ -728,9 +743,12 @@ export async function getPrawteinProductsForProblem(
           enrichedProducts.push({
             code: product.product_code,
             name: product.product_name,
+            description: product.description_short || undefined,
             category: product.category,
             url: product.url,
-            thumbnail: product.thumbnail
+            thumbnail: product.thumbnail,
+            price: product[priceColumn] ?? null,
+            currency: product.currency || 'CZK'
           });
         } else {
         }
@@ -747,14 +765,16 @@ export async function getPrawteinProductsForProblem(
 
 /**
  * Načte TČM wan produkty pro daný problém z tabulky leceni
- * Načte sloupec "TČM wan" a vyhledá produkt v product_feed_2 podle kódu nebo názvu.
+ * Načte sloupec "TČM wan" a vyhledá produkt v product_feed_abc podle kódu nebo názvu.
  *
  * @param problemName - Název problému
+ * @param customerType - Typ zákazníka ('A', 'B', 'C') pro výběr cenového sloupce
  * @returns Pole product info pro TČM wan produkty
  */
 export async function getTCMProductsForProblem(
-  problemName: string
-): Promise<Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }>> {
+  problemName: string,
+  customerType?: string | null
+): Promise<Array<{ code: string; name: string; description?: string; category: string; url: string | null; thumbnail: string | null; price?: number | null; currency?: string; }>> {
   try {
     const { data: leceniData, error: leceniError } = await supabase
       .from('leceni')
@@ -777,7 +797,8 @@ export async function getTCMProductsForProblem(
       ? tcmRaw.split(',').map((p: string) => p.trim()).filter(Boolean)
       : [tcmRaw.trim()];
 
-    const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
+    const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; price?: number | null; currency?: string; }> = [];
+    const priceColumn = getPriceColumn(customerType);
 
     for (const tcmName of tcmNames) {
       try {
@@ -785,11 +806,11 @@ export async function getTCMProductsForProblem(
         const isNumeric = /^\d+$/.test(tcmName);
 
         if (isNumeric) {
-          // Wany produkty mají v product_feed_2 product_name ve formátu "063 - Klidné dřevo"
+          // Wany produkty mají v product_feed_abc product_name ve formátu "063 - Klidné dřevo"
           // Číslo je součástí názvu, NE product_code → hledáme přes LIKE na product_name
           const result = await supabase
-            .from('product_feed_2')
-            .select('product_code, product_name, category, url, thumbnail')
+            .from('product_feed_abc')
+            .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
             .ilike('product_name', `${tcmName}%`)
             .limit(1);
 
@@ -800,8 +821,8 @@ export async function getTCMProductsForProblem(
           // Fallback: exact match na product_code (pro jiné typy produktů)
           if (!product) {
             const result2 = await supabase
-              .from('product_feed_2')
-              .select('product_code, product_name, category, url, thumbnail')
+              .from('product_feed_abc')
+              .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
               .eq('product_code', tcmName)
               .limit(1);
 
@@ -812,8 +833,8 @@ export async function getTCMProductsForProblem(
         } else {
           // Textový match – stejná logika jako SQL RPC (exact, pak LIKE)
           const result1 = await supabase
-            .from('product_feed_2')
-            .select('product_code, product_name, category, url, thumbnail')
+            .from('product_feed_abc')
+            .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
             .ilike('product_name', tcmName)
             .limit(1);
 
@@ -821,8 +842,8 @@ export async function getTCMProductsForProblem(
             product = result1.data[0];
           } else {
             const result2 = await supabase
-              .from('product_feed_2')
-              .select('product_code, product_name, category, url, thumbnail')
+              .from('product_feed_abc')
+              .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
               .ilike('product_name', `%${tcmName}%`)
               .limit(1);
 
@@ -836,9 +857,12 @@ export async function getTCMProductsForProblem(
           enrichedProducts.push({
             code: product.product_code,
             name: product.product_name,
+            description: product.description_short || undefined,
             category: product.category,
             url: product.url,
-            thumbnail: product.thumbnail
+            thumbnail: product.thumbnail,
+            price: product[priceColumn] ?? null,
+            currency: product.currency || 'CZK'
           });
         }
       } catch (_err) {
@@ -856,11 +880,13 @@ export async function getTCMProductsForProblem(
  * Načte EO produkty (eo_1, eo_2, eo_3) pro daný problém z tabulky leceni
  * 
  * @param problemName - Název problému
+ * @param customerType - Typ zákazníka ('A', 'B', 'C') pro výběr cenového sloupce
  * @returns Pole product info pro EO produkty
  */
 export async function getEOProductsForProblem(
-  problemName: string
-): Promise<Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }>> {
+  problemName: string,
+  customerType?: string | null
+): Promise<Array<{ code: string; name: string; description?: string; category: string; url: string | null; thumbnail: string | null; price?: number | null; currency?: string; }>> {
   try {
     const { data: leceniData, error: leceniError } = await supabase
       .from('leceni')
@@ -898,7 +924,8 @@ export async function getEOProductsForProblem(
     if (eoNames.length === 0) {
       return [];
     }
-    const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; }> = [];
+    const priceColumn = getPriceColumn(customerType);
+    const enrichedProducts: Array<{ code: string; name: string; category: string; url: string | null; thumbnail: string | null; price?: number | null; currency?: string; }> = [];
     
     for (const eoName of eoNames) {
       try {
@@ -910,8 +937,8 @@ export async function getEOProductsForProblem(
         if (isNumeric) {
           // Hledáme přesně podle product_code
           const result = await supabase
-            .from('product_feed_2')
-            .select('product_code, product_name, category, url, thumbnail')
+            .from('product_feed_abc')
+            .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
             .eq('product_code', eoName.trim())
             .eq('category', 'Směsi esenciálních olejů')
             .limit(1);
@@ -923,8 +950,8 @@ export async function getEOProductsForProblem(
           // Fallback: hledáme bez filtru kategorie (pro případ jiné kategorie)
           if (!product) {
             const result2 = await supabase
-              .from('product_feed_2')
-              .select('product_code, product_name, category, url, thumbnail')
+              .from('product_feed_abc')
+              .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
               .eq('product_code', eoName.trim())
               .limit(1);
             
@@ -935,8 +962,8 @@ export async function getEOProductsForProblem(
         } else {
           // Textové hledání podle product_name pouze v kategorii EO směsi
           const result = await supabase
-            .from('product_feed_2')
-            .select('product_code, product_name, category, url, thumbnail')
+            .from('product_feed_abc')
+            .select(`product_code, product_name, description_short, category, url, thumbnail, ${priceColumn}, currency`)
             .ilike('product_name', `%${eoName}%`)
             .eq('category', 'Směsi esenciálních olejů')
             .limit(1);
@@ -950,9 +977,12 @@ export async function getEOProductsForProblem(
           enrichedProducts.push({
             code: product.product_code,
             name: product.product_name,
+            description: product.description_short || undefined,
             category: product.category,
             url: product.url,
-            thumbnail: product.thumbnail
+            thumbnail: product.thumbnail,
+            price: product[priceColumn] ?? null,
+            currency: product.currency || 'CZK'
           });
         } else {
         }

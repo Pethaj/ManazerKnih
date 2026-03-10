@@ -1,7 +1,7 @@
 /**
  * Hybrid Product Service
  * Služba kombinující vektorové vyhledávání z product_embeddings
- * s aktuálními metadaty z product_feed_2 a products tabulek
+ * s aktuálními metadaty z product_feed_abc a products tabulek
  */
 
 import { supabase } from '../lib/supabase';
@@ -73,6 +73,16 @@ function sortProductsByPriorityCategories(
 }
 
 /**
+ * Vrátí správný cenový sloupec podle customer type.
+ * Výchozí hodnota je 'price_a'.
+ */
+function getPriceColumn(customerType?: string | null): 'price_a' | 'price_b' | 'price_c' {
+  if (customerType === 'B') return 'price_b';
+  if (customerType === 'C') return 'price_c';
+  return 'price_a';
+}
+
+/**
  * Hlavní funkce pro získání produktových doporučení
  * Kombinuje vektorové vyhledávání s aktuálními metadata z tabulek
  * 
@@ -82,6 +92,7 @@ function sortProductsByPriorityCategories(
  * @param useFeed1 - Zda použít Feed 1 (zbozi.xml)
  * @param useFeed2 - Zda použít Feed 2 (Product Feed 2)
  * @param allowedCategories - Povolené kategorie pro filtrování (prázdné pole = všechny povoleny)
+ * @param customerType - Typ zákazníka ('A', 'B', 'C') pro výběr cenového sloupce
  */
 export async function getHybridProductRecommendations(
   query: string,
@@ -89,7 +100,8 @@ export async function getHybridProductRecommendations(
   limit: number = 10,
   useFeed1: boolean = true,
   useFeed2: boolean = true,
-  allowedCategories: string[] = []
+  allowedCategories: string[] = [],
+  customerType?: string | null
 ): Promise<HybridProductRecommendation[]> {
   try {
 
@@ -132,7 +144,7 @@ export async function getHybridProductRecommendations(
       }
 
       if (searchResults && searchResults.length > 0) {
-        allResults = await enrichProductsWithMetadata(searchResults);
+        allResults = await enrichProductsWithMetadata(searchResults, customerType);
       }
     } else if (useFeed1) {
       // Pouze Feed 1
@@ -155,7 +167,7 @@ export async function getHybridProductRecommendations(
       }
 
       if (searchResults && searchResults.length > 0) {
-        allResults = await enrichProductsWithMetadata(searchResults);
+        allResults = await enrichProductsWithMetadata(searchResults, customerType);
       }
     } else if (useFeed2) {
       // Pouze Feed 2
@@ -178,7 +190,7 @@ export async function getHybridProductRecommendations(
       }
 
       if (searchResults && searchResults.length > 0) {
-        allResults = await enrichProductsWithMetadata(searchResults);
+        allResults = await enrichProductsWithMetadata(searchResults, customerType);
       }
     }
 
@@ -246,12 +258,14 @@ async function getPureSemanticRecommendations(
 }
 
 /**
- * Obohacení produktů o aktuální metadata z tabulek products a product_feed_2
+ * Obohacení produktů o aktuální metadata z tabulek products a product_feed_abc
  */
 async function enrichProductsWithMetadata(
-  searchResults: any[]
+  searchResults: any[],
+  customerType?: string | null
 ): Promise<HybridProductRecommendation[]> {
   const enrichedProducts: HybridProductRecommendation[] = [];
+  const priceColumn = getPriceColumn(customerType);
 
   for (const result of searchResults) {
     try {
@@ -269,13 +283,15 @@ async function enrichProductsWithMetadata(
 
       // Načteme aktuální metadata podle feed_source
       if (feedSource === 'feed_2') {
-        const { data: feed2Data } = await supabase
-          .from('product_feed_2')
-          .select('*')
+        const { data: feedAbcData } = await supabase
+          .from('product_feed_abc')
+          .select(`product_code, product_name, description_short, category, url, thumbnail, currency, availability, ${priceColumn}`)
           .eq('product_code', productCode)
           .single();
         
-        metadata = feed2Data;
+        if (feedAbcData) {
+          metadata = { ...feedAbcData, price: feedAbcData[priceColumn] };
+        }
       } else {
         const { data: feed1Data } = await supabase
           .from('products')
@@ -327,9 +343,8 @@ async function enrichProductsWithMetadata(
  */
 export async function getRecommendationsFromMultipleSources(
   query: string,
-  sources: string[]
+  sources: string[],
+  customerType?: string | null
 ): Promise<HybridProductRecommendation[]> {
-  // Tato funkce nyní používá hlavní getHybridProductRecommendations
-  // která automaticky vyhledává ve všech zdrojích
-  return getHybridProductRecommendations(query, undefined, 10);
+  return getHybridProductRecommendations(query, undefined, 10, true, true, [], customerType);
 }

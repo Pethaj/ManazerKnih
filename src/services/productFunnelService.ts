@@ -228,20 +228,22 @@ export async function runProductFunnel(
 // ============================================================================
 
 /**
- * Obohacení produktů z databáze product_feed_2
+ * Obohacení produktů z databáze product_feed_abc
  */
 export async function enrichProductsFromDatabase(
-  productNames: string[]
+  productNames: string[],
+  customerType?: string | null
 ): Promise<FunnelProduct[]> {
 
   const enrichedProducts: FunnelProduct[] = [];
+  const priceColumn = customerType === 'B' ? 'price_b' : customerType === 'C' ? 'price_c' : 'price_a';
 
   for (const name of productNames) {
     try {
       // Hledáme podle názvu (částečná shoda)
       const { data, error } = await supabase
-        .from('product_feed_2')
-        .select('*')
+        .from('product_feed_abc')
+        .select(`product_code, product_name, description_short, description_long, ${priceColumn}, currency, url, thumbnail, category`)
         .ilike('product_name', `%${name}%`)
         .limit(1)
         .single();
@@ -257,7 +259,7 @@ export async function enrichProductsFromDatabase(
           description: data.description_short || data.description_long,
           description_short: data.description_short,
           description_long: data.description_long,
-          price: data.price,
+          price: data[priceColumn],
           currency: data.currency || 'CZK',
           url: data.url,
           thumbnail: data.thumbnail,

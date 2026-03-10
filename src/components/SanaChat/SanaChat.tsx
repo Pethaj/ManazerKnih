@@ -936,7 +936,9 @@ const ProductCalloutButton: React.FC<{
     thumbnail?: string;
     url: string;
     token?: string;
-}> = ({ productName, pinyinName, thumbnail, url, token }) => {
+    price?: number | null;
+    currency?: string;
+}> = ({ productName, pinyinName, thumbnail, url, token, price, currency }) => {
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         openBewitProductLink(url, token, '_blank');
@@ -947,6 +949,7 @@ const ProductCalloutButton: React.FC<{
             onClick={handleClick}
             className="w-full flex items-center gap-3 p-2.5 bg-white border border-slate-200 hover:border-blue-300 rounded-2xl transition-all duration-200 group text-left shadow-sm hover:shadow-md"
         >
+            {/* Thumbnail */}
             <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform">
                 {thumbnail ? (
                     <img src={thumbnail} alt={productName} className="w-full h-full object-cover" />
@@ -954,8 +957,10 @@ const ProductCalloutButton: React.FC<{
                     <span className="text-2xl opacity-50">🌿</span>
                 )}
             </div>
+
+            {/* Název + popisek */}
             <div className="flex-grow min-w-0">
-                <div className="text-sm font-semibold text-gray-800 group-hover:text-bewit-blue truncate">
+                <div className="text-sm font-semibold text-gray-800 group-hover:text-bewit-blue leading-snug">
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
                       components={{
@@ -968,7 +973,7 @@ const ProductCalloutButton: React.FC<{
                     </ReactMarkdown>
                 </div>
                 {pinyinName && pinyinName !== productName && (
-                    <div className="text-xs text-gray-500 truncate mt-0.5">
+                    <div className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">
                         <ReactMarkdown 
                           remarkPlugins={[remarkGfm]}
                           components={{
@@ -982,7 +987,18 @@ const ProductCalloutButton: React.FC<{
                     </div>
                 )}
             </div>
-            <div className="text-bewit-blue opacity-30 group-hover:opacity-100 transition-opacity pr-1">
+
+            {/* Cena vpravo */}
+            {price != null && price > 0 && (
+                <div className="flex-shrink-0 ml-2">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-green-50 border border-green-200 text-xs font-semibold text-green-700 whitespace-nowrap">
+                        {price.toLocaleString('cs-CZ')} {currency || 'Kč'}
+                    </span>
+                </div>
+            )}
+
+            {/* Šipka */}
+            <div className="text-bewit-blue opacity-30 group-hover:opacity-100 transition-opacity pr-1 flex-shrink-0">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M5 12h14M12 5l7 7-7 7"/>
                 </svg>
@@ -1263,9 +1279,31 @@ const Message: React.FC<{
             setProductsLoading(true);
             
             try {
-                // OK JEDNODUCHÉ ŘEŠENÍ: Použij enrichFunnelProductsFromDatabase pro VŠECHNY produkty
-                // Tato funkce už umí pracovat s produkty z Product Extractor i z párování
-                const enriched = await enrichFunnelProductsFromDatabase(products);
+                // Normalizuj pole: matchedProducts z EO Směsi mají jiné názvy polí
+                // (productUrl místo url, productName místo product_name, image_url místo thumbnail)
+                // než RecommendedProduct interface který enrichFunnelProductsFromDatabase očekává.
+                const normalized = products.map((p: any) => ({
+                    product_code: p.product_code || p.productCode || '',
+                    product_name: p.product_name || p.productName || '',
+                    description: p.description || p.pinyinName || '',
+                    url: p.url || p.productUrl || '',
+                    thumbnail: p.thumbnail || p.image_url || undefined,
+                    price: p.price ?? undefined,
+                    currency: p.currency || 'CZK',
+                    category: p.category || undefined,
+                }));
+
+                // Pro EO Směsi: data (včetně ceny) jsou již v matchedProducts přímo z DB.
+                // Pokud mají všechny normalizované produkty cenu, použijeme je přímo (bez zbytečného DB dotazu).
+                const allHavePriceOrCode = normalized.every((p: any) => p.price != null || p.product_code);
+                let enriched: any[];
+                if (isEoSmesiChat && normalized.every((p: any) => p.price != null)) {
+                    // Ceny jsou již načteny z eoSmesiWorkflowService – použij přímo
+                    enriched = normalized;
+                } else {
+                    enriched = await enrichFunnelProductsFromDatabase(normalized, externalUserInfo?.bbo_customer_type);
+                }
+                
                 // NEW Seřadíme produkty podle prioritních kategorií
                 const sortedProducts = sortProductsByPriorityCategories(enriched);
                 
@@ -1458,6 +1496,8 @@ const Message: React.FC<{
                                                             thumbnail={product.thumbnail}
                                                             url={product.url || ''}
                                                             token={token}
+                                                            price={product.price}
+                                                            currency={product.currency}
                                                         />
                                                     ) : (
                                                         <ProductPill
@@ -1969,6 +2009,8 @@ const Message: React.FC<{
                                                             thumbnail={product.thumbnail}
                                                             url={product.url || ''}
                                                             token={token}
+                                                            price={product.price}
+                                                            currency={product.currency}
                                                         />
                                                     ) : (
                                                         <ProductPill
@@ -2280,6 +2322,7 @@ const Message: React.FC<{
                                 botResponse={message.text}
                                 sessionId={sessionId}
                                 token={token}
+                                customerType={externalUserInfo?.bbo_customer_type}
                             />
                         </div>
                     )}
@@ -2293,6 +2336,7 @@ const Message: React.FC<{
                                 recommendedProducts={recommendedProducts}
                                 sessionId={sessionId || ''}
                                 token={token}
+                                customerType={externalUserInfo?.bbo_customer_type}
                                 metadata={metadata}
                                 chatHistory={chatHistory}
                             />
@@ -2958,16 +3002,19 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
 
         try {
             console.log('🔄 Volám processEoSmesiQueryWithKnownProblem...');
-            const eoSmesiResult = await processEoSmesiQueryWithKnownProblem(selectedProblem);
+            const eoSmesiResult = await processEoSmesiQueryWithKnownProblem(selectedProblem, externalUserInfo?.bbo_customer_type);
             console.log('✅ eoSmesiResult:', eoSmesiResult);
             
             if (eoSmesiResult.shouldShowTable && eoSmesiResult.medicineTable) {
                 const matchedProducts = eoSmesiResult.medicineTable.products.map(p => ({
                     productName: p.name,
-                    pinyinName: '',
+                    pinyinName: p.description || '',
                     productUrl: p.url || '',
                     product_code: p.code,
-                    category: p.category
+                    category: p.category,
+                    image_url: p.thumbnail || '',
+                    price: p.price ?? null,
+                    currency: p.currency || 'CZK'
                 }));
                 
                 // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
@@ -3132,7 +3179,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             const hasEoSmesiLearnMoreResponse = messages.some(m => m.hideProductCallout === true);
             if (chatbotId === 'eo_smesi' && !hasEoSmesiLearnMoreResponse) {
                 try {
-                    const eoSmesiResult = await processEoSmesiQuery(text.trim(), sessionId);
+                    const eoSmesiResult = await processEoSmesiQuery(text.trim(), sessionId, externalUserInfo?.bbo_customer_type);
                     
                     // SEARCH SITUACE A: Agent si NENÍ jistý → dotazník nebo přímé zpracování
                     if (eoSmesiResult.problemClassification.requiresUserSelection && 
@@ -3143,14 +3190,17 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         
                         // Pokud je jen 1 možnost, přeskočíme dotazník a zpracujeme přímo
                         if (uncertainProblems.length === 1) {
-                            const directResult = await processEoSmesiQueryWithKnownProblem(uncertainProblems[0]);
+                            const directResult = await processEoSmesiQueryWithKnownProblem(uncertainProblems[0], externalUserInfo?.bbo_customer_type);
                             if (directResult.shouldShowTable && directResult.medicineTable) {
                                 const matchedProducts = directResult.medicineTable.products.map(p => ({
                                     productName: p.name,
-                                    pinyinName: '',
+                                    pinyinName: p.description || '',
                                     productUrl: p.url || '',
                                     product_code: p.code,
-                                    category: p.category
+                                    category: p.category,
+                                    image_url: p.thumbnail || '',
+                                    price: p.price ?? null,
+                                    currency: p.currency || 'CZK'
                                 }));
                                 // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
                                 let directIngredients: IngredientWithDescription[];
@@ -3214,10 +3264,13 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         // Připravíme matchedProducts ve formátu, který používá existující "Související produkty BEWIT" rendering
                         const matchedProducts = eoSmesiResult.medicineTable.products.map(p => ({
                             productName: p.name,
-                            pinyinName: '', // EO Směsi nemají pinyin
+                            pinyinName: p.description || '',
                             productUrl: p.url || '',
                             product_code: p.code,  // OK snake_case pro enrichFunnelProductsFromDatabase
-                            category: p.category
+                            category: p.category,
+                            image_url: p.thumbnail || '',
+                            price: p.price ?? null,
+                            currency: p.currency || 'CZK'
                         }));
 
                         // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
@@ -3490,7 +3543,7 @@ Symptomy zákazníka: ${symptomsList}
                         // Toto zajistí správné obrázky, ceny a URL z databáze
                         // Vezmeme max 2 produkty a obohacíme je o data z databáze
                         const productsToEnrich = recommendedProducts.slice(0, 2);
-                        const enrichedProducts = await enrichFunnelProductsFromDatabase(productsToEnrich);
+                        const enrichedProducts = await enrichFunnelProductsFromDatabase(productsToEnrich, externalUserInfo?.bbo_customer_type);
                         
                         // Připravíme produkty pro funnel UI - s obohacenými daty
                         const funnelProductsWithDetails: FunnelProduct[] = enrichedProducts.map(p => ({
@@ -3765,7 +3818,9 @@ Symptomy zákazníka: ${symptomsList}
                         sessionId,
                         10,
                         useFeed1,
-                        useFeed2
+                        useFeed2,
+                        chatbotSettings.allowed_product_categories || [],
+                        externalUserInfo?.bbo_customer_type
                     );
                     
                     // Konvertuj hybridní produkty na standardní ProductRecommendation formát
@@ -4283,7 +4338,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
                         sessionId,
                         10,
                         useFeed1,
-                        useFeed2
+                        useFeed2,
+                        chatbotSettings.allowed_product_categories || [],
+                        externalUserInfo?.bbo_customer_type
                     );
                     
                     // Konvertuj hybridní produkty na standardní ProductRecommendation formát

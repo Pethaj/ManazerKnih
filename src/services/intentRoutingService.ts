@@ -350,18 +350,22 @@ export function extractProductsFromHistory(
 }
 
 /**
- * Obohacení funnel produktů o kompletní metadata z product_feed_2
+ * Obohacení funnel produktů o kompletní metadata z product_feed_abc
  * Toto zajistí, že obrázky a další data budou správně načteny z databáze
  * 
  * @param products - Produkty extrahované z historie (mají jen základní info)
- * @returns Obohacené produkty s obrázky, cenami a URL z product_feed_2
+ * @param customerType - Typ zákazníka ('A', 'B', 'C') pro výběr cenového sloupce
+ * @returns Obohacené produkty s obrázky, cenami a URL z product_feed_abc
  */
 export async function enrichFunnelProductsFromDatabase(
-  products: RecommendedProduct[]
+  products: RecommendedProduct[],
+  customerType?: string | null
 ): Promise<RecommendedProduct[]> {
   if (!products || products.length === 0) {
     return [];
   }
+
+  const priceColumn = customerType === 'B' ? 'price_b' : customerType === 'C' ? 'price_c' : 'price_a';
 
   try {
     // Získáme product_codes a URLs pro dotaz
@@ -374,14 +378,13 @@ export async function enrichFunnelProductsFromDatabase(
       .filter(url => url && url.length > 0 && url !== 'null' && url !== 'undefined');
     // Pokud nemáme ani product_codes ani URLs, použijeme fallback
     if (productCodes.length === 0 && productUrls.length === 0) {
-      return await enrichByProductName(products);
+      return await enrichByProductName(products, priceColumn);
     }
 
-    // 🔧 OPRAVA: Dotaz na product_feed_2 podle URL nebo product_code
-    // Použijeme .or() pro hledání podle URL nebo product_code
+    // Dotaz na product_feed_abc podle URL nebo product_code
     let query = supabase
-      .from('product_feed_2')
-      .select('product_code, product_name, description_short, description_long, url, thumbnail, price, currency, availability, category');
+      .from('product_feed_abc')
+      .select(`product_code, product_name, description_short, description_long, url, thumbnail, ${priceColumn}, currency, availability, category`);
     
     // Sestavíme OR podmínku pro URL nebo product_code
     const orConditions: string[] = [];
@@ -401,15 +404,14 @@ export async function enrichFunnelProductsFromDatabase(
     const { data, error } = await query;
 
     if (error) {
-      return await enrichByProductName(products);
+      return await enrichByProductName(products, priceColumn);
     }
 
     if (!data || data.length === 0) {
-      return await enrichByProductName(products);
+      return await enrichByProductName(products, priceColumn);
     }
     
     // Spojíme data - obohacení původních produktů o metadata z DB
-    // 🔧 OPRAVA: Prioritizujeme URL matching (URL je unikátní identifikátor!)
     const enrichedProducts: RecommendedProduct[] = products.map(product => {
       // 1. Priorita: Matching podle URL (URL je unikátní!)
       let dbData = null;
@@ -429,15 +431,14 @@ export async function enrichFunnelProductsFromDatabase(
           description: product.description || dbData.description_short,
           url: dbData.url || product.url,
           thumbnail: dbData.thumbnail || undefined,
-          price: dbData.price,
+          price: dbData[priceColumn],
           currency: dbData.currency || 'CZK',
-          category: dbData.category  // 🆕 Kategorie z databáze
+          category: dbData.category
         };
       } else {
-        // 🔧 FIX: Zachovat kategorii i když produkt není v DB
         return {
           ...product,
-          category: product.category || undefined  // Zachovat existující kategorii!
+          category: product.category || undefined
         };
       }
     });
@@ -451,10 +452,10 @@ export async function enrichFunnelProductsFromDatabase(
 
 /**
  * Fallback funkce - hledá produkty podle URL nebo názvu (částečná shoda)
- * 🔧 OPRAVA: Prioritizuje URL matching před name matching
  */
 async function enrichByProductName(
-  products: RecommendedProduct[]
+  products: RecommendedProduct[],
+  priceColumn: string = 'price_a'
 ): Promise<RecommendedProduct[]> {
   const enrichedProducts: RecommendedProduct[] = [];
 
@@ -466,8 +467,8 @@ async function enrichByProductName(
       // 1. PRIORITA: Hledání podle URL (nejpřesnější!)
       if (product.url) {
         const urlResult = await supabase
-          .from('product_feed_2')
-          .select('product_code, product_name, description_short, url, thumbnail, price, currency, category')
+          .from('product_feed_abc')
+          .select(`product_code, product_name, description_short, url, thumbnail, ${priceColumn}, currency, category`)
           .eq('url', product.url)
           .single();
         
@@ -482,8 +483,8 @@ async function enrichByProductName(
         const numberMatch = product.product_name.match(/^(\d{3})/);
         
         let query = supabase
-          .from('product_feed_2')
-          .select('product_code, product_name, description_short, url, thumbnail, price, currency, category');
+          .from('product_feed_abc')
+          .select(`product_code, product_name, description_short, url, thumbnail, ${priceColumn}, currency, category`);
 
         if (numberMatch) {
           // Hledáme podle čísla na začátku názvu
@@ -505,9 +506,9 @@ async function enrichByProductName(
           description: product.description || data.description_short,
           url: data.url || product.url,
           thumbnail: data.thumbnail || undefined,
-          price: data.price,
+          price: data[priceColumn],
           currency: data.currency || 'CZK',
-          category: data.category  // 🆕 Kategorie z databáze
+          category: data.category
         });
       } else {
         enrichedProducts.push(product);

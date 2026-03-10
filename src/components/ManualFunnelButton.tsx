@@ -25,6 +25,8 @@ interface ManualFunnelButtonProps {
   sessionId: string;
   /** Token z externalUserInfo */
   token?: string;
+  /** Typ zákazníka pro výběr ceny ('A', 'B', 'C') */
+  customerType?: string | null;
   /** Metadata pro webhook */
   metadata: {
     categories: string[];
@@ -57,6 +59,7 @@ export const ManualFunnelButton: React.FC<ManualFunnelButtonProps> = ({
   recommendedProducts,
   sessionId,
   token,
+  customerType,
   metadata,
   chatHistory,
   onFunnelResponse,
@@ -207,7 +210,7 @@ Symptomy zákazníka: ${symptomsList}
         productsToEnrich = recommendedProducts.slice(0, 2);
       }
       
-      const enrichedProducts = await enrichFunnelProductsFromDatabase(productsToEnrich);
+      const enrichedProducts = await enrichFunnelProductsFromDatabase(productsToEnrich, customerType);
 
       const funnelProducts: FunnelProduct[] = enrichedProducts.map(p => ({
         product_code: p.product_code,

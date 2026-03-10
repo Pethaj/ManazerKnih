@@ -30,6 +30,7 @@ interface ProductRecommendationButtonProps {
   botResponse: string;      // Aktuální odpověď chatbota
   sessionId: string;        // Session ID pro kontext
   token?: string;           // 🆕 Token z externalUserInfo
+  customerType?: string | null;  // Typ zákazníka pro výběr ceny (A/B/C)
   onProductsLoaded?: (products: EnrichedProduct[]) => void;  // Callback po načtení produktů
   className?: string;       // Custom CSS třídy
 }
@@ -39,6 +40,7 @@ export const ProductRecommendationButton: React.FC<ProductRecommendationButtonPr
   botResponse,
   sessionId,
   token,
+  customerType,
   onProductsLoaded,
   className = ''
 }) => {
@@ -58,7 +60,7 @@ export const ProductRecommendationButton: React.FC<ProductRecommendationButtonPr
         userQuery,
         botResponse,
         sessionId
-      });
+      }, customerType);
 
       setProducts(result.products);
       setShowCarousel(true);

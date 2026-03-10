@@ -21,12 +21,12 @@ export interface N8NWebhookResponse {
   products: ProductRecommendation[];  // Array produktů s doporučeními
 }
 
-// Interface pro obohacený produkt (s metadaty z product_feed_2)
+// Interface pro obohacený produkt (s metadaty z product_feed_abc)
 export interface EnrichedProduct {
   product_code: string;
   product_name: string;
   recommendation: string;  // ⭐ Personalizované doporučení z N8N
-  description: string;  // Popis z product_feed_2
+  description: string;  // Popis z product_feed_abc
   url: string;
   image_url: string;
   price: number;
@@ -114,13 +114,15 @@ async function callProductChatWebhook(
 }
 
 /**
- * Obohacení produktů o metadata z product_feed_2
+ * Obohacení produktů o metadata z product_feed_abc
  * 
  * @param recommendations - Produkty s doporučeními z N8N
+ * @param customerType - Typ zákazníka ('A', 'B', 'C') pro výběr cenového sloupce
  * @returns Obohacené produkty s kompletními metadaty
  */
 async function enrichProductsWithMetadata(
-  recommendations: ProductRecommendation[]
+  recommendations: ProductRecommendation[],
+  customerType?: string | null
 ): Promise<EnrichedProduct[]> {
   try {
     if (recommendations.length === 0) {
@@ -128,10 +130,11 @@ async function enrichProductsWithMetadata(
     }
 
     const codes = recommendations.map(r => r.product_code);
+    const priceColumn = customerType === 'B' ? 'price_b' : customerType === 'C' ? 'price_c' : 'price_a';
 
     const { data, error } = await supabase
-      .from('product_feed_2')
-      .select('product_code, product_name, description_short, url, thumbnail, price, currency, availability')
+      .from('product_feed_abc')
+      .select(`product_code, product_name, description_short, url, thumbnail, ${priceColumn}, currency, availability`)
       .in('product_code', codes);
 
     if (error) {
@@ -154,7 +157,7 @@ async function enrichProductsWithMetadata(
     }
 
 
-    // Spojit doporučení z N8N s metadata z product_feed_2
+    // Spojit doporučení z N8N s metadata z product_feed_abc
     const enrichedProducts = recommendations.map(rec => {
       const metadata = data.find(d => d.product_code === rec.product_code);
       
@@ -168,7 +171,7 @@ async function enrichProductsWithMetadata(
         description: metadata?.description_short || '',
         url: metadata?.url || '',
         image_url: metadata?.thumbnail || '',
-        price: metadata?.price || 0,
+        price: metadata?.[priceColumn] || 0,
         currency: metadata?.currency || 'CZK',
         availability: metadata?.availability || 0
       };
@@ -186,11 +189,13 @@ async function enrichProductsWithMetadata(
  * 
  * @param query - Dotaz uživatele
  * @param sessionId - Session ID pro kontext
+ * @param customerType - Typ zákazníka ('A', 'B', 'C') pro výběr cenového sloupce
  * @returns Objekt s textem odpovědi a obohacenými produkty
  */
 export async function getProductRecommendations(
   query: string,
-  sessionId: string
+  sessionId: string,
+  customerType?: string | null
 ): Promise<{
   text: string;
   products: EnrichedProduct[];
@@ -200,7 +205,7 @@ export async function getProductRecommendations(
     const webhookResponse = await callProductChatWebhook(query, sessionId);
 
     // 2. Obohacení produktů o metadata
-    const enrichedProducts = await enrichProductsWithMetadata(webhookResponse.products);
+    const enrichedProducts = await enrichProductsWithMetadata(webhookResponse.products, customerType);
 
     return {
       text: webhookResponse.text,
