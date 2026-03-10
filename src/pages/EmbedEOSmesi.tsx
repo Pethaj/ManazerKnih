@@ -265,12 +265,6 @@ const EmbedEOSmesi = () => {
           return;
         }
 
-        console.group('🎯 CUSTOMER TYPE');
-        console.log('Typ zákazníka (A/B/C):', data.customer_type);
-        console.log('bbo_customer_prices_id:', data.bbo_customer_prices_id);
-        console.log('cc_potential_raynet:', data.cc_potential_raynet);
-        console.groupEnd();
-
         if (data.customer_type && data.customer_type !== 'N/A') {
           setUserContext(prev => ({ ...prev, ccPotentialRaynet: data.customer_type }));
         }
