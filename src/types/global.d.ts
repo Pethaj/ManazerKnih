@@ -16,6 +16,8 @@ declare global {
       lastName?: string;
       position?: string;
       tokenEshop?: string;
+      cc_potential_raynet?: string;
+      ccPotentialRaynet?: string;
     } | null;
   }
 }

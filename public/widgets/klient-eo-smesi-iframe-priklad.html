@@ -152,6 +152,7 @@
   data-email="&lt;?php echo $user-&gt;email; ?&gt;"
   data-position="&lt;?php echo $user-&gt;position; ?&gt;"
   data-token-eshop="&lt;?php echo $user-&gt;bewitToken; ?&gt;"
+  data-cc-potential-raynet="&lt;?php echo $user-&gt;ccPotentialRaynet; ?&gt;"
   
   <span class="code-comment">&lt;!-- 🎨 Styling --&gt;</span>
   style="position:fixed; right:24px; bottom:24px; width:1200px; height:700px; 
@@ -182,7 +183,8 @@
         lastName: iframe.getAttribute('data-lastname'),
         email: iframe.getAttribute('data-email'),
         position: iframe.getAttribute('data-position'),
-        tokenEshop: iframe.getAttribute('data-token-eshop')
+        tokenEshop: iframe.getAttribute('data-token-eshop'),
+        cc_potential_raynet: iframe.getAttribute('data-cc-potential-raynet')
       }
     }, 'https://gr8learn.eu');
   });

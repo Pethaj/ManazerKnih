@@ -93,9 +93,8 @@ const EmbedEOSmesi = () => {
     lastName?: string;
     position?: string;
     tokenEshop?: string;  // 🆕 E-shop token z Bewit webu
+    ccPotentialRaynet?: string;
   }>({});
-  const [bboCustomerName, setBboCustomerName] = useState<string | null>(null);
-  const [allUserData, setAllUserData] = useState<any>(null);
 
   useEffect(() => {
     
@@ -107,7 +106,11 @@ const EmbedEOSmesi = () => {
         firstName: window.__PENDING_USER_DATA__.firstName || '',
         lastName: window.__PENDING_USER_DATA__.lastName || '',
         position: window.__PENDING_USER_DATA__.position || '',
-        tokenEshop: window.__PENDING_USER_DATA__.tokenEshop || ''
+        tokenEshop: window.__PENDING_USER_DATA__.tokenEshop || '',
+        ccPotentialRaynet:
+          window.__PENDING_USER_DATA__.cc_potential_raynet ||
+          window.__PENDING_USER_DATA__.ccPotentialRaynet ||
+          ''
       });
       window.__PENDING_USER_DATA__ = null; // Vyčisti cache
     } else {
@@ -191,7 +194,11 @@ const EmbedEOSmesi = () => {
           firstName: event.data.user.firstName || '',
           lastName: event.data.user.lastName || '',
           position: event.data.user.position || '',
-          tokenEshop: event.data.user.tokenEshop || ''
+          tokenEshop: event.data.user.tokenEshop || '',
+          ccPotentialRaynet:
+            event.data.user.cc_potential_raynet ||
+            event.data.user.ccPotentialRaynet ||
+            ''
         });
       }
     };
@@ -211,7 +218,8 @@ const EmbedEOSmesi = () => {
         firstName: iframe.dataset.firstname || '',
         lastName: iframe.dataset.lastname || '',
         position: iframe.dataset.position || '',
-        tokenEshop: iframe.dataset.tokenEshop || ''  // 🆕 E-shop token
+        tokenEshop: iframe.dataset.tokenEshop || '',  // 🆕 E-shop token
+        ccPotentialRaynet: iframe.dataset.ccPotentialRaynet || ''
       };
       
       // Pokud nějaké data existují, nastav je okamžitě
@@ -227,69 +235,6 @@ const EmbedEOSmesi = () => {
       window.removeEventListener('message', handleMessage);
     };
   }, []);
-
-  // 🎯 SAMOSTATNÝ CALL PRO CUSTOMER TYPE - spustí se jakmile tokenEshop dorazí
-  useEffect(() => {
-    // Jakmile má userContext tokenEshop (víme že USER_DATA dorazila), zavolej API
-    if (!userContext.tokenEshop) return;
-
-    const fetchCustomerType = async () => {
-      try {
-        // Vezmi token z localStorage (BEWIT_USER_DATA)
-        const userDataStr = localStorage.getItem('BEWIT_USER_DATA');
-        if (!userDataStr) {
-          console.log('⚠️ Customer Type: BEWIT_USER_DATA v localStorage nenalezen');
-          return;
-        }
-
-        const userData = JSON.parse(userDataStr);
-        const token = userData?.tokenEshop;
-
-        if (!token) {
-          console.log('⚠️ Customer Type: tokenEshop v BEWIT_USER_DATA nenalezen');
-          return;
-        }
-
-        const apiUrl = 'https://api.mybewit.com/account';
-        
-        console.log('🔄 Customer Type: Načítám data z API...');
-        
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          }
-        });
-
-        console.log(`📊 HTTP Status: ${response.status}`);
-        
-        const data = await response.json();
-
-        if (!response.ok) {
-          console.error('🔴 Customer Type: API error', response.status);
-          return;
-        }
-
-        // Vezmi cc_potential_raynet - vrací přímo "A", "B", "C"
-        const customerType = data?.data?.cc_potential_raynet || 'N/A';
-        
-        console.group('🎯 CUSTOMER TYPE');
-        console.log('Typ zákazníka (A/B/C):', customerType);
-        console.log('Customer data:', {
-          cc_potential_raynet: customerType,
-          cc_potential: data?.data?.cc_potential,
-        });
-        console.groupEnd();
-
-        setBboCustomerName(customerType);
-
-      } catch (err) {
-        console.error('🔴 Customer Type: Chyba:', err instanceof Error ? err.message : String(err));
-      }
-    };
-
-    fetchCustomerType();
-  }, [userContext.tokenEshop]);
 
   if (isLoading) {
     return (
@@ -310,7 +255,7 @@ const EmbedEOSmesi = () => {
     email: userContext.email,
     position: userContext.position,
     token_eshop: userContext.tokenEshop,
-    bbo_customer_type: bboCustomerName,
+    bbo_customer_type: userContext.ccPotentialRaynet || null,
   } : undefined;
 
 
