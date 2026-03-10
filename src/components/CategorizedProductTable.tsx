@@ -3,11 +3,33 @@
  * Zobrazuje produkty rozdělené podle kategorií v tabulce
  */
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { ProductRecommendation } from '../services/productSearchService';
 import { openBewitProductLink } from '../services/productLinkService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+type ProductVariant = NonNullable<ProductRecommendation['variants_json']>[number];
+
+function getPublicVariants(product: ProductRecommendation): ProductVariant[] {
+  if (!product.variants_json || !Array.isArray(product.variants_json)) return [];
+  const uniqueNames = new Set<string>();
+  return product.variants_json
+    .filter(v => v.accessibility && v.accessibility.some(a => a === 'public'))
+    .filter(v => {
+      const key = v.variant_name ?? '';
+      if (uniqueNames.has(key)) return false;
+      uniqueNames.add(key);
+      return true;
+    });
+}
+
+function getVariantPrice(variant: ProductVariant, customerType?: string | null): number | null {
+  const type = customerType?.toUpperCase() || 'A';
+  if (type === 'B') return variant.price_b;
+  if (type === 'C') return variant.price_c;
+  return variant.price_a;
+}
 
 interface CategorizedProductTableProps {
   products: ProductRecommendation[];
@@ -22,6 +44,7 @@ export const CategorizedProductTable: React.FC<CategorizedProductTableProps> = (
   products, 
   token 
 }) => {
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   if (!products || products.length === 0) {
     return null;
   }
@@ -43,10 +66,20 @@ export const CategorizedProductTable: React.FC<CategorizedProductTableProps> = (
     return a.localeCompare(b, 'cs');
   });
 
-  const formatPrice = (price: number | null, currency: string) => {
+  const formatPrice = (price: number | null | undefined, currency: string | undefined) => {
     if (!price) return 'Cena na dotaz';
-    return `${price.toLocaleString('cs-CZ')} ${currency}`;
+    return `${price.toLocaleString('cs-CZ')} ${currency || 'CZK'}`;
   };
+
+  const getDisplayPrice = useCallback((product: ProductRecommendation): number | null => {
+    const variants = getPublicVariants(product);
+    if (variants.length === 0) return product.price ?? null;
+    const selectedName = selectedVariants[product.product_code];
+    const variant = selectedName
+      ? variants.find(v => v.variant_name === selectedName) ?? variants[0]
+      : variants[0];
+    return getVariantPrice(variant, product.customer_type);
+  }, [selectedVariants]);
 
   const handleProductClick = (product: ProductRecommendation) => {
     if (product.product_url) {
@@ -121,11 +154,40 @@ export const CategorizedProductTable: React.FC<CategorizedProductTableProps> = (
                     )}
                   </div>
 
-                  {/* Cena */}
+                  {/* Cena + varianty */}
                   <div style={styles.priceCell}>
-                    <span style={styles.price}>
-                      {formatPrice(product.price, product.currency)}
-                    </span>
+                    {(() => {
+                      const variants = getPublicVariants(product);
+                      const displayPrice = getDisplayPrice(product);
+                      return (
+                        <>
+                          {variants.length > 1 && (
+                            <select
+                              style={styles.variantSelect}
+                              title="Vyberte variantu produktu"
+                              value={selectedVariants[product.product_code] ?? variants[0]?.variant_name ?? ''}
+                              onChange={e => {
+                                e.stopPropagation();
+                                setSelectedVariants(prev => ({ ...prev, [product.product_code]: e.target.value }));
+                              }}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              {variants.map(v => (
+                                <option key={v.variant_name ?? ''} value={v.variant_name ?? ''}>
+                                  {v.variant_name ?? '–'}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {variants.length === 1 && variants[0].variant_name && (
+                            <span style={styles.singleVariant}>{variants[0].variant_name}</span>
+                          )}
+                          <span style={styles.price}>
+                            {formatPrice(displayPrice, product.currency)}
+                          </span>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Akce tlačítko */}
@@ -287,10 +349,29 @@ const styles: { [key: string]: React.CSSProperties } = {
     WebkitBoxOrient: 'vertical' as any,
   },
   priceCell: {
-    width: '120px',
+    width: '140px',
     textAlign: 'right' as 'right',
     marginRight: '16px',
     flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column' as 'column',
+    alignItems: 'flex-end',
+    gap: '4px',
+  },
+  variantSelect: {
+    fontSize: '12px',
+    padding: '2px 5px',
+    borderRadius: '5px',
+    border: '1px solid #ced4da',
+    backgroundColor: '#f8f9fa',
+    color: '#495057',
+    cursor: 'pointer',
+    width: '100%',
+  },
+  singleVariant: {
+    fontSize: '11px',
+    color: '#6c757d',
+    fontWeight: 500,
   },
   price: {
     fontSize: '15px',

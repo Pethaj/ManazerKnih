@@ -78,6 +78,7 @@ function parseVariant(v: any) {
   const pB = v?.PRICE_B;
   const pC = v?.PRICE_C;
   return {
+    variant_name: toStr(extractText(v?.VARIANTNAME)),
     price_a: toNum(extractText(v?.PRICE_A)),
     price_b: toNum(typeof pB === 'object' ? pB['#text'] : pB),
     price_b_percents: pB?.['@_percents'] ? toNum(pB['@_percents']) : null,

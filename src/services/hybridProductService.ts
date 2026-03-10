@@ -7,6 +7,19 @@
 import { supabase } from '../lib/supabase';
 import { generateEmbedding } from './embeddingService';
 
+export interface ProductVariant {
+  variant_name: string | null;
+  price_a: number | null;
+  price_b: number | null;
+  price_b_percents: number | null;
+  price_c: number | null;
+  price_c_percents: number | null;
+  in_action: number;
+  availability: number;
+  accessibility: string[];
+  add_to_cart_id: string | null;
+}
+
 export interface HybridProductRecommendation {
   id: number;
   product_code: string;
@@ -19,6 +32,8 @@ export interface HybridProductRecommendation {
   image_url?: string;
   similarity_score: number;
   feed_source?: string;
+  variants_json?: ProductVariant[] | null;
+  customer_type?: string | null;
 }
 
 /**
@@ -285,7 +300,7 @@ async function enrichProductsWithMetadata(
       if (feedSource === 'feed_2') {
         const { data: feedAbcData } = await supabase
           .from('product_feed_abc')
-          .select(`product_code, product_name, description_short, category, url, thumbnail, currency, availability, ${priceColumn}`)
+          .select(`product_code, product_name, description_short, category, url, thumbnail, currency, availability, variants_json, ${priceColumn}`)
           .eq('product_code', productCode)
           .single();
         
@@ -314,7 +329,9 @@ async function enrichProductsWithMetadata(
         product_url: metadata?.url || metadata?.product_url || result.product_url,
         image_url: metadata?.thumbnail || metadata?.image_url || result.image_url,
         similarity_score: result.similarity_score || result.combined_score || 0,
-        feed_source: feedSource
+        feed_source: feedSource,
+        variants_json: metadata?.variants_json || null,
+        customer_type: customerType || null
       });
 
     } catch (error) {

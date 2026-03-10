@@ -938,15 +938,42 @@ const ProductCalloutButton: React.FC<{
     token?: string;
     price?: number | null;
     currency?: string;
-}> = ({ productName, pinyinName, thumbnail, url, token, price, currency }) => {
-    const handleClick = (e: React.MouseEvent) => {
+    variantsJson?: RecommendedProduct['variants_json'];
+    customerType?: string | null;
+}> = ({ productName, pinyinName, thumbnail, url, token, price, currency, variantsJson, customerType }) => {
+    const [selectedVariantName, setSelectedVariantName] = React.useState<string | null>(null);
+    const handleClick = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.preventDefault();
         openBewitProductLink(url, token, '_blank');
     };
 
+    const publicVariants = React.useMemo(() => {
+        if (!variantsJson || !Array.isArray(variantsJson)) return [];
+        const seen = new Set<string>();
+        return variantsJson
+            .filter(v => v.accessibility && v.accessibility.some(a => a === 'public'))
+            .filter(v => {
+                const key = v.variant_name ?? '';
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }, [variantsJson]);
+
+    const displayPrice = React.useMemo(() => {
+        return price != null ? Number(price) || null : null;
+    }, [price]);
+
     return (
-        <button
+        <div
             onClick={handleClick}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    handleClick(e);
+                }
+            }}
             className="w-full flex items-center gap-3 p-2.5 bg-white border border-slate-200 hover:border-blue-300 rounded-2xl transition-all duration-200 group text-left shadow-sm hover:shadow-md"
         >
             {/* Thumbnail */}
@@ -989,10 +1016,28 @@ const ProductCalloutButton: React.FC<{
             </div>
 
             {/* Cena vpravo */}
-            {price != null && price > 0 && (
-                <div className="flex-shrink-0 ml-2">
+            {(displayPrice != null && displayPrice > 0) && (
+                <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-1">
+                    {publicVariants.length > 1 && (
+                        <select
+                            title="Vyberte variantu produktu"
+                            className="text-xs border border-slate-200 rounded-lg px-1.5 py-0.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-blue-400 max-w-[90px]"
+                            value={selectedVariantName ?? publicVariants[0]?.variant_name ?? ''}
+                            onChange={e => { e.stopPropagation(); setSelectedVariantName(e.target.value); }}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {publicVariants.map(v => (
+                                <option key={v.variant_name ?? ''} value={v.variant_name ?? ''}>
+                                    {v.variant_name ?? '–'}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    {publicVariants.length === 1 && publicVariants[0].variant_name && (
+                        <span className="text-xs text-gray-400">{publicVariants[0].variant_name}</span>
+                    )}
                     <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-green-50 border border-green-200 text-xs font-semibold text-green-700 whitespace-nowrap">
-                        {price.toLocaleString('cs-CZ')} {currency || 'Kč'}
+                        {displayPrice.toLocaleString('cs-CZ')} {currency || 'Kč'}
                     </span>
                 </div>
             )}
@@ -1003,7 +1048,7 @@ const ProductCalloutButton: React.FC<{
                     <path d="M5 12h14M12 5l7 7-7 7"/>
                 </svg>
             </div>
-        </button>
+        </div>
     );
 };
 
@@ -1289,17 +1334,18 @@ const Message: React.FC<{
                     description: p.description || p.pinyinName || '',
                     url: p.url || p.productUrl || '',
                     thumbnail: p.thumbnail || p.image_url || undefined,
-                    price: p.price ?? undefined,
+                    price: p.price != null ? Number(p.price) || null : undefined,
                     currency: p.currency || 'CZK',
                     category: p.category || undefined,
+                    variants_json: p.variants_json || null,
+                    customer_type: p.customer_type || bboCustomerType || null,
                 }));
 
-                // Pro EO Směsi: data (včetně ceny) jsou již v matchedProducts přímo z DB.
+                // Pro EO Směsi: data (včetně ceny a variants_json) jsou již v matchedProducts přímo z DB.
                 // Pokud mají všechny normalizované produkty cenu, použijeme je přímo (bez zbytečného DB dotazu).
-                const allHavePriceOrCode = normalized.every((p: any) => p.price != null || p.product_code);
                 let enriched: any[];
                 if (isEoSmesiChat && normalized.every((p: any) => p.price != null)) {
-                    // Ceny jsou již načteny z eoSmesiWorkflowService – použij přímo
+                    // Ceny a variants_json jsou již načteny z eoSmesiWorkflowService – použij přímo
                     enriched = normalized;
                 } else {
                     enriched = await enrichFunnelProductsFromDatabase(normalized, bboCustomerType);
@@ -1499,6 +1545,8 @@ const Message: React.FC<{
                                                             token={token}
                                                             price={product.price}
                                                             currency={product.currency}
+                                                            variantsJson={product.variants_json}
+                                                            customerType={product.customer_type ?? bboCustomerType}
                                                         />
                                                     ) : (
                                                         <ProductPill
@@ -2012,6 +2060,8 @@ const Message: React.FC<{
                                                             token={token}
                                                             price={product.price}
                                                             currency={product.currency}
+                                                            variantsJson={product.variants_json}
+                                                            customerType={product.customer_type ?? bboCustomerType}
                                                         />
                                                     ) : (
                                                         <ProductPill
@@ -3020,7 +3070,9 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                     category: p.category,
                     image_url: p.thumbnail || '',
                     price: p.price ?? null,
-                    currency: p.currency || 'CZK'
+                    currency: p.currency || 'CZK',
+                    variants_json: (p as any).variants_json || null,
+                    customer_type: externalUserInfoRef.current?.bbo_customer_type || null
                 }));
                 
                 // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
@@ -3206,7 +3258,9 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                                     category: p.category,
                                     image_url: p.thumbnail || '',
                                     price: p.price ?? null,
-                                    currency: p.currency || 'CZK'
+                                    currency: p.currency || 'CZK',
+                                    variants_json: (p as any).variants_json || null,
+                                    customer_type: externalUserInfoRef.current?.bbo_customer_type || null
                                 }));
                                 // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
                                 let directIngredients: IngredientWithDescription[];
@@ -3276,7 +3330,9 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                             category: p.category,
                             image_url: p.thumbnail || '',
                             price: p.price ?? null,
-                            currency: p.currency || 'CZK'
+                            currency: p.currency || 'CZK',
+                            variants_json: (p as any).variants_json || null,
+                            customer_type: externalUserInfoRef.current?.bbo_customer_type || null
                         }));
 
                         // 🌿 Ingredience z medicineTable (které jsou nyní z Ing_sol tabulky)
@@ -3839,7 +3895,9 @@ Symptomy zákazníka: ${symptomsList}
                         price: product.price || null,
                         currency: product.currency || 'CZK',
                         category: product.category,
-                        similarity: product.similarity_score
+                        similarity: product.similarity_score,
+                        variants_json: product.variants_json || null,
+                        customer_type: externalUserInfoRef.current?.bbo_customer_type || null
                     }));
                     
                     // 🔗 PÁROVÁNÍ KOMBINACÍ - Pokud máme produkty, hledej kombinace v leceni
@@ -4363,7 +4421,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
                         price: product.price || null,
                         currency: product.currency || 'CZK',
                         category: product.category,
-                        similarity: product.similarity_score
+                        similarity: product.similarity_score,
+                        variants_json: product.variants_json || null,
+                        customer_type: externalUserInfoRef.current?.bbo_customer_type || null
                     }));
                     
                     // 🔗 PÁROVÁNÍ KOMBINACÍ - Pokud máme produkty, hledej kombinace v leceni

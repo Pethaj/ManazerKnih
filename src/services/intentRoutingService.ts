@@ -37,6 +37,19 @@ export interface RecommendedProduct {
   price?: number;        // Cena produktu (z product_feed_2)
   currency?: string;     // Měna (z product_feed_2)
   category?: string;     // 🆕 Kategorie produktu (z product_feed_2)
+  variants_json?: Array<{
+    variant_name: string | null;
+    price_a: number | null;
+    price_b: number | null;
+    price_b_percents: number | null;
+    price_c: number | null;
+    price_c_percents: number | null;
+    in_action: number;
+    availability: number;
+    accessibility: string[];
+    add_to_cart_id: string | null;
+  }> | null;
+  customer_type?: string | null;
 }
 
 export interface IntentRouterRequest {
@@ -384,7 +397,7 @@ export async function enrichFunnelProductsFromDatabase(
     // Dotaz na product_feed_abc podle URL nebo product_code
     let query = supabase
       .from('product_feed_abc')
-      .select(`product_code, product_name, description_short, description_long, url, thumbnail, ${priceColumn}, currency, availability, category`);
+      .select(`product_code, product_name, description_short, description_long, url, thumbnail, ${priceColumn}, currency, availability, category, variants_json`);
     
     // Sestavíme OR podmínku pro URL nebo product_code
     const orConditions: string[] = [];
@@ -433,7 +446,9 @@ export async function enrichFunnelProductsFromDatabase(
           thumbnail: dbData.thumbnail || undefined,
           price: dbData[priceColumn],
           currency: dbData.currency || 'CZK',
-          category: dbData.category
+          category: dbData.category,
+          variants_json: dbData.variants_json || null,
+          customer_type: customerType || null
         };
       } else {
         return {
@@ -468,7 +483,7 @@ async function enrichByProductName(
       if (product.url) {
         const urlResult = await supabase
           .from('product_feed_abc')
-          .select(`product_code, product_name, description_short, url, thumbnail, ${priceColumn}, currency, category`)
+          .select(`product_code, product_name, description_short, url, thumbnail, ${priceColumn}, currency, category, variants_json`)
           .eq('url', product.url)
           .single();
         
@@ -484,7 +499,7 @@ async function enrichByProductName(
         
         let query = supabase
           .from('product_feed_abc')
-          .select(`product_code, product_name, description_short, url, thumbnail, ${priceColumn}, currency, category`);
+          .select(`product_code, product_name, description_short, url, thumbnail, ${priceColumn}, currency, category, variants_json`);
 
         if (numberMatch) {
           // Hledáme podle čísla na začátku názvu
@@ -508,7 +523,9 @@ async function enrichByProductName(
           thumbnail: data.thumbnail || undefined,
           price: data[priceColumn],
           currency: data.currency || 'CZK',
-          category: data.category
+          category: data.category,
+          variants_json: data.variants_json || null,
+          customer_type: product.customer_type || null
         });
       } else {
         enrichedProducts.push(product);

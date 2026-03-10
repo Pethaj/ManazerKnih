@@ -17,6 +17,19 @@ export interface ProductRecommendation {
   currency?: string;
   category?: string;
   similarity?: number;
+  variants_json?: Array<{
+    variant_name: string | null;
+    price_a: number | null;
+    price_b: number | null;
+    price_b_percents: number | null;
+    price_c: number | null;
+    price_c_percents: number | null;
+    in_action: number;
+    availability: number;
+    accessibility: string[];
+    add_to_cart_id: string | null;
+  }> | null;
+  customer_type?: string | null;
 }
 
 export async function searchProducts(query: string, limit: number = 10): Promise<ProductRecommendation[]> {
