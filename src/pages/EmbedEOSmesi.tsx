@@ -236,6 +236,53 @@ const EmbedEOSmesi = () => {
     };
   }, []);
 
+  // 🎯 STANDALONE CALL PRO CUSTOMER TYPE přes Supabase Edge Function proxy
+  useEffect(() => {
+    if (!userContext.tokenEshop) return;
+
+    const fetchCustomerType = async () => {
+      try {
+        const token = userContext.tokenEshop;
+
+        console.log('🔄 Customer Type: Volám proxy...');
+
+        const response = await fetch(
+          'https://modopafybeslbcqjxsve.supabase.co/functions/v1/bewit-account-proxy',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZG9wYWZ5YmVzbGJjcWp4c3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTM0MjEsImV4cCI6MjA3MDgyOTQyMX0.8gxL0b9flTUyoltiEIJx8Djuiyx16rySlffHkd_nm1U',
+            },
+            body: JSON.stringify({ token }),
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          console.error('🔴 Customer Type: Proxy error', data.error);
+          return;
+        }
+
+        console.group('🎯 CUSTOMER TYPE');
+        console.log('Typ zákazníka (A/B/C):', data.customer_type);
+        console.log('bbo_customer_prices_id:', data.bbo_customer_prices_id);
+        console.log('cc_potential_raynet:', data.cc_potential_raynet);
+        console.groupEnd();
+
+        if (data.customer_type && data.customer_type !== 'N/A') {
+          setUserContext(prev => ({ ...prev, ccPotentialRaynet: data.customer_type }));
+        }
+
+      } catch (err) {
+        console.error('🔴 Customer Type: Chyba:', err instanceof Error ? err.message : String(err));
+      }
+    };
+
+    fetchCustomerType();
+  }, [userContext.tokenEshop]);
+
   if (isLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-bewit-gray">
