@@ -228,12 +228,12 @@ const EmbedEOSmesi = () => {
     };
   }, []);
 
-  // 🎯 SAMOSTATNÝ CALL PRO BBO CUSTOMER NAME - spustí se jakmile tokenEshop dorazí
+  // 🎯 SAMOSTATNÝ CALL PRO BBO CUSTOMER TYPE - spustí se jakmile tokenEshop dorazí
   useEffect(() => {
     // Jakmile má userContext tokenEshop (víme že USER_DATA dorazila), zavolej API
     if (!userContext.tokenEshop) return;
 
-    const fetchBboCustomerName = async () => {
+    const fetchBboCustomerType = async () => {
       try {
         // Vezmi token z localStorage (BEWIT_USER_DATA)
         const userDataStr = localStorage.getItem('BEWIT_USER_DATA');
@@ -250,7 +250,7 @@ const EmbedEOSmesi = () => {
           return;
         }
 
-        const apiUrl = 'https://api.mybewit.com/account?include=bbo.customer';
+        const apiUrl = 'https://api.mybewit.com/account?include=bbo';
         
         console.log('🔄 BBO: Načítám data z API...');
         
@@ -271,28 +271,29 @@ const EmbedEOSmesi = () => {
           return;
         }
 
-        // Ulož name z bbo.customer.name (A/B/C)
-        const customerName = data?.data?.bbo?.customer?.name ?? null;
+        // Mapování bbo_customer_prices_id na typ (A/B/C)
+        const customerId = data?.data?.bbo?.bbo_customer_prices_id;
+        const typeMap = { 1: 'A', 2: 'B', 3: 'C' };
+        const customerType = typeMap[customerId as keyof typeof typeMap] || 'N/A';
         
-        console.group('🎯 BBO CUSTOMER NAME');
-        console.log('Typ zákazníka (name):', customerName);
+        console.group('🎯 BBO CUSTOMER TYPE');
+        console.log('Typ zákazníka (A/B/C):', customerType);
         console.log('BBO customer data:', {
+          bbo_customer_prices_id: customerId,
+          type: customerType,
           bbo_id: data?.data?.bbo_id,
-          name: customerName,
-          points_from: data?.data?.bbo?.customer?.points_from,
-          points_to: data?.data?.bbo?.customer?.points_to,
-          discount_type: data?.data?.bbo?.customer?.discount_type,
+          cc_potential: data?.data?.cc_potential,
         });
         console.groupEnd();
 
-        setBboCustomerName(customerName);
+        setBboCustomerName(customerType);
 
       } catch (err) {
         console.error('🔴 BBO: Chyba:', err instanceof Error ? err.message : String(err));
       }
     };
 
-    fetchBboCustomerName();
+    fetchBboCustomerType();
   }, [userContext.tokenEshop]);
 
   if (isLoading) {
@@ -314,6 +315,7 @@ const EmbedEOSmesi = () => {
     email: userContext.email,
     position: userContext.position,
     token_eshop: userContext.tokenEshop,
+    bbo_customer_type: bboCustomerName,
   } : undefined;
 
 
