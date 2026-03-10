@@ -2914,14 +2914,6 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             lastName: currentUser?.lastName || externalUserInfo?.last_name || 'N/A',
             role: currentUser?.role || externalUserInfo?.position || 'N/A'
         });
-        console.log('All User Data:', {
-            userId: currentUser?.id || externalUserInfo?.external_user_id || 'anonymous',
-            email: currentUser?.email || externalUserInfo?.email || 'N/A',
-            firstName: currentUser?.firstName || externalUserInfo?.first_name || 'N/A',
-            lastName: currentUser?.lastName || externalUserInfo?.last_name || 'N/A',
-            role: currentUser?.role || externalUserInfo?.position || 'N/A',
-            bbo_customer_type: externalUserInfo?.bbo_customer_type || 'N/A'
-        });
         console.groupEnd();
         
         // Spustíme KOMPLETNÍ diagnostiku vektorové databáze při prvním načtení
@@ -2940,6 +2932,19 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             }, 3000);
         }
     }, [chatbotSettings.product_recommendations]);
+
+    // Log All User Data až když bbo_customer_type dorazí z proxy
+    useEffect(() => {
+        if (!externalUserInfo?.bbo_customer_type) return;
+        console.log('All User Data:', {
+            userId: currentUser?.id || externalUserInfo?.external_user_id || 'anonymous',
+            email: currentUser?.email || externalUserInfo?.email || 'N/A',
+            firstName: currentUser?.firstName || externalUserInfo?.first_name || 'N/A',
+            lastName: currentUser?.lastName || externalUserInfo?.last_name || 'N/A',
+            role: currentUser?.role || externalUserInfo?.position || 'N/A',
+            bbo_customer_type: externalUserInfo.bbo_customer_type
+        });
+    }, [externalUserInfo?.bbo_customer_type]);
 
     // SEARCH Callback pro výběr problému z formuláře (EO Směsi Chat)
     const handleProblemSelection = useCallback(async (selectedProblem: string) => {
