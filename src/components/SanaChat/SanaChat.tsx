@@ -1172,7 +1172,8 @@ const Message: React.FC<{
     metadata?: { categories: string[]; labels: string[]; publication_types: string[]; };  // Metadata
     onAddMessage?: (message: ChatMessage) => void;  // Callback pro přidání nové zprávy (EO Směsi "vědět víc")
     onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
-}> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] }, onAddMessage, onSwitchToUniversal }) => {
+    bboCustomerType?: string;
+}> = ({ message, onSilentPrompt, onProblemSelect, chatbotSettings, sessionId, token, lastUserQuery, chatbotId, recommendedProducts = [], chatHistory = [], metadata = { categories: [], labels: [], publication_types: [] }, onAddMessage, onSwitchToUniversal, bboCustomerType }) => {
     const isUser = message.role === 'user';
     const usesMarkdown = chatbotId === 'sana_local_format' || chatbotId === 'vany_chat' || chatbotId === 'eo_smesi' || chatbotId === 'wany_chat_local' || chatbotId === 'universal_chat' || chatbotId === 'universal';  // NEW Sana Local Format, Vany Chat, EO-Smesi, Wany.Chat Local, Universal Chat a Universal používají markdown
     
@@ -1301,7 +1302,7 @@ const Message: React.FC<{
                     // Ceny jsou již načteny z eoSmesiWorkflowService – použij přímo
                     enriched = normalized;
                 } else {
-                    enriched = await enrichFunnelProductsFromDatabase(normalized, externalUserInfo?.bbo_customer_type);
+                    enriched = await enrichFunnelProductsFromDatabase(normalized, bboCustomerType);
                 }
                 
                 // NEW Seřadíme produkty podle prioritních kategorií
@@ -1316,7 +1317,7 @@ const Message: React.FC<{
         };
         
         loadEnrichedProducts();
-    }, [message.matchedProducts, message.role, chatbotSettings?.inline_product_links, chatbotSettings?.enable_product_pairing]);
+    }, [message.matchedProducts, message.role, chatbotSettings?.inline_product_links, chatbotSettings?.enable_product_pairing, bboCustomerType]);
     
     // NEW Funkce pro extrakci všech product markerů z textu (pro horní sekci)
     /**
@@ -2322,7 +2323,7 @@ const Message: React.FC<{
                                 botResponse={message.text}
                                 sessionId={sessionId}
                                 token={token}
-                                customerType={externalUserInfo?.bbo_customer_type}
+                                customerType={bboCustomerType}
                             />
                         </div>
                     )}
@@ -2336,7 +2337,7 @@ const Message: React.FC<{
                                 recommendedProducts={recommendedProducts}
                                 sessionId={sessionId || ''}
                                 token={token}
-                                customerType={externalUserInfo?.bbo_customer_type}
+                                customerType={bboCustomerType}
                                 metadata={metadata}
                                 chatHistory={chatHistory}
                             />
@@ -2509,7 +2510,8 @@ const ChatWindow: React.FC<{
     selectedPublicationTypes?: string[];  // NEW Pro manuální funnel metadata
     onAddMessage?: (message: ChatMessage) => void;  // Callback pro přidání zprávy z EO Směsi "vědět víc"
     onSwitchToUniversal?: () => void;  // Přepnutí na Universal chatbot (tlačítko Poradce)
-}> = ({ messages, isLoading, onSilentPrompt, onProblemSelect, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [], onAddMessage, onSwitchToUniversal }) => {
+    bboCustomerType?: string;
+}> = ({ messages, isLoading, onSilentPrompt, onProblemSelect, shouldAutoScroll = true, chatbotSettings, sessionId, token, chatbotId, selectedCategories = [], selectedLabels = [], selectedPublicationTypes = [], onAddMessage, onSwitchToUniversal, bboCustomerType }) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -2622,6 +2624,7 @@ const ChatWindow: React.FC<{
                             }}
                             onAddMessage={onAddMessage}
                             onSwitchToUniversal={onSwitchToUniversal}
+                            bboCustomerType={bboCustomerType}
                         />
                     );
                 })}
@@ -2933,6 +2936,9 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
     // HOT useRef pro okamžitý přístup k sumarizacím (React state je asynchronní!)
     const summarizedHistoryRef = useRef<string[]>([]);
+    // HOT useRef pro okamžitý přístup k externalUserInfo (bbo_customer_type přichází asynchronně z proxy)
+    const externalUserInfoRef = useRef(externalUserInfo);
+    useEffect(() => { externalUserInfoRef.current = externalUserInfo; }, [externalUserInfo]);
 
     useEffect(() => {
         const newSessionId = generateSessionId();
@@ -3002,7 +3008,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
 
         try {
             console.log('🔄 Volám processEoSmesiQueryWithKnownProblem...');
-            const eoSmesiResult = await processEoSmesiQueryWithKnownProblem(selectedProblem, externalUserInfo?.bbo_customer_type);
+            const eoSmesiResult = await processEoSmesiQueryWithKnownProblem(selectedProblem, externalUserInfoRef.current?.bbo_customer_type);
             console.log('✅ eoSmesiResult:', eoSmesiResult);
             
             if (eoSmesiResult.shouldShowTable && eoSmesiResult.medicineTable) {
@@ -3179,7 +3185,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
             const hasEoSmesiLearnMoreResponse = messages.some(m => m.hideProductCallout === true);
             if (chatbotId === 'eo_smesi' && !hasEoSmesiLearnMoreResponse) {
                 try {
-                    const eoSmesiResult = await processEoSmesiQuery(text.trim(), sessionId, externalUserInfo?.bbo_customer_type);
+                    const eoSmesiResult = await processEoSmesiQuery(text.trim(), sessionId, externalUserInfoRef.current?.bbo_customer_type);
                     
                     // SEARCH SITUACE A: Agent si NENÍ jistý → dotazník nebo přímé zpracování
                     if (eoSmesiResult.problemClassification.requiresUserSelection && 
@@ -3190,7 +3196,7 @@ const SanaChatContent: React.FC<SanaChatProps> = ({
                         
                         // Pokud je jen 1 možnost, přeskočíme dotazník a zpracujeme přímo
                         if (uncertainProblems.length === 1) {
-                            const directResult = await processEoSmesiQueryWithKnownProblem(uncertainProblems[0], externalUserInfo?.bbo_customer_type);
+                            const directResult = await processEoSmesiQueryWithKnownProblem(uncertainProblems[0], externalUserInfoRef.current?.bbo_customer_type);
                             if (directResult.shouldShowTable && directResult.medicineTable) {
                                 const matchedProducts = directResult.medicineTable.products.map(p => ({
                                     productName: p.name,
@@ -3543,7 +3549,7 @@ Symptomy zákazníka: ${symptomsList}
                         // Toto zajistí správné obrázky, ceny a URL z databáze
                         // Vezmeme max 2 produkty a obohacíme je o data z databáze
                         const productsToEnrich = recommendedProducts.slice(0, 2);
-                        const enrichedProducts = await enrichFunnelProductsFromDatabase(productsToEnrich, externalUserInfo?.bbo_customer_type);
+                        const enrichedProducts = await enrichFunnelProductsFromDatabase(productsToEnrich, externalUserInfoRef.current?.bbo_customer_type);
                         
                         // Připravíme produkty pro funnel UI - s obohacenými daty
                         const funnelProductsWithDetails: FunnelProduct[] = enrichedProducts.map(p => ({
@@ -3820,7 +3826,7 @@ Symptomy zákazníka: ${symptomsList}
                         useFeed1,
                         useFeed2,
                         chatbotSettings.allowed_product_categories || [],
-                        externalUserInfo?.bbo_customer_type
+                        externalUserInfoRef.current?.bbo_customer_type
                     );
                     
                     // Konvertuj hybridní produkty na standardní ProductRecommendation formát
@@ -4026,6 +4032,7 @@ Symptomy zákazníka: ${symptomsList}
                         selectedPublicationTypes={selectedPublicationTypes}
                         onAddMessage={handleAddMessage}
                         onSwitchToUniversal={onSwitchToUniversal}
+                        bboCustomerType={externalUserInfo?.bbo_customer_type}
                      />
                 </div>
                 <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">
@@ -4071,6 +4078,9 @@ const SanaChat: React.FC<SanaChatProps> = ({
     const [isFilterPanelVisible, setIsFilterPanelVisible] = useState<boolean>(false);
     const [summarizedHistory, setSummarizedHistory] = useState<string[]>([]);
     const summarizedHistoryRef = useRef<string[]>([]);
+    // HOT useRef pro okamžitý přístup k externalUserInfo (bbo_customer_type přichází asynchronně z proxy)
+    const externalUserInfoRef = useRef(externalUserInfo);
+    useEffect(() => { externalUserInfoRef.current = externalUserInfo; }, [externalUserInfo]);
 
     // Token z externalUserInfo pro prokliknutí produktů
     const userToken = externalUserInfo?.token_eshop;
@@ -4340,7 +4350,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                         useFeed1,
                         useFeed2,
                         chatbotSettings.allowed_product_categories || [],
-                        externalUserInfo?.bbo_customer_type
+                        externalUserInfoRef.current?.bbo_customer_type
                     );
                     
                     // Konvertuj hybridní produkty na standardní ProductRecommendation formát
@@ -4567,6 +4577,7 @@ const SanaChat: React.FC<SanaChatProps> = ({
                                 selectedPublicationTypes={selectedPublicationTypes}
                                 onAddMessage={handleAddMessage}
                                 onSwitchToUniversal={onSwitchToUniversal}
+                                bboCustomerType={externalUserInfo?.bbo_customer_type}
                              />
                         </div>
                         <div className="w-full max-w-4xl p-4 md:p-6 bg-bewit-gray flex-shrink-0 border-t border-slate-200 mx-auto">

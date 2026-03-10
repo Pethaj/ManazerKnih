@@ -131,7 +131,37 @@ async function performSync(logId: number, supabase: any) {
           ? (Array.isArray(variantsNode) ? variantsNode : [variantsNode])
           : [];
         const parsedVariants = variantItems.map(parseVariant);
-        const pub = parsedVariants.find((v: any) => v.accessibility.includes('public')) ?? parsedVariants[0] ?? null;
+
+        // Pouze public varianty pro výpočet cen
+        const publicVariants = parsedVariants.filter((v: any) => v.accessibility.includes('public'));
+        const priceSource = publicVariants.length > 0 ? publicVariants : (parsedVariants.length > 0 ? parsedVariants : []);
+
+        // Nejnižší price_a ze všech (public) variant
+        const minPriceA = priceSource.reduce((min: number | null, v: any) => {
+          if (v.price_a === null) return min;
+          return min === null || v.price_a < min ? v.price_a : min;
+        }, null as number | null);
+
+        // Nejnižší price_b ze všech (public) variant
+        const minPriceB = priceSource.reduce((min: number | null, v: any) => {
+          if (v.price_b === null) return min;
+          return min === null || v.price_b < min ? v.price_b : min;
+        }, null as number | null);
+
+        // Nejnižší price_c ze všech (public) variant
+        const minPriceC = priceSource.reduce((min: number | null, v: any) => {
+          if (v.price_c === null) return min;
+          return min === null || v.price_c < min ? v.price_c : min;
+        }, null as number | null);
+
+        // Varianta s nejnižší price_a – pro percenty a add_to_cart_id
+        const cheapestVariant = priceSource.reduce((best: any, v: any) => {
+          if (v.price_a === null) return best;
+          if (!best || best.price_a === null || v.price_a < best.price_a) return v;
+          return best;
+        }, null as any) ?? priceSource[0] ?? parsedVariants[0] ?? null;
+
+        const pub = cheapestVariant;
         const firstCartId = pub?.add_to_cart_id ?? parsedVariants[0]?.add_to_cart_id ?? null;
         const product_code = deriveProductCode(url, firstCartId);
         if (!product_code) { failed++; continue; }
@@ -147,10 +177,10 @@ async function performSync(logId: number, supabase: any) {
           url,
           thumbnail: toStr(extractText(item.THUMBNAIL)),
           sales_last_30_days: toInt(extractText(item.SALES_LAST_30_DAYS)) ?? 0,
-          price_a: pub?.price_a ?? null,
-          price_b: pub?.price_b ?? null,
+          price_a: minPriceA,
+          price_b: minPriceB,
           price_b_percents: pub?.price_b_percents ?? null,
-          price_c: pub?.price_c ?? null,
+          price_c: minPriceC,
           price_c_percents: pub?.price_c_percents ?? null,
           in_action: pub?.in_action ?? 0,
           availability: pub?.availability ?? 0,

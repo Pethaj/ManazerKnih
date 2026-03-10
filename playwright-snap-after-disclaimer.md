@@ -1,0 +1,50 @@
+- generic [ref=e22]:
+  - generic [ref=e23]:
+    - generic [ref=e24]:
+      - heading "Filtrace obsahu" [level=2] [ref=e25]
+      - paragraph [ref=e26]: Vyberte kategorie pro přesnější výsledky
+    - generic [ref=e27]:
+      - button "Vybrat vše" [ref=e28] [cursor=pointer]
+      - button "Filter Reset" [ref=e29] [cursor=pointer]
+    - generic [ref=e30]:
+      - heading "Kategorie léčby" [level=3] [ref=e31]
+      - generic [ref=e32]:
+        - button "CnC" [ref=e33] [cursor=pointer]
+        - button "EO_Smesi" [ref=e34] [cursor=pointer]
+        - button "Prawteiny" [ref=e35] [cursor=pointer]
+        - button "Wany" [ref=e36] [cursor=pointer]
+    - generic [ref=e37]:
+      - heading "Typy publikací" [level=3] [ref=e38]
+      - generic [ref=e39]:
+        - button "Interní" [ref=e40] [cursor=pointer]
+        - button "Interní" [ref=e41] [cursor=pointer]
+        - button "Pro studenty" [ref=e42] [cursor=pointer]
+  - generic [ref=e43]:
+    - generic [ref=e46]:
+      - generic [ref=e48]:
+        - checkbox "Zobrazit/skrýt filtry" [ref=e50]
+        - img "Sana AI Logo" [ref=e53]
+      - generic [ref=e55]:
+        - button "Nový chat" [ref=e56] [cursor=pointer]:
+          - img [ref=e57]
+        - button "Export do PDF" [ref=e58] [cursor=pointer]:
+          - img [ref=e59]
+        - button "Zavřít chat" [ref=e62] [cursor=pointer]:
+          - img [ref=e63]
+    - main [ref=e68]:
+      - generic [ref=e72]:
+        - img "Sana AI Logo" [ref=e73]
+        - heading "Vítejte v Navigátoru!" [level=2] [ref=e74]
+        - paragraph [ref=e75]: Jak vám dnes mohu pomoci?
+      - generic [ref=e77]:
+        - generic [ref=e79]:
+          - button "Poradce Bewit produktů" [ref=e80] [cursor=pointer]:
+            - img [ref=e81]
+            - text: Poradce Bewit produktů
+          - button "Obecný poradce" [ref=e83] [cursor=pointer]:
+            - img [ref=e84]
+            - text: Obecný poradce
+        - generic [ref=e88]:
+          - textbox "Popište co vás trápí..." [ref=e89]
+          - button "Odeslat zprávu" [disabled] [ref=e90]:
+            - img [ref=e91]

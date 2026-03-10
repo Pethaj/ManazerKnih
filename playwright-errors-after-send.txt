@@ -1,0 +1,57 @@
+Total messages: 34 (Errors: 5, Warnings: 1)
+Returning 5 messages for level "error"
+
+[ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[ERROR] The above error occurred in the <Message> component:
+
+    at Message (http://localhost:5173/src/components/SanaChat/SanaChat.tsx:1295:20)
+    at div
+    at div
+    at ChatWindow (http://localhost:5173/src/components/SanaChat/SanaChat.tsx:3702:23)
+    at div
+    at main
+    at div
+    at SanaChatContent (http://localhost:5173/src/components/SanaChat/SanaChat.tsx:4253:3)
+    at div
+    at div
+    at div
+    at FilteredSanaChat (http://localhost:5173/src/components/SanaChat/SanaChat.tsx:5867:3)
+    at div
+    at div
+    at EmbedEOSmesi (http://localhost:5173/src/pages/EmbedEOSmesi.tsx:10:49)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:14063
+ReferenceError: externalUserInfo is not defined
+    at Message (http://localhost:5173/src/components/SanaChat/SanaChat.tsx:1395:126)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:12199:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:14949:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:15930:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:3705:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:3739:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19786:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19219:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19158:13)
+ReferenceError: externalUserInfo is not defined
+    at Message (http://localhost:5173/src/components/SanaChat/SanaChat.tsx:1395:126)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:12199:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:14949:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:15930:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:3705:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:3739:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19786:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19219:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19158:13)
+ReferenceError: externalUserInfo is not defined
+    at Message (http://localhost:5173/src/components/SanaChat/SanaChat.tsx:1395:126)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:12199:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:14949:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:15930:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19774:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19219:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19158:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:19137:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:18754:28)
+    at performConcurrentWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-M2IFSHDB.js?v=c3d91e94:18702:30)
