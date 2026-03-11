@@ -49,6 +49,10 @@ import { ProblemSelectionForm } from './ProblemSelectionForm';
 import { searchProductsAutocomplete } from '../../feedAgent/feedAgentService';
 // Chatbot Settings Service - načítání nastavení chatbotů z databáze
 import { ChatbotSettingsService } from '../../services/chatbotSettingsService';
+// 🛒 Cart Service - správa košíku
+import { addToCart, removeFromCart, isInCart, CART_CHANGE_EVENT } from '../../services/cartService';
+// 🛒 CartDropdown - košík v hlavičce
+import CartDropdown from '../ui/CartDropdown';
 
 // Declare global variables from CDN scripts for TypeScript
 declare const jspdf: any;
@@ -942,6 +946,8 @@ const ProductCalloutButton: React.FC<{
     customerType?: string | null;
 }> = ({ productName, pinyinName, thumbnail, url, token, price, currency, variantsJson, customerType }) => {
     const [selectedVariantName, setSelectedVariantName] = React.useState<string | null>(null);
+    const [inCart, setInCart] = React.useState(false);
+
     const handleClick = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.preventDefault();
         openBewitProductLink(url, token, '_blank');
@@ -986,6 +992,39 @@ const ProductCalloutButton: React.FC<{
         else p = activeVariant.price_a;
         return p != null ? Number(p) || null : (price != null ? Number(price) || null : null);
     }, [activeVariant, customerType, price]);
+
+    // Sledovat stav košíku
+    React.useEffect(() => {
+        if (activeVariant?.add_to_cart_id) {
+            setInCart(isInCart(activeVariant.add_to_cart_id));
+        }
+        const refresh = () => {
+            if (activeVariant?.add_to_cart_id) {
+                setInCart(isInCart(activeVariant.add_to_cart_id));
+            }
+        };
+        window.addEventListener(CART_CHANGE_EVENT, refresh);
+        return () => window.removeEventListener(CART_CHANGE_EVENT, refresh);
+    }, [activeVariant]);
+
+    const handleCartClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!activeVariant?.add_to_cart_id) return;
+        if (inCart) {
+            removeFromCart(activeVariant.add_to_cart_id);
+            setInCart(false);
+        } else {
+            addToCart({
+                add_to_cart_id: activeVariant.add_to_cart_id,
+                productName,
+                variantName: activeVariant._label,
+                price: variantPrice ?? undefined,
+                currency: currency ?? 'Kč',
+                thumbnail,
+            });
+            setInCart(true);
+        }
+    };
 
     return (
         <div
@@ -1038,30 +1077,52 @@ const ProductCalloutButton: React.FC<{
                 )}
             </div>
 
-            {/* Dropdown pro výběr varianty + cena vybrané varianty */}
-            <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-1" onClick={e => e.stopPropagation()}>
-                {publicVariants.length > 1 && (
-                    <select
-                        title="Vyberte variantu produktu"
-                        className="text-xs border border-slate-200 rounded-lg px-1.5 py-0.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-blue-400 max-w-[120px]"
-                        value={activeVariantKey ?? ''}
-                        onChange={e => { e.stopPropagation(); setSelectedVariantName(e.target.value); }}
-                        onClick={e => e.stopPropagation()}
+            {/* Dropdown varianty + cena (pod sebou) vedle tlačítka košíku */}
+            <div className="flex-shrink-0 ml-2 flex flex-row items-center gap-2" onClick={e => e.stopPropagation()}>
+                {/* Levá část: varianta a cena pod sebou */}
+                <div className="flex flex-col items-start gap-0.5">
+                    {publicVariants.length > 1 && (
+                        <select
+                            title="Vyberte variantu produktu"
+                            className="text-xs border border-slate-200 rounded-lg px-1.5 py-0.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-blue-400 max-w-[110px]"
+                            value={activeVariantKey ?? ''}
+                            onChange={e => { e.stopPropagation(); setSelectedVariantName(e.target.value); }}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {publicVariants.map((v: any) => (
+                                <option key={v._key} value={v._key}>
+                                    {v._label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    {publicVariants.length === 1 && (
+                        <span className="text-xs text-gray-400 whitespace-nowrap">{publicVariants[0]._label}</span>
+                    )}
+                    {(variantPrice != null && variantPrice > 0) && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-green-50 border border-green-200 text-xs font-semibold text-green-700 whitespace-nowrap">
+                            {variantPrice.toLocaleString('cs-CZ')} {currency || 'Kč'}
+                        </span>
+                    )}
+                </div>
+                
+                {/* Pravá část: tlačítko košíku */}
+                {activeVariant?.add_to_cart_id && (
+                    <button
+                        onClick={handleCartClick}
+                        title={inCart ? 'Odebrat z košíku' : 'Do košíku'}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-bold whitespace-nowrap transition-all duration-200 border ${
+                            inCart
+                                ? 'bg-red-50 border-red-200 text-red-600'
+                                : 'bg-white border-slate-200 text-[#334155] shadow-sm hover:border-bewit-blue hover:text-bewit-blue'
+                        }`}
                     >
-                        {publicVariants.map((v: any) => (
-                            <option key={v._key} value={v._key}>
-                                {v._label}
-                            </option>
-                        ))}
-                    </select>
-                )}
-                {publicVariants.length === 1 && (
-                    <span className="text-xs text-gray-400">{publicVariants[0]._label}</span>
-                )}
-                {(variantPrice != null && variantPrice > 0) && (
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-green-50 border border-green-200 text-xs font-semibold text-green-700 whitespace-nowrap">
-                        {variantPrice.toLocaleString('cs-CZ')} {currency || 'Kč'}
-                    </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+                            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                        </svg>
+                        {inCart ? 'Odebrat' : 'Do košíku'}
+                    </button>
                 )}
             </div>
 
@@ -5161,7 +5222,6 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                     </div>
                   }
                   buttons={[
-                    // NO Ikona produktů (košík) byla odstraněna
                     {
                       icon: 'plus',
                       onClick: handleNewChat,
@@ -5175,6 +5235,7 @@ const FilteredSanaChat: React.FC<FilteredSanaChatProps> = ({
                       tooltip: 'Export do PDF'
                     }
                   ]}
+                  rightExtra={<CartDropdown />}
                 />
                 
                 {/* Chat komponenta nebo ProductSync nebo Vyhledávač */}

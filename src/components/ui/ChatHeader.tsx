@@ -67,6 +67,8 @@ export interface ChatHeaderProps {
   buttons?: ChatHeaderButton[];
   /** Volitelný obsah pro levou část (nahradí logo) */
   leftContent?: React.ReactNode;
+  /** Volitelný obsah vložený vpravo (před akčními tlačítky) */
+  rightExtra?: React.ReactNode;
   /** Callback pro zavření chatu (pokud je zadán, přidá se tlačítko pro zavření) */
   onClose?: () => void;
   /** Jazyky pro přepínač jazyka */
@@ -81,6 +83,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   chatbotName,
   buttons = [],
   leftContent,
+  rightExtra,
   onClose,
   languages,
   selectedLanguage,
@@ -121,6 +124,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           <div className="flex items-center space-x-3">
             {/* Jazykové tlačítka ODSTRANĚNY - defaultně CZ */}
             
+            {/* Extra obsah vpravo (např. košík) */}
+            {rightExtra && <div>{rightExtra}</div>}
+
             {/* Akční tlačítka */}
             <div className="flex items-center space-x-2">
               {buttons.map((button, index) => (
