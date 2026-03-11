@@ -135,9 +135,9 @@ async function extractMedicineTable(
   problemName: string
 ): Promise<MedicineTable | null> {
   const { products, aloe, aloeProduct, merkaba } = pairingResults;
-  // Companion = Panacea (is_companion=true) + TČM wan (is_companion=false, ale EO Směsi flow ho nezobrazuje standardně)
+  // Companion = TČM produkty (is_companion=true) + Panacea (is_companion=true)
   const companionProducts = products
-    .filter(p => p.is_companion || p.matched_category === 'TČM - Tradiční čínská medicína')
+    .filter(p => p.is_companion)
     .map(p => ({
       name: p.matched_product_name,
       url: p.matched_product_url,

@@ -26,10 +26,11 @@ export interface PairedProduct {
   matched_product_url: string | null;
   matched_thumbnail: string | null;
   aloe_recommended: string;  // TEXT: "ano" nebo "ne" nebo null
-  aloe_product: string | null;  // Konkrétní název/kód Aloe produktu z leceni (např. "Aloe Vera Immunity")
+  aloe_product?: string | null;  // Konkrétní název/kód Aloe produktu z leceni (např. "Aloe Vera Immunity")
   merkaba_recommended: string;  // TEXT: "ano" nebo "ne" nebo null
   combination_name: string;
-  is_companion: boolean;  // true = doprovodný produkt (Panacea), false = hlavní (Prawtein, TČM wan)
+  is_companion: boolean;  // true = doprovodný produkt (TČM wan), false = hlavní (Prawtein)
+  matched_problem?: string;  // Problém, pro který byla kombinace nalezena
 }
 
 /**
