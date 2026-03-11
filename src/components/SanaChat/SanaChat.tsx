@@ -947,22 +947,45 @@ const ProductCalloutButton: React.FC<{
         openBewitProductLink(url, token, '_blank');
     };
 
+    // Pouze public varianty, každá s unikátním klíčem (add_to_cart_id nebo index)
     const publicVariants = React.useMemo(() => {
         if (!variantsJson || !Array.isArray(variantsJson)) return [];
-        const seen = new Set<string>();
         return variantsJson
-            .filter(v => v.accessibility && v.accessibility.some(a => a === 'public'))
-            .filter(v => {
-                const key = v.variant_name ?? '';
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            });
+            .filter((v: any) => v.accessibility && v.accessibility.includes('public'))
+            .map((v: any, idx: number) => ({
+                ...v,
+                _key: v.add_to_cart_id ?? String(idx),
+                _label: v.variant_name ?? `Varianta ${idx + 1}`,
+            }));
     }, [variantsJson]);
 
-    const displayPrice = React.useMemo(() => {
-        return price != null ? Number(price) || null : null;
-    }, [price]);
+    // Defaultně nejlevnější varianta podle typu zákazníka
+    const cheapestVariantKey = React.useMemo(() => {
+        if (publicVariants.length === 0) return null;
+        const type = (customerType ?? 'A').toUpperCase();
+        const priceField = type === 'B' ? 'price_b' : type === 'C' ? 'price_c' : 'price_a';
+        let cheapest = publicVariants[0];
+        for (const v of publicVariants) {
+            const vPrice = v[priceField] != null ? Number(v[priceField]) : Infinity;
+            const cheapestPrice = cheapest[priceField] != null ? Number(cheapest[priceField]) : Infinity;
+            if (vPrice < cheapestPrice) cheapest = v;
+        }
+        return cheapest._key;
+    }, [publicVariants, customerType]);
+
+    const activeVariantKey = selectedVariantName ?? cheapestVariantKey ?? null;
+    const activeVariant = publicVariants.find((v: any) => v._key === activeVariantKey) ?? publicVariants[0] ?? null;
+
+    // Cena vybrané varianty podle typu zákazníka
+    const variantPrice = React.useMemo(() => {
+        if (!activeVariant) return price != null ? Number(price) || null : null;
+        const type = (customerType ?? 'A').toUpperCase();
+        let p: number | null | undefined;
+        if (type === 'B') p = activeVariant.price_b;
+        else if (type === 'C') p = activeVariant.price_c;
+        else p = activeVariant.price_a;
+        return p != null ? Number(p) || null : (price != null ? Number(price) || null : null);
+    }, [activeVariant, customerType, price]);
 
     return (
         <div
@@ -1015,32 +1038,32 @@ const ProductCalloutButton: React.FC<{
                 )}
             </div>
 
-            {/* Cena vpravo */}
-            {(displayPrice != null && displayPrice > 0) && (
-                <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-1">
-                    {publicVariants.length > 1 && (
-                        <select
-                            title="Vyberte variantu produktu"
-                            className="text-xs border border-slate-200 rounded-lg px-1.5 py-0.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-blue-400 max-w-[90px]"
-                            value={selectedVariantName ?? publicVariants[0]?.variant_name ?? ''}
-                            onChange={e => { e.stopPropagation(); setSelectedVariantName(e.target.value); }}
-                            onClick={e => e.stopPropagation()}
-                        >
-                            {publicVariants.map(v => (
-                                <option key={v.variant_name ?? ''} value={v.variant_name ?? ''}>
-                                    {v.variant_name ?? '–'}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-                    {publicVariants.length === 1 && publicVariants[0].variant_name && (
-                        <span className="text-xs text-gray-400">{publicVariants[0].variant_name}</span>
-                    )}
+            {/* Dropdown pro výběr varianty + cena vybrané varianty */}
+            <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-1" onClick={e => e.stopPropagation()}>
+                {publicVariants.length > 1 && (
+                    <select
+                        title="Vyberte variantu produktu"
+                        className="text-xs border border-slate-200 rounded-lg px-1.5 py-0.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-blue-400 max-w-[120px]"
+                        value={activeVariantKey ?? ''}
+                        onChange={e => { e.stopPropagation(); setSelectedVariantName(e.target.value); }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {publicVariants.map((v: any) => (
+                            <option key={v._key} value={v._key}>
+                                {v._label}
+                            </option>
+                        ))}
+                    </select>
+                )}
+                {publicVariants.length === 1 && (
+                    <span className="text-xs text-gray-400">{publicVariants[0]._label}</span>
+                )}
+                {(variantPrice != null && variantPrice > 0) && (
                     <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-green-50 border border-green-200 text-xs font-semibold text-green-700 whitespace-nowrap">
-                        {displayPrice.toLocaleString('cs-CZ')} {currency || 'Kč'}
+                        {variantPrice.toLocaleString('cs-CZ')} {currency || 'Kč'}
                     </span>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Šipka */}
             <div className="text-bewit-blue opacity-30 group-hover:opacity-100 transition-opacity pr-1 flex-shrink-0">

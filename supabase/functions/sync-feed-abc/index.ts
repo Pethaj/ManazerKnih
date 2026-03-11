@@ -100,28 +100,64 @@ async function performSync(logId: number, supabase: any) {
   let processed = 0, inserted = 0, failed = 0;
 
   try {
+    // #region agent log - hypothesis A/B
+    console.log("HYPO_A_B: Start, waiting 40s for feed generation...");
+    // #endregion
+    
     console.log("Cekam 40s na vygenerovani feedu...");
     await new Promise(r => setTimeout(r, 40000));
 
+    // #region agent log - hypothesis B
+    console.log("HYPO_B: After 40s delay, fetching feed...");
+    // #endregion
+    
     console.log(`Stahuji: ${FEED_URL}`);
     const res = await fetch(FEED_URL, {
       headers: { accept: "application/xml", "User-Agent": "Supabase/1.0" }
     });
+    
+    // #region agent log - hypothesis B
+    console.log(`HYPO_B: Fetch response status=${res.status}, ok=${res.ok}`);
+    // #endregion
+    
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const xmlText = await res.text();
+    // #region agent log - hypothesis B
+    console.log(`HYPO_B: Feed fetched, length=${xmlText.length}`);
+    // #endregion
+    
     console.log(`Feed stazen: ${xmlText.length} znaku`);
     if (xmlText.length < 100) throw new Error("Feed prilis kratky");
 
     const parsed = parser.parse(xmlText);
     const itemsNode = parsed?.DATA?.ITEMS?.ITEM;
     const items = itemsNode ? (Array.isArray(itemsNode) ? itemsNode : [itemsNode]) : [];
+    
+    // #region agent log - hypothesis A/E
+    console.log(`HYPO_A_E: Found ${items.length} products in XML`);
+    // #endregion
+    
     console.log(`Nalezeno ${items.length} produktu`);
     if (items.length === 0) throw new Error("Zadne ITEM elementy");
 
     // Sestavit vsechny produkty najednou
     const allProducts: any[] = [];
+    const totalItems = items.length;
+    let progressIdx = 0;
+
     for (const item of items) {
+      progressIdx++;
+      if (progressIdx % 100 === 0 || progressIdx === totalItems) {
+        const pct = Math.round((progressIdx / totalItems) * 100);
+        console.log(`[PROGRESS] Parsovani: ${progressIdx}/${totalItems} (${pct}%)`);
+        
+        // #region agent log - real-time progress to DB
+        await supabase.from("sync_logs").update({
+          records_processed: progressIdx
+        }).eq("id", logId);
+        // #endregion
+      }
       try {
         const product_name = toStr(extractText(item.PRODUCTNAME));
         if (!product_name) { failed++; continue; }
@@ -197,22 +233,44 @@ async function performSync(logId: number, supabase: any) {
     }
 
     processed = allProducts.length;
+    // #region agent log - hypothesis E
+    console.log(`HYPO_E: Parsing complete, ${processed} products ready for upsert...`);
+    // #endregion
+    
     console.log(`Ukladam ${processed} produktu batch upsert...`);
 
     // Batch upsert po 100 - rychle, neprekroci timeout
     const batchSize = 100;
+    const totalBatches = Math.ceil(allProducts.length / batchSize);
     for (let i = 0; i < allProducts.length; i += batchSize) {
       const batch = allProducts.slice(i, i + batchSize);
+      const batchNum = Math.floor(i / batchSize) + 1;
+      
+      // #region agent log - hypothesis D
+      console.log(`HYPO_D: Upserting batch ${batchNum}/${totalBatches}, size=${batch.length}`);
+      // #endregion
+      
       const { error: upsertError } = await supabase
         .from('product_feed_abc')
         .upsert(batch, { onConflict: 'product_code', ignoreDuplicates: false });
 
       if (upsertError) {
-        console.error(`Batch ${Math.floor(i / batchSize) + 1} chyba:`, upsertError.message);
+        // #region agent log - hypothesis D
+        console.error(`HYPO_D: Batch ${batchNum} upsert ERROR: ${upsertError.message}`);
+        // #endregion
+        
+        console.error(`[PROGRESS] Ukladani batch ${batchNum}/${totalBatches} CHYBA:`, upsertError.message);
         failed += batch.length;
       } else {
         inserted += batch.length;
-        console.log(`Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(allProducts.length / batchSize)} OK`);
+        const pct = Math.round((batchNum / totalBatches) * 100);
+        console.log(`[PROGRESS] Ukladani: ${batchNum}/${totalBatches} (${pct}%) - ulozeno ${inserted}/${processed}`);
+        
+        // #region agent log - real-time progress to DB
+        await supabase.from("sync_logs").update({
+          records_inserted: inserted
+        }).eq("id", logId);
+        // #endregion
       }
     }
 
@@ -225,6 +283,10 @@ async function performSync(logId: number, supabase: any) {
     console.log(`HOTOVO! Zpracovano: ${processed}, Ulozeno: ${inserted}, Selhalo: ${failed}`);
 
   } catch (e: any) {
+    // #region agent log - hypothesis A/B/C/D/E
+    console.error(`HYPO_ALL: CRITICAL ERROR: ${e.message}, stack: ${e.stack}`);
+    // #endregion
+    
     console.error("Kriticka chyba:", e.message);
     await supabase.from("sync_logs").update({
       status: "error", finished_at: nowIso(),
